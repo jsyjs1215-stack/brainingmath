@@ -568,9 +568,13 @@ button,input,textarea,select{font-family:inherit;}
       <label><input type="checkbox" id="sms-chk"> 📱 학부모 문자 발송 완료</label>
     </div>
   </div>
+  <!-- 저장하지 않은 임시저장 내용을 불러왔을 때만 표시되는 안내줄 -->
+  <div id="em-draft-bar" style="display:none;align-items:center;gap:6px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:6px 9px;margin-bottom:8px;font-size:11px;color:#92400E;">
+    <i class="ti ti-device-floppy"></i> 저장 전에 입력하던 내용을 불러왔어요 — 확인 후 저장해주세요
+  </div>
   <!-- 오늘 숙제 - 월말평가 여부 상관없이 항상 표시 -->
   <div class="fg"><label class="flbl">오늘 숙제 <small style="font-weight:400;color:var(--pri2);">→ 다음 수업에 직전숙제로 자동 표시</small></label>
-    <input class="fi" id="em-hw" placeholder="오늘 숙제 내용" autocomplete="off">
+    <input class="fi" id="em-hw" placeholder="오늘 숙제 내용" autocomplete="off" oninput="saveEmDraft()">
   </div>
   <!-- 월말평가 (hidden - 상단 교재선택의 월말평가 옵션으로 이동) -->
   <div class="fg" style="display:none;">
@@ -597,7 +601,7 @@ button,input,textarea,select{font-family:inherit;}
   </div>
   <!-- 특이사항 -->
   <div class="fg"><label class="flbl">오늘 특이사항 <small style="font-weight:400;color:var(--muted);">→ 다음 수업에 자동 표시</small></label>
-    <textarea class="fta" id="em-note" placeholder="없으면 비워두세요"></textarea>
+    <textarea class="fta" id="em-note" placeholder="없으면 비워두세요" oninput="saveEmDraft()"></textarea>
   </div>
   <!-- 중요내용: 특이사항과 별도 입력. 확인(✓) 전까지 다음 수업들에도 계속 표시 -->
   <div class="fg"><label class="flbl">📌 중요내용 <small style="font-weight:400;color:var(--muted);">→ 확인 버튼 누르기 전까지 다음 수업들에도 계속 표시</small></label>
@@ -1845,7 +1849,9 @@ function populateSchGrid(sid){
     html+=`<tr><td class="day-col">${day}</td>`;
     SLOTS.forEach(sl=>{
       const checked=(D.SC[day]?.[sl.id]||[]).includes(sid)?'checked':'';
-      html+=`<td><input type="checkbox" id="sg-${day}-${sl.id}" ${checked}></td>`;
+      // 체크할 때마다 아래 "요일별 고정 설정"이 바로 갱신되도록 함 — 신규 등록 중에도 저장하지 않고
+      // 바로 그 자리에서 시간대별 담임(고학년) 등을 지정할 수 있게 하기 위함
+      html+=`<td><input type="checkbox" id="sg-${day}-${sl.id}" ${checked} onchange="renderRMDayDefList(RT)"></td>`;
     });
     html+='</tr>';
   });
@@ -3297,6 +3303,40 @@ function rMku(){
   return out;
 }
 
+// ═══ 자동 임시저장(Draft) ═══════════════════════════
+// 수업입력 모달에서 오늘숙제/특이사항을 타이핑하는 도중 실수로 탭을 이동하거나 창을 닫아도,
+// 저장 버튼을 아직 안 눌렀다는 이유로 그 내용이 통째로 사라지지 않도록 입력할 때마다
+// 기기 로컬(localStorage)에 임시로 남겨두고, 같은 기록을 다시 열면 자동으로 되살려준다.
+// 실제 저장(saveRec)이 성공하면 그 시점의 임시저장은 지운다.
+function emDraftKey(sid,date,slot){ return `br5_draft_${sid}|${date}|${slot}`; }
+let _emDraftTimer=null;
+function saveEmDraft(){
+  if(!ET)return;
+  clearTimeout(_emDraftTimer);
+  _emDraftTimer=setTimeout(()=>{
+    const hw=document.getElementById('em-hw')?.value||'';
+    const note=document.getElementById('em-note')?.value||'';
+    const key=emDraftKey(ET.sid,ET.date,ET.slot);
+    if(!hw&&!note){localStorage.removeItem(key);return;}
+    try{localStorage.setItem(key,JSON.stringify({hw,note,ts:Date.now()}));}catch(e){}
+  },400);
+}
+function clearEmDraft(sid,date,slot){
+  try{localStorage.removeItem(emDraftKey(sid,date,slot));}catch(e){}
+}
+// 저장 안 된 임시저장 내용이 있으면 불러와서 입력칸에 채워주고, 상단에 안내 표시
+function restoreEmDraftIfAny(sid,date,slot){
+  let draft=null;
+  try{draft=JSON.parse(localStorage.getItem(emDraftKey(sid,date,slot))||'null');}catch(e){}
+  const bar=document.getElementById('em-draft-bar');
+  if(!draft){if(bar)bar.style.display='none';return;}
+  const hwEl=document.getElementById('em-hw'),noteEl=document.getElementById('em-note');
+  // 임시저장 내용이 지금 화면에 불러온 저장값과 실제로 다를 때만 되살림(같으면 굳이 알릴 필요 없음)
+  if(draft.hw===(hwEl?.value||'')&&draft.note===(noteEl?.value||'')){if(bar)bar.style.display='none';return;}
+  if(hwEl&&draft.hw)hwEl.value=draft.hw;
+  if(noteEl&&draft.note)noteEl.value=draft.note;
+  if(bar)bar.style.display='flex';
+}
 // ═══ EDIT MODAL ═══════════════════════════
 function openEdit(sid,slot,date){
   const dt0=new Date(date+'T00:00:00');
@@ -3497,6 +3537,8 @@ function openEdit(sid,slot,date){
   }
   // Show important notes
   renderImpNotesInModal(sid);
+  // 저장 안 하고 나갔던 임시저장 내용이 있으면 되살림 (방금 위에서 채운 저장값보다 우선)
+  restoreEmDraftIfAny(sid,date,slot);
   openM('em');
 }
 
@@ -3777,6 +3819,7 @@ function saveRec(){
     s._waUpdatedAt=Date.now();
   }
   SD();
+  clearEmDraft(sid,date,ET.slot);
   closeM('em');renderAll();toast('저장되었습니다 ✓');
 }
 function unlockDayDef(){
@@ -4971,26 +5014,32 @@ function progSeriesOptsFor(group){
   const keys=group==='고학년'?['쎈','개념원리','RPM','체크체크','개념연산SOS','수학의바이블','개념완성','최상위수학']:['아리수','아이비츠','개념완성','최상위수학','자체교재'];
   return '<option value="">교재 선택</option>'+keys.map(k=>`<option>${k}</option>`).join('');
 }
+// 학생 등록/수정 화면의 시간표 체크칸(#sg-요일-슬롯)에서, 아직 저장하지 않았어도 지금 화면에서
+// 체크돼 있는 슬롯을 바로 읽어옴 — 신규 등록 중에도(저장 전) 그 자리에서 시간대별 담임(고학년)
+// 등을 설정할 수 있도록, D.SC(저장된 값)가 아니라 항상 이 화면의 실시간 체크 상태를 기준으로 함
+function rmCheckedSlots(day){
+  return SLOTS.filter(sl=>document.getElementById(`sg-${day}-${sl.id}`)?.checked);
+}
 function renderRMDayDefList(sid){
   const el=document.getElementById('rm-daydef-list');if(!el)return;
   // 신규 등록 중(sid 없음)에는 지금 폼에서 고른 그룹을, 기존 학생 수정 중에는 그 학생의 그룹을 기준으로
   // 교재 옵션(저학년/고학년)을 고름
   const rmGroup=sid?(gS(sid)?.group||'저학년'):(document.getElementById('rm-group')?.value||ActiveGroup);
   const defs=sid?getAllDayDefs(sid):{};
-  const stuDays=sid?DAYS.filter(d=>activeDaySids(d).includes(sid)):DAYS;
+  const stuDays=DAYS.filter(d=>rmCheckedSlots(d).length>0);
   const showDays=stuDays.length>0?stuDays:DAYS;
   let html='';
   showDays.forEach(day=>{
     const dayData=defs[day]||{};
-    // 이 요일에 이 학생이 들어있는 슬롯 파악
-    const daySlotsReg=SLOTS.filter(sl=>(D.SC[day]?.[sl.id]||[]).includes(sid));
+    // 이 요일에 지금 체크돼 있는 슬롯 파악 (저장 전이라도 실시간 반영)
+    const daySlotsReg=rmCheckedSlots(day);
     const useSlots=daySlotsReg.length>=2; // 2개 이상 시간대 있으면 슬롯별 설정 가능
     const hasSlot=hasSlotDefs(sid,day);
     const modeSlot=hasSlot||useSlots; // 슬롯별 설정 여부
     html+=`<div style="border:1px solid var(--bdr);border-radius:var(--rs);padding:9px 11px;margin-bottom:9px;background:#FAFAFA;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
         <div style="font-size:13px;font-weight:700;color:var(--pri2);">${day}요일 ${daySlotsReg.length?'('+daySlotsReg.map(sl=>sl.label).join(', ')+')':''}</div>
-        ${daySlotsReg.length>=2?`<button onclick="toggleSlotMode('${sid}','${day}')" style="font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--bdr);background:${modeSlot?'#DBEAFE':'#F1F5F9'};color:${modeSlot?'var(--pri2)':'var(--muted)'};cursor:pointer;" id="rmdd-modeBtn-${day}">${modeSlot?'⏱ 시간대별 설정 ON':'⏱ 시간대별 설정'}</button>`:''}
+        ${(daySlotsReg.length>=2&&RT)?`<button onclick="toggleSlotMode(RT,'${day}')" style="font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--bdr);background:${modeSlot?'#DBEAFE':'#F1F5F9'};color:${modeSlot?'var(--pri2)':'var(--muted)'};cursor:pointer;" id="rmdd-modeBtn-${day}">${modeSlot?'⏱ 시간대별 설정 ON':'⏱ 시간대별 설정'}</button>`:''}
       </div>`;
     if(modeSlot&&daySlotsReg.length>=2){
       // 시간대별 설정
@@ -5028,7 +5077,7 @@ function renderRMDayDefList(sid){
   el.innerHTML=html||'<div style="font-size:12px;color:var(--muted);">시간표 저장 후 요일이 표시됩니다</div>';
   // datalist 채우기
   showDays.forEach(day=>{
-    const daySlotsReg=SLOTS.filter(sl=>(D.SC[day]?.[sl.id]||[]).includes(sid));
+    const daySlotsReg=rmCheckedSlots(day);
     const useSlots=hasSlotDefs(sid,day)||daySlotsReg.length>=2;
     if(useSlots&&daySlotsReg.length>=2){
       daySlotsReg.forEach(sl=>updateRMDDCurr(day,sl.id));
@@ -5051,7 +5100,7 @@ function toggleSlotMode(sid,day){
     if(!D.dayDefs[sid][day])D.dayDefs[sid][day]={};
     if(!D.dayDefs[sid][day].slots)D.dayDefs[sid][day].slots={};
     // 기존 공통 설정이 있으면 첫 슬롯에 복사 (담임도 함께)
-    const firstSlot=SLOTS.find(sl=>(D.SC[day]?.[sl.id]||[]).includes(sid));
+    const firstSlot=rmCheckedSlots(day)[0];
     if(firstSlot&&(dayData.subject||dayData.curriculum||dayData.teacher)){
       D.dayDefs[sid][day].slots[firstSlot.id]={subject:dayData.subject||'',curriculum:dayData.curriculum||'',teacher:dayData.teacher||''};
     }
