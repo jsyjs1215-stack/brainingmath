@@ -1959,10 +1959,12 @@ function getSlotCurr(r,slot){return(r?.slotData&&r.slotData[slot]?.curriculum)||
 // 슬롯별 교재/진도 쓰기
 function setSlotSubj(r,slot,val){if(!r.slotData)r.slotData={};if(!r.slotData[slot])r.slotData[slot]={};r.slotData[slot].sessionSubject=val;}
 function setSlotCurr(r,slot,val){if(!r.slotData)r.slotData={};if(!r.slotData[slot])r.slotData[slot]={};r.slotData[slot].curriculum=val;}
-// 레코드가 실제 의미 있는 데이터를 가지는지 확인
+// 레코드가 실제 의미 있는 데이터를 가지는지 확인 — 자동 정리(cleanEmptyRecords 등)에서
+// "비어있다"고 판단해 지워도 되는 기록인지 가리는 유일한 기준. 여기 빠진 필드가 있으면 그
+// 필드만 채워진 기록은 매 새로고침마다 조용히 삭제된다(수업태도·반이동·재시험 여부도 포함).
 function hasRealData(r){
   if(!r)return false;
-  return !!(r.todayHw||r.note||(r.attend&&r.attend!=='출석')||(r.hwStatus&&r.hwStatus!=='완료')||r.unitTest||r.monthlyEval||r.curriculum||r.sessionSubject||r.newBook||(r._skipSlots&&r._skipSlots.length>0)||(r._extraSlots&&r._extraSlots.length>0)||r.sagoBook||r.sagoUnit||r.sagoPage||r.sagoUnderstand);
+  return !!(r.todayHw||r.note||(r.attend&&r.attend!=='출석')||(r.hwStatus&&r.hwStatus!=='완료')||r.unitTest||r.monthlyEval||r.curriculum||r.sessionSubject||r.newBook||(r._skipSlots&&r._skipSlots.length>0)||(r._extraSlots&&r._extraSlots.length>0)||r.sagoBook||r.sagoUnit||r.sagoPage||r.sagoUnderstand||(r.attitude&&r.attitude!==80)||r.classMove||r._retest);
 }
 // 사고력: 가장 최근에 "오늘 진행 교재"가 실제로 입력된 기록 탐색 (교재/단원은 다음 수업에 이어서
 // 보여주지만, 페이지·이해도는 그날그날 다르므로 carry-forward하지 않음 — 새로 입력받음)
@@ -2560,7 +2562,18 @@ function dismissNotice(id){
 // ═══ NAVIGATION ═══════════════════════════
 function setTab(t){
   TAB=t;
-  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',['full','sch','ovr','his','grade','mku','book','pct','report','hov','admin'][i]===t));
+  // ⚠ 예전엔 여기서 버튼 순서를 손으로 다시 적은 배열(['full','sch','ovr','his',...])과 실제 HTML의
+  // 버튼 순서(전체시간표·수업입력·한눈에보기·진도체크·학생기록·성적관리·보충관리·...)를 위치(인덱스)로
+  // 맞춰서 비교했는데, 실제 HTML 순서와 이 배열 순서가 어긋나 있었다(4번째 버튼은 실제로 "진도체크"인데
+  // 배열엔 "학생기록"이 4번째로 적혀 있는 식). 그래서 "진도체크"를 눌러도 화면은 정확히 진도체크로
+  // 바뀌지만(TAB 값 자체는 맞게 저장됨), 하이라이트(활성 표시)만 엉뚱하게 "보충관리" 버튼에 켜지는
+  // 등 눈으로 보기에 "엉뚱한 탭이 눌린 것처럼" 보이는 버그가 있었다. 순서에 의존하지 않도록, 각
+  // 버튼이 실제로 어떤 탭을 여는지(onclick="setTab('...')") 그 자체에서 직접 읽어서 비교한다 —
+  // 버튼 순서가 나중에 또 바뀌어도 이 비교는 절대 어긋나지 않는다.
+  document.querySelectorAll('.nb').forEach(b=>{
+    const m=(b.getAttribute('onclick')||'').match(/setTab\('([^']+)'\)/);
+    b.classList.toggle('on', !!m&&m[1]===t);
+  });
   const showDay=t==='sch'||t==='ovr';
   document.getElementById('day-bar').style.display=showDay?'flex':'none';
   document.getElementById('ov-strip').style.display=showDay?'flex':'none';
@@ -10755,16 +10768,8 @@ function startCloudListen() {
   db.ref('braining').on('value', snapshot => {
     const data = snapshot.val();
     if (!data) {
-      // 데이터 없으면 내 로컬 데이터로 초기화
-      db.ref('braining').update(JSON.parse(JSON.stringify({
-        S:D.S, SC:D.SC, R:D.R, C:D.C,
-        notices:D.notices, makeups:D.makeups, dismissedMakeups:D.dismissedMakeups||[], closureDays:D.closureDays||[],
-        dayDefs:D.dayDefs||{}, acadSessions:D.acadSessions||null,
-        SCH:D.SCH||[], parentConsult:D.parentConsult||[],
-        tomaScores:D.tomaScores||[], meScores:D.meScores||[], slots:SLOTS_LEGACY, slotsAug:SLOTS_AUG, tomaDist:D.tomaDist||{}, pendingMoves:D.pendingMoves||[], scMeta:D.scMeta||{},
-        tombstones:D.tombstones||{}, recentRemovals:D.recentRemovals||[],
-        highClassNames:D.highClassNames||{},
-      })));
+      // 데이터 없으면 내 로컬 데이터로 초기화 — 사고력 학생은 여기서도 제외해야 함(아래 buildCoursePayload 참고)
+      db.ref('braining').update(JSON.parse(JSON.stringify(buildCoursePayload())));
       return;
     }
 
@@ -10805,10 +10810,31 @@ function startCloudListen() {
       const delStuSet = D.tombstones?.students || {};
       const allIds = Object.keys(localById).concat(Object.keys(serverById).filter(id => !(id in localById)))
         .filter(id => delStuSet[id] == null);
+      // 🔀 이름이 우연히 같은 서로 다른 두 학생(사고력 학생 vs 교과 학생)일 수 있다. 사고력
+      // 클라우드와 교과 클라우드는 서로 다른 타이밍에 연결되는데, 사고력 데이터가 먼저 도착하면
+      // "이름 겹침 감지(rebuildSagoAlias)"가 아직 로딩되지 않은 교과 학생 목록을 기준으로 판단하는
+      // 바람에 겹침을 못 잡고, 별칭("이름(사고력)") 없이 원래 이름 그대로 D.S에 들어가 버린다.
+      // 그 상태에서 교과 데이터가 도착하면, 여기 병합 로직이 "같은 id = 같은 학생"으로 오인해서
+      // 완전히 다른 두 사람의 기록을 한 레코드로 섞어버렸다 — 이게 "교과에서 입력한 내용이
+      // 사고력에 보이거나, 배정한 학생이 갑자기 안 보이는" 버그의 실제 원인이었다. 교과 클라우드
+      // ('braining'의 S)에는 애초에 사고력 학생이 존재할 수 없으므로, 로컬에 이미 있는 쪽이
+      // 사고력 학생이면 이건 절대 같은 사람이 아니다 — 병합하지 않고 사고력 쪽을 즉시
+      // "이름(사고력)"로 재배정해서 분리한다.
+      // ⚠ 이미 과거에 섞여버린 그 날짜의 수업기록(D.R)까지 자동으로 되돌리진 못한다(어느 필드가
+      // 누구 것이었는지 코드로는 구분할 수 없어서, 잘못 추측하면 오히려 더 망가뜨릴 위험이 있음) —
+      // 지금 이 시점부터 더 이상 섞이지 않도록 막는 것까지가 안전하게 자동으로 할 수 있는 범위다.
+      const reAliased = [];
       D.S = allIds.map(id => {
         const l = localById[id], sv = serverById[id];
         if (!l) return sv;
         if (!sv) return l;
+        if ((l.group||'저학년')==='사고력') {
+          const newId = mintSagoDisplayId(id, cid => localById[cid]!=null || serverById[cid]!=null || !!SAGO_ID_ALIAS_REV[cid]);
+          SAGO_ID_ALIAS[id]=newId; SAGO_ID_ALIAS_REV[newId]=id;
+          try{ localStorage.setItem('br5_sago_alias', JSON.stringify(SAGO_ID_ALIAS)); }catch(e){}
+          reAliased.push(Object.assign({}, l, {id:newId}));
+          return sv;
+        }
         // 같은 학생이면: 실제로 더 최근에 수정된 쪽을 기준으로 병합
         // (무조건 로컬 우선이면, 다른 선생님이 방금 "오답풀이 완료"를 눌러도
         //  내 기기의 오래된 "대기중" 상태가 계속 이겨서 절대 반영이 안 되는 문제가 있었음)
@@ -10896,6 +10922,7 @@ function startCloudListen() {
         }
         return merged;
       });
+      if (reAliased.length) D.S = D.S.concat(reAliased);
     }
     if (data.SC && Object.keys(data.SC).length > 0) {
       // ⚠ 시간표(D.SC) 병합 — "합집합" 방식은 두 선생님이 각자 다른 학생을 추가하는 경우는 안전하지만,
@@ -11116,35 +11143,66 @@ function disconnectCloud() {
 // 반환값: 실제로 서버에 저장 요청을 보냈으면 그 Promise, 연결이 없거나 보내지 못했으면 null.
 // (연동 저장 확인 기능이 "정말 올라갔는지"를 이 Promise로 확인한다 — 기존 호출부들은 반환값을
 //  쓰지 않으므로 동작은 예전과 완전히 동일하다.)
+// ⚠ 사고력 학생은 사고력 클라우드에서 받아와 이 기기의 D.S/D.R 등에 함께 병합돼 있지만,
+// 저학년·고학년 클라우드('braining')에는 절대 들어가면 안 된다. 예전엔 이 클라우드로 올리는
+// 두 곳(정기 저장·최초 빈 클라우드 채우기) 모두 D.S/D.R을 필터링 없이 통째로 올렸기 때문에,
+// 저장할 때마다 사고력 학생 전체(명단·시간표·수업기록)가 함께 'braining'에 계속 쌓였다.
+// 그러면 다른 기기가 이 'braining' 데이터를 받을 때 사고력 학생을 "교과 클라우드에서 온 학생"
+// 으로 다시 병합하게 되고, 두 클라우드가 서로 다른 타이밍에 도착하는 문제(사고력↔교과 이름
+// 충돌 버그)와 맞물려 "저학년에서 입력한 내용이 사고력 화면에 보인다"는 증상으로 이어졌다.
+// 사고력 클라우드(buildSagoPayload)가 이미 반대 방향으로 정확히 이렇게 필터링하고 있으므로,
+// 여기서도 똑같이 사고력 학생을 제외한 페이로드를 만드는 공용 함수로 두 곳 모두에서 쓴다.
+function buildCoursePayload(){
+  const courseS = (D.S||[]).filter(s=>s&&(s.group||'저학년')!=='사고력');
+  const courseSet = new Set(courseS.map(s=>s.id));
+  const courseSC = {};
+  Object.keys(D.SC||{}).forEach(day=>{
+    courseSC[day]={};
+    Object.keys(D.SC[day]||{}).forEach(slotId=>{
+      courseSC[day][slotId]=(D.SC[day][slotId]||[]).filter(sid=>courseSet.has(sid));
+    });
+  });
+  const courseR = {};
+  Object.entries(D.R||{}).forEach(([date,dayRec])=>{
+    const out={};
+    Object.entries(dayRec||{}).forEach(([sid,rec])=>{ if(courseSet.has(sid))out[sid]=rec; });
+    if(Object.keys(out).length)courseR[date]=out;
+  });
+  const courseDayDefs={}, courseScMeta={};
+  Object.entries(D.dayDefs||{}).forEach(([sid,v])=>{ if(courseSet.has(sid))courseDayDefs[sid]=v; });
+  Object.entries(D.scMeta||{}).forEach(([sid,v])=>{ if(courseSet.has(sid))courseScMeta[sid]=v; });
+  const pickCourse=(arr,sidField)=>(arr||[]).filter(x=>x&&courseSet.has(x[sidField]));
+  return {
+    S: courseS,
+    SC: courseSC,
+    R: courseR,
+    C: (D.C||[]).filter(c=>c&&courseSet.has(c.name)),
+    notices: D.notices,
+    makeups: pickCourse(D.makeups,'studentId'),
+    dismissedMakeups: pickCourse(D.dismissedMakeups||[],'sid'),
+    closureDays: D.closureDays||[],
+    dayDefs: courseDayDefs,
+    acadSessions: D.acadSessions||null,
+    SCH: D.SCH||[],
+    parentConsult: pickCourse(D.parentConsult||[],'sid'),
+    tomaScores: pickCourse(D.tomaScores||[],'sid'),
+    meScores: pickCourse(D.meScores||[],'sid'),
+    tomaDist: D.tomaDist||{},
+    pendingMoves: pickCourse(D.pendingMoves||[],'sid'),
+    scMeta: courseScMeta,
+    tombstones: D.tombstones||{},
+    recentRemovals: D.recentRemovals||[],
+    highClassNames: D.highClassNames||{},
+    slots: SLOTS_LEGACY,
+    slotsAug: SLOTS_AUG,
+  };
+}
 function pushCloudNow() {
   if (!(cloudEnabled && db)) return null;
   lastPush = Date.now();
   try {
     // set() 대신 update()로 각 필드만 업데이트 → 다른 선생님 데이터 덮어쓰기 방지
-    const payload = JSON.parse(JSON.stringify({
-      S: D.S,
-      SC: D.SC,
-      R: D.R,
-      C: D.C,
-      notices: D.notices,
-      makeups: D.makeups,
-      dismissedMakeups: D.dismissedMakeups||[],
-      closureDays: D.closureDays||[],
-      dayDefs: D.dayDefs||{},
-      acadSessions: D.acadSessions||null,
-      SCH: D.SCH||[],
-      parentConsult: D.parentConsult||[],
-      tomaScores: D.tomaScores||[],
-      meScores: D.meScores||[],
-      tomaDist: D.tomaDist||{},
-      pendingMoves: D.pendingMoves||[],
-      scMeta: D.scMeta||{},
-      tombstones: D.tombstones||{},
-      recentRemovals: D.recentRemovals||[],
-      highClassNames: D.highClassNames||{},
-      slots: SLOTS_LEGACY,
-      slotsAug: SLOTS_AUG,
-    }));
+    const payload = JSON.parse(JSON.stringify(buildCoursePayload()));
     const p = db.ref('braining').update(payload);
     // 아무도 결과를 안 볼 때도 "처리되지 않은 오류(unhandled rejection)"가 뜨지 않도록 한 번 받아둔다.
     // (아래에서 그대로 반환하는 p 자체는 여전히 실패를 알려주므로, 연동 저장 확인에는 영향 없음)
@@ -11604,11 +11662,32 @@ function init(){
   // 병합 시: 가장 최근에 수정된(_updatedAt) 것을 기준으로 하되, 비어있는 필드는 다른 중복 항목의 값으로 채움.
   {
     const byId={};
+    const reAliasedSago=[]; // 사고력↔교과 이름 충돌로 즉시 재배정된 사고력 학생 (아래에서 D.S에 별도로 추가)
+    const dupIds=new Set(); // 진짜(동명이인일 수 있는) 중복만 여기 기록 — 알림 문구용
     let dupFound=false;
     D.S.forEach(st=>{
       if(!st||!st.id)return;
       if(!byId[st.id]){byId[st.id]=st;return;}
+      // 🔀 겹치는 두 항목 중 하나가 사고력(group='사고력'), 다른 하나가 교과(저학년/고학년)면
+      // 이건 "우연히 같은 이름" 여부를 알 수 없어 확인이 필요한 진짜 동명이인이 아니라, 두 클라우드가
+      // 서로 다른 타이밍에 연결되며 별칭 없이 같은 id를 먼저 차지해버린 것으로 구조적으로 확실하다
+      // (교과 데이터에는 애초에 사고력 학생이 존재할 수 없음). 아래 일반 "합치고 경고" 경로로 보내지
+      // 않고, 사고력 쪽을 여기서 바로 "이름(사고력)"으로 재배정해서 분리한다.
+      {
+        const existingIsSago=(byId[st.id].group||'저학년')==='사고력';
+        const curIsSago=(st.group||'저학년')==='사고력';
+        if(existingIsSago!==curIsSago){
+          const sagoEntry=existingIsSago?byId[st.id]:st;
+          const rawId=st.id;
+          const newId=mintSagoDisplayId(rawId, cid=>!!byId[cid]||!!SAGO_ID_ALIAS_REV[cid]);
+          SAGO_ID_ALIAS[rawId]=newId; SAGO_ID_ALIAS_REV[newId]=rawId;
+          reAliasedSago.push(Object.assign({}, sagoEntry, {id:newId}));
+          if(existingIsSago){ byId[st.id]=st; } // 교과 쪽이 원래 이름을 그대로 씀
+          return;
+        }
+      }
       dupFound=true;
+      dupIds.add(st.id);
       const existing=byId[st.id];
       const existingTs=existing._updatedAt||0, curTs=st._updatedAt||0;
       const newer = curTs>=existingTs?st:existing;
@@ -11684,6 +11763,16 @@ function init(){
       }
       byId[st.id]=merged;
     });
+    if(dupFound||reAliasedSago.length){
+      D.S=Object.values(byId);
+      if(reAliasedSago.length){
+        // 사고력↔교과 이름 충돌은 구조적으로 확실한 분리라(교과 클라우드엔 사고력 학생이 있을 수
+        // 없음) 동명이인 여부를 사용자에게 확인받을 필요 없이 그대로 반영한다.
+        D.S=D.S.concat(reAliasedSago);
+        try{ localStorage.setItem('br5_sago_alias', JSON.stringify(SAGO_ID_ALIAS)); }catch(e){}
+      }
+      SD_local();
+    }
     if(dupFound){
       // ⚠️ 매우 중요: 이름이 같은 두 항목이 실제로는 "서로 다른 두 학생"일 수 있음
       // (예: 다른 선생님 기기에서 동시에 각자 다른 아이를 같은 이름으로 등록한 경우).
@@ -11691,9 +11780,7 @@ function init(){
       // 무엇보다 그동안의 수업 기록(숙제·출결·성적 등)은 애초에 "이름"으로만 저장되기 때문에
       // 두 학생의 기록이 이미 서로 뒤섞여 있었을 수 있음. 조용히 넘어가지 않고 반드시 알려서
       // 실제로 다른 아이인지 확인하고, 다르다면 이름을 구분(예: "김민준(2)")해달라고 요청함.
-      const dupNames=Object.keys(byId).filter(id=>D.S.filter(s=>s.id===id).length>1);
-      D.S=Object.values(byId);
-      SD_local();
+      const dupNames=[...dupIds];
       const nameList=dupNames.length?dupNames.join(', '):'(이름 확인 필요)';
       setTimeout(()=>{
         alert(`⚠️ 같은 이름의 학생이 중복으로 등록되어 있어 자동으로 합쳐졌습니다: ${nameList}\n\n` +
@@ -11775,13 +11862,17 @@ function init(){
   // 상관없이 통째로 삭제되어서, 보충예약 저장 직후에는 수업입력에 잘 보이다가 앱을 껐다 켜면
   // (또는 다른 기기에서 새로 열면) 조용히 사라지는 버그였음. 이제는 미래 날짜라도 실제 내용이
   // 있으면(=isEmpty가 아니면) 지우지 않는다 — 진짜 빈 레코드만 날짜와 상관없이 정리한다.
+  // ⚠ 이 "비어있는지" 판단을 여기서 따로 손으로 다시 쓰다 보니, 사고력 진도(sagoBook/sagoUnit/
+  // sagoPage/sagoUnderstand)가 나중에 추가됐을 때 이 목록에 반영을 안 해서, 사고력 진도만 입력하고
+  // 숙제·특이사항은 안 건드린 기록이 새로고침/재접속마다 "빈 기록"으로 오인되어 조용히 삭제되고
+  // 있었다(사고력 선생님 입장에선 "입력한 진도가 자꾸 사라진다"로 보임). hasRealData()가 이미
+  // 모든 필드를 다 아는 유일한 기준이므로, 여기서도 그 함수를 그대로 써서 두 기준이 어긋나지 않게 한다.
   let needClean=false;
   Object.keys(D.R||{}).forEach(date=>{
     if(!D.R[date])return;
     Object.keys(D.R[date]).forEach(sid=>{
       const r=D.R[date][sid];if(!r)return;
-      const isEmpty=!r.todayHw&&!r.note&&(!r.attend||r.attend==='출석')&&(!r.hwStatus||r.hwStatus==='완료')&&!r.unitTest&&!r.monthlyEval&&!r.curriculum&&!r.sessionSubject&&(r.attitude===80||!r.attitude)&&(!r._skipSlots||r._skipSlots.length===0)&&(!r._extraSlots||r._extraSlots.length===0);
-      if(isEmpty){delete D.R[date][sid];needClean=true;}
+      if(!hasRealData(r)){delete D.R[date][sid];needClean=true;}
     });
     if(D.R[date]&&Object.keys(D.R[date]).length===0){delete D.R[date];needClean=true;}
   });
