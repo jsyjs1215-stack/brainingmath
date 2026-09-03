@@ -11175,25 +11175,46 @@ function SD_local() {
 }
 
 // Auto-reconnect on init
+// 🔗 저학년/고학년 기본 연결(main Firebase) — 예전엔 "설정하기" 화면에서 원장님이 설정값을
+// 복사해 다른 선생님 화면에 직접 붙여넣어야만 연동이 시작됐음(사고력과 달리 코드에 미리
+// 고정돼 있지 않았음). 이 수동 복사·붙여넣기 과정에서 글자가 깨지거나 일부만 복사되거나
+// 아예 설정을 안 하고 넘어가는 일이 잦아 "선생님끼리 연동이 안 된다"는 문제로 이어졌다.
+// 그래서 사고력(SAGO_FIREBASE_CONFIG)과 똑같은 방식으로 기본값을 코드에 고정해뒀다 —
+// 이제 GitHub 주소로 접속하기만 하면 별도 설정 없이 자동으로 같은 클라우드에 연결된다.
+// (예전에 설정창에서 직접 다른 값을 붙여넣어 localStorage에 저장해둔 기기가 있다면, 그
+// 기기의 선택을 존중해 저장된 값을 그대로 우선 사용하고, 저장된 값이 없을 때만 이 기본값을 쓴다.)
+const MAIN_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBkMSsqJkkgLl3hnFU6OEbc_5bjge0uRR4",
+  authDomain: "brainingclass.firebaseapp.com",
+  databaseURL: "https://brainingclass-default-rtdb.firebaseio.com",
+  projectId: "brainingclass",
+  storageBucket: "brainingclass.firebasestorage.app",
+  messagingSenderId: "370173129485",
+  appId: "1:370173129485:web:32c5c22d90c1025c22b644",
+  measurementId: "G-2GR7E5E0LB"
+};
 function initCloud() {
   const saved = localStorage.getItem('br5_fb_config');
+  let config;
   if (saved) {
-    try {
-      const config = JSON.parse(saved);
-      const el = document.getElementById('fb-config-input');
-      if (el) el.value = JSON.stringify(config, null, 2);
-      if (typeof firebase !== 'undefined') {
-        try {
-          if (!firebase.apps.length) firebase.initializeApp(config);
-          else firebase.app(); // reuse existing
-        } catch(e) { firebase.initializeApp(config); }
-        db = firebase.database();
-        cloudEnabled = true;
-        startCloudListen();
-        updateCloudUI(true);
-      }
-    } catch(e) { console.error('Auto-connect failed:', e); updateCloudUI(false); }
+    try { config = JSON.parse(saved); }
+    catch(e) { console.error('저장된 설정값 파싱 실패 — 기본값으로 연결합니다:', e); }
   }
+  if (!config) config = MAIN_FIREBASE_CONFIG;
+  try {
+    const el = document.getElementById('fb-config-input');
+    if (el) el.value = JSON.stringify(config, null, 2);
+    if (typeof firebase !== 'undefined') {
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(config);
+        else firebase.app(); // reuse existing
+      } catch(e) { firebase.initializeApp(config); }
+      db = firebase.database();
+      cloudEnabled = true;
+      startCloudListen();
+      updateCloudUI(true);
+    }
+  } catch(e) { console.error('Auto-connect failed:', e); updateCloudUI(false); }
 }
 
 // ═══ 사고력 전용 클라우드(두 번째 Firebase 연결) ═══════════════════════════
