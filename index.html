@@ -10671,39 +10671,39 @@ function connectCloud() {
     alert('❌ Firebase SDK 로드 실패\n\n인터넷 연결을 확인하고 페이지를 새로고침 해주세요.');
     return;
   }
-  
-  try {
-    if (firebase.apps.length > 0) {
-      // Already initialized - check if same project
-      try { firebase.app().delete(); } catch(e) {}
+
+  // 실제로 새 설정으로 연결을 맺는 부분 — 기존 앱이 완전히 지워진 뒤에만 호출된다.
+  const doInit = () => {
+    try {
+      firebase.initializeApp(config);
+      db = firebase.database();
+      cloudEnabled = true;
+      cloudListening = false; // 새 db로 리스너를 다시 붙일 수 있도록 반드시 초기화
+      localStorage.setItem('br5_fb_config', JSON.stringify(config));
+      startCloudListen();
+      updateCloudUI(true);
+      closeM('cloud-modal');
+      toast('☁ 클라우드 연결 완료! 실시간 동기화 시작');
+    } catch(e) {
+      const msg = e.message || '';
+      let guide = '';
+      if (msg.includes('databaseURL')) guide = '\n\n→ Realtime Database URL을 확인해주세요.';
+      if (msg.includes('apiKey')) guide = '\n\n→ API 키가 올바르지 않습니다.';
+      alert('❌ 연결 실패\n\n' + msg + guide);
     }
-    firebase.initializeApp(config);
-    db = firebase.database();
-    cloudEnabled = true;
-    localStorage.setItem('br5_fb_config', JSON.stringify(config));
-    startCloudListen();
-    updateCloudUI(true);
-    closeM('cloud-modal');
-    toast('☁ 클라우드 연결 완료! 실시간 동기화 시작');
-  } catch(e) {
-    const msg = e.message || '';
-    let guide = '';
-    if (msg.includes('already exists')) {
-      // Re-use existing app
-      try {
-        db = firebase.database();
-        cloudEnabled = true;
-        localStorage.setItem('br5_fb_config', JSON.stringify(config));
-        startCloudListen();
-        updateCloudUI(true);
-        closeM('cloud-modal');
-        toast('☁ 클라우드 연결 완료!');
-        return;
-      } catch(e2) {}
-    }
-    if (msg.includes('databaseURL')) guide = '\n\n→ Realtime Database URL을 확인해주세요.';
-    if (msg.includes('apiKey')) guide = '\n\n→ API 키가 올바르지 않습니다.';
-    alert('❌ 연결 실패\n\n' + msg + guide);
+  };
+
+  // ⚠ 예전엔 기존 앱을 firebase.app().delete()로 지우자마자(완료를 기다리지 않고) 바로
+  // initializeApp()을 또 불러서, 삭제가 아직 안 끝난 순간 "이미 존재함" 오류가 났다. 그러면
+  // catch에서 "그냥 기존 앱을 재사용"해버려서, 선생님이 새 주소를 아무리 입력해도 실제로는
+  // 계속 예전 클라우드에 붙어있는 채로 "연결 완료!"라고만 떴다(연동이 하나도 안 바뀌는 버그의
+  // 진짜 원인). delete()가 끝난 뒤에만 새 설정으로 다시 연결하도록 순서를 바로잡았다.
+  if (firebase.apps.length > 0) {
+    if (db) { try { db.ref('braining').off(); } catch(e) {} try { db.ref('.info/connected').off(); } catch(e) {} }
+    cloudListening = false;
+    firebase.app().delete().then(doInit).catch(doInit);
+  } else {
+    doInit();
   }
 }
 
@@ -11184,14 +11184,14 @@ function SD_local() {
 // (예전에 설정창에서 직접 다른 값을 붙여넣어 localStorage에 저장해둔 기기가 있다면, 그
 // 기기의 선택을 존중해 저장된 값을 그대로 우선 사용하고, 저장된 값이 없을 때만 이 기본값을 쓴다.)
 const MAIN_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBkMSsqJkkgLl3hnFU6OEbc_5bjge0uRR4",
-  authDomain: "brainingclass.firebaseapp.com",
-  databaseURL: "https://brainingclass-default-rtdb.firebaseio.com",
-  projectId: "brainingclass",
-  storageBucket: "brainingclass.firebasestorage.app",
-  messagingSenderId: "370173129485",
-  appId: "1:370173129485:web:32c5c22d90c1025c22b644",
-  measurementId: "G-2GR7E5E0LB"
+  apiKey: "AIzaSyCOOd4KpzmCNs0ynILbUryVBFYtLZ9qjbE",
+  authDomain: "brainingmath-207bc.firebaseapp.com",
+  databaseURL: "https://brainingmath-207bc-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "brainingmath-207bc",
+  storageBucket: "brainingmath-207bc.firebasestorage.app",
+  messagingSenderId: "272770326494",
+  appId: "1:272770326494:web:9492598a35384b18acc74f",
+  measurementId: "G-JGELT2TKRP"
 };
 function initCloud() {
   const saved = localStorage.getItem('br5_fb_config');
