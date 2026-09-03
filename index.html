@@ -11229,15 +11229,20 @@ function SD_local() {
 // 이제 GitHub 주소로 접속하기만 하면 별도 설정 없이 자동으로 같은 클라우드에 연결된다.
 // (예전에 설정창에서 직접 다른 값을 붙여넣어 localStorage에 저장해둔 기기가 있다면, 그
 // 기기의 선택을 존중해 저장된 값을 그대로 우선 사용하고, 저장된 값이 없을 때만 이 기본값을 쓴다.)
+// ⚠ 한때 데이터를 새 프로젝트(brainingmath-207bc)로 옮기려 했으나, 옮기는 과정에서 시간표
+// 배정이 온전히 안 옮겨진 채로 남아있었다(학생 목록 58명은 있었지만 시간표 배정은 104건뿐 —
+// 원래 362건, 금요일 배정은 아예 없었음). 그래서 원래 쓰던 주소(brainingclass, 학생 76명·
+// 배정 362건으로 데이터가 온전함)로 다시 되돌렸다. 재연결이 안 되던 진짜 원인(connectCloud의
+// 레이스 컨디션)은 이미 코드 자체를 고쳐서, 이 주소로 돌아가도 이제는 정상적으로 재연결된다.
 const MAIN_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCOOd4KpzmCNs0ynILbUryVBFYtLZ9qjbE",
-  authDomain: "brainingmath-207bc.firebaseapp.com",
-  databaseURL: "https://brainingmath-207bc-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "brainingmath-207bc",
-  storageBucket: "brainingmath-207bc.firebasestorage.app",
-  messagingSenderId: "272770326494",
-  appId: "1:272770326494:web:9492598a35384b18acc74f",
-  measurementId: "G-JGELT2TKRP"
+  apiKey: "AIzaSyBkMSsqJkkgLl3hnFU6OEbc_5bjge0uRR4",
+  authDomain: "brainingclass.firebaseapp.com",
+  databaseURL: "https://brainingclass-default-rtdb.firebaseio.com",
+  projectId: "brainingclass",
+  storageBucket: "brainingclass.firebasestorage.app",
+  messagingSenderId: "370173129485",
+  appId: "1:370173129485:web:32c5c22d90c1025c22b644",
+  measurementId: "G-2GR7E5E0LB"
 };
 function initCloud() {
   const saved = localStorage.getItem('br5_fb_config');
