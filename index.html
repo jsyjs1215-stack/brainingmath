@@ -11233,6 +11233,21 @@ function pushCloudNow() {
   try {
     // set() 대신 update()로 각 필드만 업데이트 → 다른 선생님 데이터 덮어쓰기 방지
     const payload = JSON.parse(JSON.stringify(buildCoursePayload()));
+    // ⚠ scMeta/dayDefs는 반드시 학생 id별 경로로 쪼개서 올려야 한다. update()는 여기서 준 키(예:
+    // "scMeta")를 그 경로 전체로 취급해서 클라우드에 있던 값을 통째로 덮어쓴다 — 이 기기의 로컬
+    // D.scMeta/D.dayDefs가 (아직 클라우드 전체를 다 받아오기 전이거나, 이 기기가 최근에 안 건드린
+    // 다른 학생들 항목은 원래 갖고 있지 않으므로) "이 기기가 아는 만큼만" 담고 있는 게 정상인데,
+    // 그걸 그대로 올리면 이 기기가 모르는 다른 학생들의 scMeta/dayDefs가 클라우드에서 사라진다.
+    // scMeta가 없어지면 "이 학생 시간표를 누가 마지막으로 수정했는지" 추적이 끊겨서, 병합 로직이
+    // 안전을 위해 예전 방식(합집합)으로 되돌아가는데, 합집합은 "제거"를 표현할 수 없어서 —
+    // 퇴원 처리로 지운 시간표 배정이 다른(오래된) 기기의 값과 합쳐지며 되살아나는 사고로 이어졌다
+    // (실제 운영 데이터에서 이렇게 되살아난 배정을 여러 건 확인했다). 학생 id별로 경로를 쪼개서
+    // 보내면, 이 기기가 실제로 아는 학생들의 항목만 갱신되고 나머지는 전혀 건드리지 않는다.
+    const scMetaBySid=payload.scMeta||{}, dayDefsBySid=payload.dayDefs||{};
+    delete payload.scMeta;
+    delete payload.dayDefs;
+    Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=v; });
+    Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=v; });
     const p = db.ref('braining').update(payload);
     // 아무도 결과를 안 볼 때도 "처리되지 않은 오류(unhandled rejection)"가 뜨지 않도록 한 번 받아둔다.
     // (아래에서 그대로 반환하는 p 자체는 여전히 실패를 알려주므로, 연동 저장 확인에는 영향 없음)
