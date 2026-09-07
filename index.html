@@ -1739,9 +1739,12 @@ function flushLinkedWrite(entryId){
     renderLinkAlertBar();
   };
   // 기본 클라우드(저학년·고학년 + 전체 백업)
+  LAST_PUSH_CLOUD_ERROR=null;
   const mainP=pushCloudNow();
   if(mainP&&typeof mainP.then==='function')mainP.then(()=>settle('main','ok'),err=>settle('main','fail',err));
-  else settle('main',(cloudEnabled&&db)?'fail':'off',(cloudEnabled&&db)?new Error('저장 요청을 보내지 못했습니다'):null);
+  // pushCloudNow()가 준비 단계에서 예외로 막혔으면(LAST_PUSH_CLOUD_ERROR) 뭉뚱그린 문구 대신 실제
+  // 원인을 보여준다 — 다음에 같은 문제가 또 생기면 원인을 바로 알 수 있도록.
+  else settle('main',(cloudEnabled&&db)?'fail':'off',(cloudEnabled&&db)?(LAST_PUSH_CLOUD_ERROR||new Error('저장 요청을 보내지 못했습니다')):null);
   // 사고력 클라우드
   const sagoP=pushSagoNow();
   if(sagoP&&typeof sagoP.then==='function')sagoP.then(()=>settle('sago','ok'),err=>settle('sago','fail',err));
@@ -10795,11 +10798,14 @@ function startCloudListen() {
     updateCloudUI(isConnected);
   });
   db.ref('braining').on('value', snapshot => {
-    const data = snapshot.val();
+    let data = snapshot.val();
+    // 쓸 때(pushCloudNow) 레벨명("Lv.1") 같은 "."이 든 값을 이스케이프해서 올리므로, 읽을 때도
+    // 반드시 원래대로 되돌려야 함 — 안 그러면 화면에 "Lv﹒1"처럼 이스케이프된 문자가 그대로 보인다.
+    if (data) data = fbUnsanitizeFromRead(data);
     checkAppBuildMismatch(data && data.appBuild);
     if (!data) {
       // 데이터 없으면 내 로컬 데이터로 초기화 — 사고력 학생은 여기서도 제외해야 함(아래 buildCoursePayload 참고)
-      db.ref('braining').update(JSON.parse(JSON.stringify(buildCoursePayload())));
+      pushCloudNow();
       return;
     }
 
@@ -11227,6 +11233,8 @@ function buildCoursePayload(){
     slotsAug: SLOTS_AUG,
   };
 }
+let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실제 오류 — "저장 요청을 보내지 못했습니다"라는
+// 뭉뚱그린 문구 대신 실제 원인을 화면에 보여주기 위해 보관해둔다 (flushLinkedWrite에서 사용).
 function pushCloudNow() {
   if (!(cloudEnabled && db)) return null;
   lastPush = Date.now();
@@ -11246,8 +11254,15 @@ function pushCloudNow() {
     const scMetaBySid=payload.scMeta||{}, dayDefsBySid=payload.dayDefs||{};
     delete payload.scMeta;
     delete payload.dayDefs;
-    Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=v; });
-    Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=v; });
+    Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=fbSanitizeForWrite(v); });
+    Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=fbSanitizeForWrite(v); });
+    // ⚠ 레벨명("Lv.1")처럼 "."이 들어간 값이 학생 데이터 어디 한 곳에라도 있으면, update() 호출
+    // 전체가 예외도 없이 조용히 거부되어 이 기기의 저장이 통째로 실패한다 (신규/연동 등록이 계속
+    // "저장 요청을 보내지 못했습니다"로 실패하던 진짜 원인). 사고력 클라우드(pushSagoNow)는 이미
+    // fbSanitizeForWrite로 막아뒀는데 여기(교과 클라우드)만 빠져있었다. 남은 최상위 필드(S/SC/R 등)의
+    // "값"만 재귀적으로 이스케이프한다 — 최상위 키 이름(위 "scMeta/학생이름" 같은 경로 키 포함)은
+    // update()가 경로 구분자로 그대로 써야 하므로 건드리면 안 된다.
+    Object.keys(payload).forEach(k=>{ if(!k.includes('/'))payload[k]=fbSanitizeForWrite(payload[k]); });
     const p = db.ref('braining').update(payload);
     // 아무도 결과를 안 볼 때도 "처리되지 않은 오류(unhandled rejection)"가 뜨지 않도록 한 번 받아둔다.
     // (아래에서 그대로 반환하는 p 자체는 여전히 실패를 알려주므로, 연동 저장 확인에는 영향 없음)
@@ -11258,7 +11273,7 @@ function pushCloudNow() {
       setTimeout(() => { if(icon) icon.className = 'ti ti-cloud'; }, 1000);
     }
     return p;
-  } catch(e) { console.error('Cloud sync error:', e); return null; }
+  } catch(e) { console.error('Cloud sync error:', e); LAST_PUSH_CLOUD_ERROR=e; return null; }
 }
 let _pushDebounceTimer=null;
 function scheduleCloudPush(){
