@@ -1205,7 +1205,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-07-live-version-check'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-07-link-save-retry-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -10794,8 +10794,14 @@ function startCloudListen() {
   // 상태를 계속 갱신해서 항상 "지금 진짜 연결되어 있는지"를 정확히 반영하도록 함.
   db.ref('.info/connected').on('value', snap => {
     const isConnected = !!snap.val();
+    const wasDisconnected = !cloudEnabled;
     cloudEnabled = isConnected;
     updateCloudUI(isConnected);
+    // ⚠ 연동 저장 배너는 "인터넷 연결이 돌아오면 자동으로 다시 시도합니다"라고 안내하는데, 실제로는
+    // 이 재시도를 걸어주는 코드가 없어서 "지금 다시 시도" 버튼을 직접 눌러야만 했다. 특히 새로고침
+    // 직후처럼 아직 연결이 안 된 순간에 바로 저장을 시도하면(연동 등록 등) 매번 "저장 요청을 보내지
+    // 못했습니다"로 실패하는데, 안내 문구만 믿고 기다리는 선생님은 실패한 줄 모르고 지나칠 수 있었다.
+    if (isConnected && wasDisconnected && LINK_PENDING.length) retryAllLinkedWrites();
   });
   db.ref('braining').on('value', snapshot => {
     let data = snapshot.val();
@@ -11500,7 +11506,14 @@ function startSagoListen(){
   sagoListening=true;
   // 실제로 서버와 살아있는 연결인지 계속 확인 (기본 연결과 동일한 방식)
   try{
-    sagoDb.ref('.info/connected').on('value', snap=>{ sagoConnected=!!snap.val(); });
+    sagoDb.ref('.info/connected').on('value', snap=>{
+      const isConnected=!!snap.val();
+      const wasDisconnected=!sagoConnected;
+      sagoConnected=isConnected;
+      // 기본 클라우드와 동일한 이유 — 연동 저장이 "아직 연결 안 됨"으로 실패했다가 연결되면
+      // 자동으로 다시 시도되도록 함 (안내 문구는 이미 그렇게 되어 있다고 말하고 있었음).
+      if(isConnected&&wasDisconnected&&LINK_PENDING.length)retryAllLinkedWrites();
+    });
   }catch(e){ console.warn('[사고력 동기화] 연결 상태 감시 실패:', e); }
   sagoDb.ref(SAGO_ROOT).on('value', snapshot=>{
     let data=snapshot.val();
