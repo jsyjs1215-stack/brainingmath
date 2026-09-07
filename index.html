@@ -365,6 +365,15 @@ button,input,textarea,select{font-family:inherit;}
   <span id="cloud-dot" style="width:9px;height:9px;border-radius:50%;background:#FCA5A5;flex-shrink:0;"></span>
 </div>
 
+<!-- 🔄 새 버전 감지 알림 — 탭을 오래 켜두고 있으면 다른 선생님이 수정한 코드가 배포돼도
+     저절로 반영되지 않아서, "내 화면엔 안 보이는데 다른 컴퓨터엔 보인다"는 것처럼 느껴지는
+     문제가 있었다. 클라우드에 다른(더 최신) 버전 표시가 감지되면 새로고침을 유도하는 배너를
+     눈에 띄게 띄운다 — 매번 "탭을 다시 열어보세요"라고 안내할 필요 없이 스스로 알아채게 함. -->
+<div id="new-version-banner" style="display:none;background:#DC2626;color:#fff;padding:10px 16px;font-size:13px;font-weight:600;align-items:center;gap:10px;cursor:pointer;" onclick="location.reload()">
+  <i class="ti ti-refresh" style="font-size:18px;"></i>
+  <span>🔄 새 버전이 있어요 — 다른 선생님이 최신 내용을 올렸어요. 눌러서 새로고침하면 바로 반영돼요.</span>
+</div>
+
 <div class="day-bar" id="day-bar">
   <button class="db" id="db-월" onclick="setDay('월')"><span class="dn">월</span><span class="dd" id="dd-월">-</span><span class="dc" id="dc-월">-</span></button>
   <button class="db" id="db-화" onclick="setDay('화')"><span class="dn">화</span><span class="dd" id="dd-화">-</span><span class="dc" id="dc-화">-</span></button>
@@ -1196,7 +1205,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-07-21-scmeta-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-07-live-version-check'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -10748,8 +10757,28 @@ function switchToDefaultCloud() {
   connectCloud();
 }
 
+// 🔄 클라우드에 적힌 버전 표시(appBuild)가 이 기기가 지금 실행 중인 버전(APP_BUILD)과 다르면,
+// 이 탭이 예전 코드를 계속 켜놓고 있는 상태라는 뜻이다 — 새로고침해야만 최신 수정사항(버그 픽스
+// 포함)을 받는다. 그동안은 "다른 선생님 컴퓨터엔 안 보인다"는 문제가 실제로는 그 컴퓨터가 그냥
+// 예전 탭을 계속 켜두고 있어서였는데, 그걸 알아챌 방법이 없어 매번 "탭을 닫았다 다시 여세요"라고
+// 안내해야 했다. 이제는 클라우드 데이터가 갱신될 때마다(=누군가 저장할 때마다) 자동으로 버전을
+// 비교해서, 다르면 눈에 띄는 배너로 바로 알려준다.
+function checkAppBuildMismatch(serverBuild){
+  const banner=document.getElementById('new-version-banner');
+  if(!banner)return;
+  const mismatched=!!serverBuild&&serverBuild!==APP_BUILD;
+  banner.style.display=mismatched?'flex':'none';
+}
+// 이 기기가 클라우드에 연결될 때마다(최초 연결·재연결·"공식 주소로 전환" 포함) 자신이 지금
+// 실행 중인 버전을 클라우드에 알려준다 — 그래야 예전 버전을 켜놓고 있던 다른 기기가 이 값을
+// 받아서 자기가 뒤처졌다는 걸 스스로 알아챌 수 있다. 실패해도 앱 동작에 영향 없는 부가 기능이라
+// 조용히 무시한다.
+function announceAppBuild(){
+  try{ if(db)db.ref('braining/appBuild').set(APP_BUILD).catch(()=>{}); }catch(e){}
+}
 function startCloudListen() {
   if (!db || cloudListening) return;
+  announceAppBuild();
   cloudListening = true;
   // ⚠ 상단 바/설정창의 "연결됨" 표시는 원래 firebase.database()를 호출한 순간(=아직 서버와
   // 실제로 통신해본 적도 없는 시점) 바로 낙관적으로 켜졌었음. 그래서 databaseURL이 잘못됐거나,
@@ -10767,6 +10796,7 @@ function startCloudListen() {
   });
   db.ref('braining').on('value', snapshot => {
     const data = snapshot.val();
+    checkAppBuildMismatch(data && data.appBuild);
     if (!data) {
       // 데이터 없으면 내 로컬 데이터로 초기화 — 사고력 학생은 여기서도 제외해야 함(아래 buildCoursePayload 참고)
       db.ref('braining').update(JSON.parse(JSON.stringify(buildCoursePayload())));
