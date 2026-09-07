@@ -11525,7 +11525,14 @@ function startSagoListen(){
         // 이 기기에서 방금 해제한 연동이 사고력 클라우드의 옛 값으로 되살아날 수 있기 때문.
         const lLk=cur._linkUpdatedAt||0, sLk=incoming._linkUpdatedAt||0;
         const keepLink=(lLk||sLk)?(sLk>lLk?{linkId:incoming.linkId||'',_linkUpdatedAt:sLk}:{linkId:cur.linkId||'',_linkUpdatedAt:lLk}):null;
-        if(sTs>lTs)Object.assign(cur,incoming);
+        if(sTs>lTs){
+          Object.assign(cur,incoming);
+          // Firebase는 빈 배열을 저장하지 않고 필드 자체를 지워버리므로, 더 최신인 서버 쪽에서
+          // impNotes를 전부 지웠으면(=필드 자체가 없음) Object.assign이 이걸 못 잡아내고 예전
+          // 로컬 값을 그대로 남겨둔다 — "지운 중요내용이 계속 되살아난다"는 문제의 실제 원인.
+          // 서버가 더 최신인데 필드가 아예 없으면 진짜로 비운 것으로 보고 명시적으로 비워준다.
+          if(!('impNotes' in incoming))cur.impNotes=[];
+        }
         else Object.keys(incoming).forEach(k=>{ if(cur[k]===undefined)cur[k]=incoming[k]; });
         if(keepLink){cur.linkId=keepLink.linkId;cur._linkUpdatedAt=Math.max(lLk,sLk);}
         cur.group='사고력';
