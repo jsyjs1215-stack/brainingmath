@@ -1154,7 +1154,13 @@ button,input,textarea,select{font-family:inherit;}
   <div class="mhdr"><div><div class="mtitle">✏️ 특이사항 수정</div><div class="msub" id="reportn-info"></div></div><button class="mclose" onclick="closeM('reportnm')"><i class="ti ti-x"></i></button></div>
   <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">선생님끼리 쓰던 원문은 그대로 두고, 학부모님께 보일 문구만 따로 정리할 수 있어요.</div>
   <div class="fg"><label class="flbl">원문 (선생님 기록)</label><div id="reportn-orig" style="font-size:12px;color:var(--muted);background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 10px;"></div></div>
-  <div class="fg"><label class="flbl">학부모님께 보일 내용</label><textarea class="fi" id="reportn-text" rows="5" style="resize:vertical;font-size:15px;padding:10px;" placeholder="비워두면 특이사항이 표시되지 않습니다"></textarea></div>
+  <div class="fg">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <label class="flbl" style="margin-bottom:0;">학부모님께 보일 내용</label>
+      <button type="button" id="reportn-ai-btn" onclick="reportNoteAIRewrite()" title="OpenAI/Claude API 키가 있으면 원문을 학부모님용 문구로 다듬어줘요" style="background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;font-weight:600;flex-shrink:0;"><i class="ti ti-sparkles"></i> AI로 다듬기</button>
+    </div>
+    <textarea class="fi" id="reportn-text" rows="5" style="resize:vertical;font-size:15px;padding:10px;margin-top:5px;" placeholder="비워두면 특이사항이 표시되지 않습니다"></textarea>
+  </div>
   <div class="btn-row">
     <button class="btn btn-sec" onclick="closeM('reportnm')">취소</button>
     <button class="btn btn-pri" onclick="saveReportNoteEdit()"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
@@ -9529,6 +9535,48 @@ async function gtsmCallAnthropic(apiKey,prompt){
   }
   const data=await res.json();
   return(data.content||[]).map(c=>c.text||'').join('');
+}
+// 세션별 학부모 리포트의 "특이사항" 원문(선생님끼리 쓰던 줄임말·화살표 표현 등)을, 저장된 AI 설정으로
+// 학부모님께 보여드릴 정중한 문구로 다듬어준다. gtsmGenerateIntroAI와 같은 방식(같은 API 호출 함수) 재사용.
+async function reportNoteAIRewrite(){
+  const{provider,apiKey}=getAiSettings();
+  if(!apiKey){
+    toast('먼저 AI 설정에서 API 키를 입력해주세요');
+    openAiSettingsModal();
+    return;
+  }
+  const el=document.getElementById('reportn-text');
+  const date=el.dataset.date,sid=el.dataset.sid;
+  const r=D.R[date]?.[sid];
+  const origNote=(r?.note||'').trim();
+  if(!origNote){toast('원문(선생님 기록)이 비어있어서 다듬을 내용이 없어요');return;}
+  const btn=document.getElementById('reportn-ai-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2"></i> 다듬는 중...';}
+  try{
+    const prompt=`너는 한국의 소규모 수학학원 선생님을 도와, 선생님끼리 쓰던 수업 기록 메모를 학부모님께 보여드릴 문구로 다듬어주는 도우미야.
+
+아래 "원문"은 선생님이 빠르게 메모하려고 줄임말·화살표(>)·기호 등을 섞어 쓴 내부 기록이야. 이걸 학부모님이 읽었을 때 자연스럽고 정중하게 느껴지는 문장으로 다시 써줘.
+
+반드시 지켜야 할 규칙:
+1. 원문에 없는 내용을 새로 지어내지 말 것 (사실 관계를 그대로 유지, 과장하지 말 것).
+2. 존댓말로, 따뜻하고 정중한 톤으로 쓸 것 — 학원에서 학부모님께 보내는 문구 톤.
+3. "오답ck", "숙제ck", ">", "완료" 같은 선생님끼리만 알아보는 줄임말/기호는 자연스러운 문장으로 풀어 쓸 것.
+4. 아이를 지도한 내용 위주로, 너무 길지 않게(원문 분량과 비슷하게) 정리할 것.
+5. 다른 설명 없이 다듬은 문구만 출력할 것 (따옴표, 마크다운 기호, "학부모님께:" 같은 접두어 없이).
+
+--- 원문 ---
+${origNote}
+--- 원문 끝 ---`;
+    const text=(provider==='anthropic'?await gtsmCallAnthropic(apiKey,prompt):await gtsmCallOpenAI(apiKey,prompt)).trim();
+    if(!text)throw new Error('빈 응답을 받았어요');
+    el.value=text;
+    toast('AI가 문구를 다듬었어요 — 확인 후 저장을 눌러주세요');
+  }catch(e){
+    console.error('[AI 특이사항 다듬기] 실패:',e);
+    toast('⚠ AI 요청에 실패했어요: '+(e.message||e));
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-sparkles"></i> AI로 다듬기';}
+  }
 }
 async function gtsmGenerateIntroAI(){
   const{provider,apiKey}=getAiSettings();
