@@ -1205,7 +1205,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-07-link-save-retry-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-08-tombstone-reuse-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6827,7 +6827,15 @@ function saveStu(){
   const isE=!!RT;
   // 🔗 연동 수강(사고력 + 저학년 교과) — 한 번의 등록으로 두 반 레코드를 함께 만든다
   if(!isE&&isRMLinkMode()){ saveLinkedStu({name,grade,school,grp,memo,subj,curr}); return; }
-  if(!isE){if(D.S.find(s=>s.id===name)){alert('동일한 이름의 학생이 있습니다.');return;}D.S.push({id:name,grade,school,group:grp,teacher,className,level,subject:subj,curriculum:curr,memo,_updatedAt:Date.now()});}
+  if(!isE){
+    if(D.S.find(s=>s.id===name)){alert('동일한 이름의 학생이 있습니다.');return;}
+    // ⚠ 예전에 같은 이름의 학생을 완전삭제한 적이 있으면 그 이름이 삭제 기록(tombstone)에 남아있는데,
+    // 그 상태로 그냥 두면 동기화 병합 단계에서 "삭제된 id"로 취급해 방금 새로 만든 학생이 화면에는
+    // 잠깐 보였다가 다음 클라우드 갱신 때 조용히 사라져버린다(동명이인 재등록·이름 재사용이 막힘).
+    // 새로 등록하는 건 이 이름을 다시 쓰겠다는 명확한 의도이므로, 그 이름의 예전 삭제 기록은 지운다.
+    if(D.tombstones?.students&&D.tombstones.students[name]!=null)delete D.tombstones.students[name];
+    D.S.push({id:name,grade,school,group:grp,teacher,className,level,subject:subj,curriculum:curr,memo,_updatedAt:Date.now()});
+  }
   else{
     const s=gS(RT);
     if(s){
@@ -6890,6 +6898,10 @@ function saveLinkedStu({name,grade,school,grp,memo,subj,curr}){
   const prog=getProgDropdowns('rm');
   const linkId=mintLinkId();
   const now=Date.now();
+  // ⚠ 같은 이름을 예전에 완전삭제한 적이 있으면 삭제 기록(tombstone)이 남아있어서, 그 상태로 두면
+  // 동기화 병합 때 "삭제된 id"로 취급되어 방금 등록한 두 반 레코드가 다음 클라우드 갱신 때 조용히
+  // 사라진다(saveStu와 동일한 이유). 새로 등록하는 두 이름 모두에 대해 예전 삭제 기록을 지운다.
+  if(D.tombstones?.students){ delete D.tombstones.students[loId]; delete D.tombstones.students[sagoId]; }
   // 신원·연락 관련 정보는 두 레코드에 똑같이 복사하고, 교재·진도·레벨·담당처럼 반마다 다른
   // 학사 정보는 각 반에서 따로 지정한다(지금 입력한 교재/진도는 고른 "구분" 쪽에만 저장).
   const common={grade,school,memo,group:'',linkId,status:'active',impNotes:[],
