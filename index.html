@@ -1238,7 +1238,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-08-gtsm-simple-notice-mode'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-08-lohi-link-existing-student'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6630,10 +6630,13 @@ function applyRMGroupFieldVisibility(grp){
   // 연동 수강 체크칸: 사고력/저학년 신규 등록에서만 노출 (고학년·중등·고등에는 연동 개념이 없음)
   const linkBox=document.getElementById('rm-link-box');
   if(linkBox)linkBox.style.display=(!RT&&(grp==='사고력'||grp==='저학년'))?'block':'none';
-  // 저학년+고학년 동시 등록 체크칸: 저학년/고학년 신규 등록에서만 노출 (사고력에는 이 연동 개념이 없음)
+  // 저학년+고학년 동시 등록 체크칸: 저학년/고학년일 때 노출 (사고력에는 이 연동 개념이 없음).
+  // 신규 등록뿐 아니라 이미 등록된 학생을 수정할 때도 보여줘서, 나중에라도 반대쪽 반을 추가할 수
+  // 있게 함 — 단, 이미 연동된 학생이면(반대쪽이 이미 있으면) 또 연동을 걸 수 없으므로 감춤.
   const lohiBox=document.getElementById('rm-lohi-link-box');
-  if(lohiBox)lohiBox.style.display=(!RT&&(grp==='저학년'||grp==='고학년'))?'block':'none';
-  if(typeof isRMLoHiLinkMode==='function'&&isRMLoHiLinkMode())refreshRMLoHiLabels();
+  const alreadyLinked=!!RT&&typeof isLinkedSid==='function'&&isLinkedSid(RT);
+  if(lohiBox)lohiBox.style.display=((grp==='저학년'||grp==='고학년')&&!alreadyLinked)?'block':'none';
+  if(typeof isRMLoHiAnyLinkMode==='function'&&isRMLoHiAnyLinkMode())refreshRMLoHiLabels();
 }
 // 신규 등록/수정 폼에서 그룹을 바꾸면, 그 그룹 전용 교재 목록으로 "기본 교재"·"현재 진도" 드롭다운을
 // 다시 채워줌 — 안 그러면 저학년 교재 목록이 그대로 남아 고학년 학생에게 엉뚱한 교재가 저장될 수 있음.
@@ -6748,6 +6751,9 @@ function getRMLinkDays(){ return LINK_DAYS.filter(d=>document.getElementById('rm
 // "바로 다음 시간"으로 자동 짝을 지을 필요도 없다(요일 자체가 다른 경우가 많으므로) — 그래서
 // 반대쪽 반 시간표를 완전히 별도의 격자(sch-grid2-*)로 자유롭게 고르게 한다.
 function isRMLoHiLinkMode(){ return !RT&&!!document.getElementById('rm-lohi-link-chk')?.checked; }
+// 이미 등록된 학생을 "수정"하다가 반대쪽 반을 추가로 등록하는 경우 (신규 등록과는 별도 함수로 구분)
+function isRMLoHiLinkEditMode(){ return !!RT&&!!document.getElementById('rm-lohi-link-chk')?.checked; }
+function isRMLoHiAnyLinkMode(){ return !!document.getElementById('rm-lohi-link-chk')?.checked; }
 function rmLoHiOtherGroup(grp){ return grp==='고학년'?'저학년':'고학년'; }
 function refreshRMLoHiLabels(){
   const grp=document.getElementById('rm-group')?.value||'저학년';
@@ -6792,10 +6798,14 @@ function toggleRMLoHiLinkUI(){
     const linkChk=document.getElementById('rm-link-chk');
     if(linkChk&&linkChk.checked){linkChk.checked=false;toggleRMLinkUI();}
   }
-  // 이 등록 화면에서 입력한 "요일별 고정 설정"은 이 화면 저장 시엔 반영되지 않으므로(사고력 연동과
-  // 동일하게, 등록 후 각 반에서 따로 지정) 혼동을 없애기 위해 감춘다
-  const ddBox=document.getElementById('rm-daydef-box');
-  if(ddBox)ddBox.style.display=on?'none':'';
+  // 이 등록 화면에서 입력한 "요일별 고정 설정"은 신규 등록 시엔 저장되지 않으므로(사고력 연동과
+  // 동일하게, 등록 후 각 반에서 따로 지정) 혼동을 없애기 위해 감춘다. 단, 이미 등록된 학생을
+  // 수정하는 중이면 이 칸은 원래 그 학생(반대쪽 반이 아니라 지금 보고 있는 반)의 고정 설정이고
+  // 저장 시 그대로 반영되므로 감출 이유가 없다.
+  if(!RT){
+    const ddBox=document.getElementById('rm-daydef-box');
+    if(ddBox)ddBox.style.display=on?'none':'';
+  }
   if(on){ refreshRMLoHiLabels(); populateSchGrid2(); }
 }
 // 이미 쓰이는 이름이면 "(반이름)", 그래도 겹치면 "(반이름2)"처럼 뒤에 번호를 붙여 고유한 id를 만든다.
@@ -6905,6 +6915,12 @@ function openRM(sid){
     });
     const ss=document.getElementById('rm-link-slot');if(ss)ss.value='';
     toggleRMLinkUI();
+  }
+  // 저학년+고학년 동시 등록 칸도 매번 새로 열 때 초기화 (신규 등록·수정 공통)
+  {
+    const lohiChk=document.getElementById('rm-lohi-link-chk');
+    if(lohiChk)lohiChk.checked=false;
+    toggleRMLoHiLinkUI();
   }
   document.getElementById('rm-title').textContent=isE?'학생 정보 수정':'신규 학생 등록';
   document.getElementById('rm-save-btn').textContent=isE?'저장':'등록';
@@ -7025,7 +7041,35 @@ function saveStu(){
   // 덮어쓰기를 완전히 없앴다 — 학생관리에 입력한 값은 이제 그대로 저장된다. 실제 "오늘 하는
   // 책"은 어차피 dispSubj/dispCurr가 요일별 고정설정을 그때그때 정확히 찾아서 보여주므로,
   // 여기 기본값은 그 값이 없을 때만 쓰이는 최후의 fallback일 뿐이라 없애도 문제 없다.
-  SD();closeM('rm');renderAll();toast(isE?`${RT} 수정 완료`:`${name} 등록 완료 🎉`);
+  // 🔗 이미 등록된 학생을 수정하다가 "반대쪽 반도 함께 등록" 체크를 켰으면, 위에서 이 학생 자체의
+  // 수정은 이미 끝난 상태이니 이어서 반대쪽 반 레코드만 새로 만들어 연동한다.
+  let lohiAddedMsg='';
+  if(isE&&isRMLoHiLinkEditMode()){
+    const added=applyRMLoHiLinkToExisting(RT,grp);
+    if(added)lohiAddedMsg=` — 🔗 ${added.secondaryId}(${groupLabel(added.otherGrp)}) 반도 함께 등록됐어요`;
+  }
+  SD();closeM('rm');renderAll();toast(isE?`${RT} 수정 완료${lohiAddedMsg}`:`${name} 등록 완료 🎉`);
+}
+// 이미 등록된 학생(primaryId)에게 반대쪽 반(otherGrp) 레코드를 새로 만들어 연동한다. saveStu()의
+// 수정 흐름 끝에서 호출되며, 반대쪽 반 시간표는 sch-grid2-* 격자(반대쪽 반 시간표)에서 읽는다.
+// 시간표를 하나도 안 골랐으면(실수 방지) 아무 것도 만들지 않고 조용히 건너뛴다.
+function applyRMLoHiLinkToExisting(primaryId,grp){
+  const hasAnySlot=DAYS.some(d=>SLOTS.some(sl=>document.getElementById(`sg2-${d}-${sl.id}`)?.checked))
+    ||SAT_SLOTS.some(sl=>document.getElementById(`sg2-토-${sl.id}`)?.checked);
+  if(!hasAnySlot){toast('⚠ 반대쪽 반 시간표를 하나 이상 선택해야 연동됩니다 — 이번 저장에서는 연동을 건너뛰었어요.');return null;}
+  const s=gS(primaryId);if(!s)return null;
+  const otherGrp=rmLoHiOtherGroup(grp);
+  const secondaryId=mintLoHiId(primaryId,groupLabel(otherGrp).replace('·중등·고등',''));
+  const linkId=mintLinkId();
+  const now=Date.now();
+  s.linkId=linkId;s._linkUpdatedAt=now;
+  const secondaryStu={id:secondaryId,group:otherGrp,grade:s.grade,school:s.school,memo:s.memo,
+    linkId,status:'active',impNotes:[],progress:{series:'',level:'',unit:''},
+    teacher:'',className:'',level:'',subject:'',curriculum:'',_updatedAt:now,_linkUpdatedAt:now};
+  D.S.push(secondaryStu);
+  readSchGrid2(secondaryId);
+  trackLinkedWrite(`${primaryId} 반대쪽 반(${groupLabel(otherGrp)}) 추가 등록 (연동)`);
+  return {secondaryId,otherGrp};
 }
 // 🔗 연동 수강 등록 — 한 번의 "등록"으로 사고력 레코드 + 저학년 교과 레코드를 함께 만들고,
 // 고른 요일의 "고른 시간(사고력)" + "바로 다음 시간(저학년 교과)"에 각각 시간표를 배정한다.
