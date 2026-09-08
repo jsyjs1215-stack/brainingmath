@@ -1238,7 +1238,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-08-hide-group-suffix-display'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-08-tombstone-timestamp-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11176,9 +11176,21 @@ function startCloudListen() {
       // ⚠ 완전삭제(hardDelStu)된 학생도 위 tombstones와 동일한 문제 — 합집합 병합만으로는
       // "삭제"를 표현할 수 없어서, 다른 기기에 아직 남아있는 예전 데이터가 계속 되살아났음.
       // students tombstone에 있는 id는 로컬/서버 어느 쪽에서 왔든 병합 결과에서 제외.
+      // ⚠ 단, tombstone은 "합집합"으로만 합쳐지고 한 기기가 지운다고 다른 기기에서 지워지지 않는
+      // 구조라서(=한번 생기면 아무도 못 지움), 삭제한 이름을 나중에 다시 등록해도 예전 tombstone을
+      // 아직 갖고 있는(오래 접속 안 한) 다른 기기가 동기화될 때마다 union merge로 tombstone이
+      // 되살아나서 방금 재등록한 학생이 계속 사라지는 사고가 있었다("신규등록한게 계속 없어진다").
+      // 그래서 tombstone에 있어도, 그 이름의 현재 기록(로컬이든 서버든)이 삭제 시각보다 더 최근에
+      // 수정됐으면(=삭제 이후에 다시 등록/수정된 것) 그건 같은 사람이 아니라 새로 만든 것으로 보고
+      // 살려준다.
       const delStuSet = D.tombstones?.students || {};
       const allIds = Object.keys(localById).concat(Object.keys(serverById).filter(id => !(id in localById)))
-        .filter(id => delStuSet[id] == null);
+        .filter(id => {
+          const delTs = delStuSet[id];
+          if (delTs == null) return true;
+          const newestTs = Math.max(localById[id]?._updatedAt||0, serverById[id]?._updatedAt||0);
+          return newestTs > delTs;
+        });
       // 🔀 이름이 우연히 같은 서로 다른 두 학생(사고력 학생 vs 교과 학생)일 수 있다. 사고력
       // 클라우드와 교과 클라우드는 서로 다른 타이밍에 연결되는데, 사고력 데이터가 먼저 도착하면
       // "이름 겹침 감지(rebuildSagoAlias)"가 아직 로딩되지 않은 교과 학생 목록을 기준으로 판단하는
@@ -11868,8 +11880,13 @@ function startSagoListen(){
       const localById={};(D.S||[]).forEach(st=>{if(st&&st.id)localById[st.id]=st;});
       serverS.forEach(st=>{
         if(!st||!st.id)return;
-        if(D.tombstones?.students&&D.tombstones.students[sagoIn(st.id)]!=null)return; // 여기서 지운 학생은 되살리지 않음
         const id=sagoIn(st.id);
+        // ⚠ 교과 쪽과 동일한 이유로, tombstone이 있어도 삭제 시각보다 더 최근에 수정된 기록이면
+        // (=삭제 이후 다시 등록된 것) 살려준다 — 안 그러면 재등록한 사고력 학생도 계속 사라진다.
+        {
+          const delTs=D.tombstones?.students?.[id];
+          if(delTs!=null&&(st._updatedAt||0)<=delTs)return; // 여기서 지운 학생은 되살리지 않음
+        }
         const incoming=Object.assign({},st,{id,group:'사고력'});
         const cur=localById[id];
         if(!cur){ D.S.push(incoming); localById[id]=incoming; return; }
