@@ -875,6 +875,33 @@ button,input,textarea,select{font-family:inherit;}
       <div style="font-size:11px;color:var(--muted);margin-top:7px;line-height:1.5;">※ 두 반 기록은 서로 다른 클라우드에 저장되지만, 저장은 한 번에 처리되고 한쪽이라도 실패하면 화면 위쪽에 계속 알려드립니다.<br>※ 위에서 입력한 <b>기본 교재·교과 진행</b>은 선택한 "구분" 쪽 반에만 저장돼요. 반대쪽 반 교재는 등록 후 각 반에서 지정해주세요.</div>
     </div>
   </div>
+  <!-- 🔗 저학년 + 고학년 동시 등록 — 화요일엔 저학년, 수요일엔 고학년처럼 요일마다 다른 반에
+       다니는 경우. 위 "수업 시간표"는 지금 고른 "구분" 쪽 반 시간표이고, 여기서 반대쪽 반
+       시간표를 요일·시간 상관없이 자유롭게 따로 골라서 두 반에 동시에 등록한다. -->
+  <div id="rm-lohi-link-box" style="display:none;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--rs);padding:11px 12px;margin-bottom:10px;">
+    <label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;">
+      <input type="checkbox" id="rm-lohi-link-chk" onchange="toggleRMLoHiLinkUI()" style="width:16px;height:16px;margin-top:1px;accent-color:#059669;cursor:pointer;flex-shrink:0;">
+      <span>
+        <span style="font-size:13px;font-weight:700;color:#065F46;">🔗 저학년 + 고학년·중등·고등 동시 등록</span>
+        <span style="display:block;font-size:11px;color:#047857;font-weight:400;margin-top:2px;">한 아이가 요일마다 다른 반에 다니는 경우(예: 화요일은 저학년, 수요일은 고학년). 아래에서 반대쪽 반 시간표를 요일·시간 상관없이 따로 고르면 두 반에 동시에 등록돼요.</span>
+      </span>
+    </label>
+    <div id="rm-lohi-link-detail" style="display:none;margin-top:10px;border-top:1px dashed #6EE7B7;padding-top:10px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">위 "수업 시간표"는 <b id="rm-lohi-primary-label"></b> 반, 아래는 <b id="rm-lohi-secondary-label"></b> 반 시간표예요 — 각자 원하는 요일·시간을 자유롭게 고르면 됩니다.</div>
+      <label class="flbl">반대쪽 반 수업 시간표</label>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table class="sch-grid" style="min-width:340px;">
+          <thead><tr id="sch-grid2-head"><th style="width:32px;"></th></tr></thead>
+          <tbody id="sch-grid2-body"></tbody>
+        </table>
+      </div>
+      <div id="rm-lohi-sat-wrap" style="display:none;margin-top:9px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 11px;">
+        <label class="flbl" style="margin-bottom:6px;">🗓 토요일 수업 (원장T 전용, 고학년만)</label>
+        <div id="rm-lohi-sat-grid" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:7px;line-height:1.5;">※ 위에서 입력한 <b>기본 교재·교과 진행</b>은 선택한 "구분" 쪽 반에만 저장돼요. 반대쪽 반 교재는 등록 후 각 반에서 지정해주세요.</div>
+    </div>
+  </div>
   <!-- 수정 화면에서만 나오는 연동 상태 안내 -->
   <div id="rm-link-info" style="display:none;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;">
     <div style="font-size:12px;font-weight:700;color:#5B21B6;">🔗 연동 학생</div>
@@ -1157,7 +1184,7 @@ button,input,textarea,select{font-family:inherit;}
   <div class="fg">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <label class="flbl" style="margin-bottom:0;">학부모님께 보일 내용</label>
-      <button type="button" id="reportn-ai-btn" onclick="reportNoteAIRewrite()" title="OpenAI/Claude API 키가 있으면 원문을 학부모님용 문구로 다듬어줘요" style="background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;font-weight:600;flex-shrink:0;"><i class="ti ti-sparkles"></i> AI로 다듬기</button>
+      <button type="button" id="reportn-ai-btn" onclick="reportNoteRuleBasedRewrite()" title="화살표(>)·줄임말(오답ck, 숙제ck 등)을 자동으로 풀어서 정리해줘요 (AI 아님, 정해진 규칙으로만 바꿔요)" style="background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;font-weight:600;flex-shrink:0;"><i class="ti ti-sparkles"></i> 문구 다듬기</button>
     </div>
     <textarea class="fi" id="reportn-text" rows="5" style="resize:vertical;font-size:15px;padding:10px;margin-top:5px;" placeholder="비워두면 특이사항이 표시되지 않습니다"></textarea>
   </div>
@@ -1211,7 +1238,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-08-tombstone-reuse-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-08-gtsm-simple-notice-mode'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1663,6 +1690,7 @@ function isLinkedSid(sid){ return !!getLinkedStudent(sid); }
 const LINK_PROG_STYLE={
   '사고력':{label:'사고력',bg:'#EDE9FE',fg:'#5B21B6',bd:'#C4B5FD'},
   '저학년':{label:'저학년 교과',bg:'#DBEAFE',fg:'#1E40AF',bd:'#93C5FD'},
+  '고학년':{label:'고학년·중등·고등',bg:'#D1FAE5',fg:'#065F46',bd:'#6EE7B7'},
 };
 function linkProgStyle(grp){ return LINK_PROG_STYLE[grp]||{label:groupLabel(grp),bg:'#F1F5F9',fg:'#475569',bd:'var(--bdr)'}; }
 function linkProgPill(grp){
@@ -6602,6 +6630,10 @@ function applyRMGroupFieldVisibility(grp){
   // 연동 수강 체크칸: 사고력/저학년 신규 등록에서만 노출 (고학년·중등·고등에는 연동 개념이 없음)
   const linkBox=document.getElementById('rm-link-box');
   if(linkBox)linkBox.style.display=(!RT&&(grp==='사고력'||grp==='저학년'))?'block':'none';
+  // 저학년+고학년 동시 등록 체크칸: 저학년/고학년 신규 등록에서만 노출 (사고력에는 이 연동 개념이 없음)
+  const lohiBox=document.getElementById('rm-lohi-link-box');
+  if(lohiBox)lohiBox.style.display=(!RT&&(grp==='저학년'||grp==='고학년'))?'block':'none';
+  if(typeof isRMLoHiLinkMode==='function'&&isRMLoHiLinkMode())refreshRMLoHiLabels();
 }
 // 신규 등록/수정 폼에서 그룹을 바꾸면, 그 그룹 전용 교재 목록으로 "기본 교재"·"현재 진도" 드롭다운을
 // 다시 채워줌 — 안 그러면 저학년 교재 목록이 그대로 남아 고학년 학생에게 엉뚱한 교재가 저장될 수 있음.
@@ -6615,6 +6647,11 @@ function setRMGroup(grp){
   if(grp==='고학년'){
     const chk=document.getElementById('rm-link-chk');
     if(chk&&chk.checked){chk.checked=false;toggleRMLinkUI();}
+  }
+  // 저학년+고학년 동시 등록도 사고력 그룹엔 개념이 없으므로, 그쪽으로 바꾸면 확실히 꺼둔다
+  if(grp==='사고력'){
+    const lohiChk=document.getElementById('rm-lohi-link-chk');
+    if(lohiChk&&lohiChk.checked){lohiChk.checked=false;toggleRMLoHiLinkUI();}
   }
   // 담임 선생님/반 이름은 고학년, 반(레벨)/담당 선생님은 사고력 학생에게만 의미가 있는 항목이라
   // 각각 그 그룹일 때만 입력칸을 보여줌
@@ -6697,10 +6734,114 @@ function toggleRMLinkUI(){
   const sagoFields=document.getElementById('rm-sago-fields');
   if(sagoFields&&on)sagoFields.style.display='flex';
   else if(sagoFields&&!on)applyRMGroupFieldVisibility(document.getElementById('rm-group')?.value||'저학년');
+  // 저학년+고학년 동시 등록과는 동시에 켤 수 없음(세 반 동시 연동은 지원하지 않음) — 켜면 반대쪽은 끔
+  if(on){
+    const lohiChk=document.getElementById('rm-lohi-link-chk');
+    if(lohiChk&&lohiChk.checked){lohiChk.checked=false;toggleRMLoHiLinkUI();}
+  }
   if(on)renderRMLinkControls();
   updateRMLinkPreview();
 }
 function getRMLinkDays(){ return LINK_DAYS.filter(d=>document.getElementById('rm-link-day-'+d)?.checked); }
+// ═══ 🔗 저학년 + 고학년 동시 등록 UI ═══════════════════
+// 사고력↔저학년 연동과 달리 같은 클라우드('braining') 안이라 별도 클라우드 연결이 필요 없고,
+// "바로 다음 시간"으로 자동 짝을 지을 필요도 없다(요일 자체가 다른 경우가 많으므로) — 그래서
+// 반대쪽 반 시간표를 완전히 별도의 격자(sch-grid2-*)로 자유롭게 고르게 한다.
+function isRMLoHiLinkMode(){ return !RT&&!!document.getElementById('rm-lohi-link-chk')?.checked; }
+function rmLoHiOtherGroup(grp){ return grp==='고학년'?'저학년':'고학년'; }
+function refreshRMLoHiLabels(){
+  const grp=document.getElementById('rm-group')?.value||'저학년';
+  const other=rmLoHiOtherGroup(grp);
+  const p=document.getElementById('rm-lohi-primary-label');if(p)p.textContent=groupLabel(grp);
+  const s=document.getElementById('rm-lohi-secondary-label');if(s)s.textContent=groupLabel(other);
+  const satWrap=document.getElementById('rm-lohi-sat-wrap');
+  if(satWrap)satWrap.style.display=other==='고학년'?'block':'none';
+}
+function populateSchGrid2(){
+  const head=document.getElementById('sch-grid2-head');
+  if(head)head.innerHTML='<th style="width:32px;"></th>'+SLOTS.map(sl=>`<th>${esc(sl.label)}</th>`).join('');
+  const body=document.getElementById('sch-grid2-body');let html='';
+  DAYS.forEach(day=>{
+    html+=`<tr><td class="day-col">${day}</td>`;
+    SLOTS.forEach(sl=>{ html+=`<td><input type="checkbox" id="sg2-${day}-${sl.id}"></td>`; });
+    html+='</tr>';
+  });
+  body.innerHTML=html;
+  const satGrid=document.getElementById('rm-lohi-sat-grid');
+  if(satGrid)satGrid.innerHTML=SAT_SLOTS.map(sl=>`<label style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #FDE68A;border-radius:20px;padding:5px 11px;font-size:12px;cursor:pointer;">
+      <input type="checkbox" id="sg2-토-${sl.id}"> ${esc(sl.label)}
+    </label>`).join('');
+}
+function readSchGrid2(sid){
+  DAYS.forEach(day=>{SLOTS.forEach(sl=>{
+    const cb=document.getElementById(`sg2-${day}-${sl.id}`);
+    if(cb?.checked){if(!D.SC[day])D.SC[day]={};if(!D.SC[day][sl.id])D.SC[day][sl.id]=[];if(!D.SC[day][sl.id].includes(sid))D.SC[day][sl.id].push(sid);}
+  });});
+  SAT_SLOTS.forEach(sl=>{
+    const cb=document.getElementById(`sg2-토-${sl.id}`);
+    if(cb?.checked){if(!D.SC['토'])D.SC['토']={};if(!D.SC['토'][sl.id])D.SC['토'][sl.id]=[];if(!D.SC['토'][sl.id].includes(sid))D.SC['토'][sl.id].push(sid);}
+  });
+  touchSC(sid);
+}
+function toggleRMLoHiLinkUI(){
+  const on=!!document.getElementById('rm-lohi-link-chk')?.checked;
+  const detail=document.getElementById('rm-lohi-link-detail');
+  if(detail)detail.style.display=on?'block':'none';
+  // 사고력 연동과는 동시에 켤 수 없음 — 켜면 반대쪽은 끔
+  if(on){
+    const linkChk=document.getElementById('rm-link-chk');
+    if(linkChk&&linkChk.checked){linkChk.checked=false;toggleRMLinkUI();}
+  }
+  // 이 등록 화면에서 입력한 "요일별 고정 설정"은 이 화면 저장 시엔 반영되지 않으므로(사고력 연동과
+  // 동일하게, 등록 후 각 반에서 따로 지정) 혼동을 없애기 위해 감춘다
+  const ddBox=document.getElementById('rm-daydef-box');
+  if(ddBox)ddBox.style.display=on?'none':'';
+  if(on){ refreshRMLoHiLabels(); populateSchGrid2(); }
+}
+// 이미 쓰이는 이름이면 "(반이름)", 그래도 겹치면 "(반이름2)"처럼 뒤에 번호를 붙여 고유한 id를 만든다.
+// mintSagoDisplayId와 같은 방식 — 표시용 별칭이 아니라 이 학생 고유 id 그 자체로 저장된다.
+function mintLoHiId(baseName,otherGroupLabel){
+  let cand=`${baseName}(${otherGroupLabel})`,n=2;
+  while(D.S.some(s=>s&&s.id===cand))cand=`${baseName}(${otherGroupLabel}${n++})`;
+  return cand;
+}
+// 🔗 저학년+고학년 동시 등록 — 한 번의 "등록"으로 두 반 레코드를 함께 만들고, 각자 고른 시간표를
+// 그대로 배정한다. 같은 클라우드('braining')라 사고력 연동과 달리 저장 확인을 따로 추적할 필요는
+// 없지만, 실패 시 배너로 바로 보이도록 trackLinkedWrite를 그대로 재사용한다(사고력 쪽은 자동으로
+// 아무 일도 안 함 — 이 두 학생 다 사고력이 아니므로 pushSagoNow가 스스로 걸러냄).
+function saveLoHiLinkedStu({name,grade,school,grp,memo,subj,curr}){
+  const otherGrp=rmLoHiOtherGroup(grp);
+  const primaryId=name;
+  if(D.S.some(s=>s&&s.id===primaryId)){alert('동일한 이름의 학생이 있습니다.');return;}
+  const secondaryId=mintLoHiId(name,groupLabel(otherGrp).replace('·중등·고등',''));
+  const teacher=grp==='고학년'?(document.getElementById('rm-teacher')?.value||''):'';
+  const className=grp==='고학년'?(document.getElementById('rm-classname')?.value.trim()||''):'';
+  const level=grp==='사고력'?(document.getElementById('rm-level')?.value||''):''; // lohi는 사고력일 수 없으므로 항상 ''
+  const prog=getProgDropdowns('rm');
+  const linkId=mintLinkId();
+  const now=Date.now();
+  const common={grade,school,memo,linkId,status:'active',impNotes:[],
+    progress:JSON.parse(JSON.stringify(prog||{series:'',level:'',unit:''})),
+    _updatedAt:now,_linkUpdatedAt:now};
+  // ⚠ saveStu와 동일한 이유 — 예전에 같은 이름을 완전삭제한 적이 있으면 삭제 기록(tombstone)이
+  // 남아있어서, 그 상태로 두면 동기화 병합 때 방금 만든 두 반 레코드가 조용히 사라진다.
+  if(D.tombstones?.students){ delete D.tombstones.students[primaryId]; delete D.tombstones.students[secondaryId]; }
+  const primaryStu=Object.assign({},common,{id:primaryId,group:grp,teacher,className,level,
+    subject:subj,curriculum:curr});
+  // 반대쪽 반은 이 등록에서 입력한 교재/담임 정보를 그대로 쓸 수 없으므로(그 반 전용 값이라)
+  // 비워두고, 등록 후 그 학생을 그 반에서 열어 따로 지정하게 한다 — 사고력 연동과 동일한 방식.
+  const secondaryStu=Object.assign({},common,{id:secondaryId,group:otherGrp,teacher:'',className:'',
+    level:'',subject:'',curriculum:''});
+  D.S.push(primaryStu);D.S.push(secondaryStu);
+  readSchGrid(primaryId);
+  if(grp==='고학년')readSatGrid(primaryId);
+  readSchGrid2(secondaryId);
+  saveSchSnapshot();
+  SD();
+  trackLinkedWrite(`${name} 저학년+고학년 동시 등록 (${groupLabel(grp)} · ${groupLabel(otherGrp)})`);
+  closeM('rm');renderAll();
+  toast(`${name} 저학년+고학년 동시 등록 완료 🎉 — ${groupLabel(grp)} · ${groupLabel(otherGrp)}`);
+}
 // 🔀 요일별 수강 순서 — 예전엔 전체 요일에 순서 하나를 공통으로 썼지만, 주 2회 이상 다니면서
 // 요일마다 순서가 다른 아이(월: 사고력→교과, 수: 교과→사고력)를 위해 요일마다 독립적으로 저장한다.
 // 'sago-first'(사고력→교과, 기본값) / 'lo-first'(교과→사고력)
@@ -6833,6 +6974,8 @@ function saveStu(){
   const isE=!!RT;
   // 🔗 연동 수강(사고력 + 저학년 교과) — 한 번의 등록으로 두 반 레코드를 함께 만든다
   if(!isE&&isRMLinkMode()){ saveLinkedStu({name,grade,school,grp,memo,subj,curr}); return; }
+  // 🔗 저학년+고학년 동시 등록 — 한 번의 등록으로 두 반 레코드를 함께 만든다
+  if(!isE&&isRMLoHiLinkMode()){ saveLoHiLinkedStu({name,grade,school,grp,memo,subj,curr}); return; }
   if(!isE){
     if(D.S.find(s=>s.id===name)){alert('동일한 이름의 학생이 있습니다.');return;}
     // ⚠ 예전에 같은 이름의 학생을 완전삭제한 적이 있으면 그 이름이 삭제 기록(tombstone)에 남아있는데,
@@ -9350,7 +9493,8 @@ let GTSM_SID=null, GTSM_RETURN_TAB='report';
 function gtsmEscRaw(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 // 학생 선택을 뺀 나머지 입력값은 화면을 벗어나도(다른 탭 갔다가 돌아와도) 잠깐은 유지되도록 메모리에 보관
 // (클라우드 동기화로 renderAll()이 도중에 걸려도 입력 중이던 다른 칸 내용이 사라지지 않게 하기 위함이기도 함)
-let GTSM_STATE={month:'',examRange:'',intro:'',section1:'',section3:''};
+// mode: 'personal'(학생 개별 리포트, 기존 방식) | 'simple'(전체 공지 — 인사말+짧은 공지만, 학생 선택 없음)
+let GTSM_STATE={mode:'personal',month:'',examRange:'',intro:'',section1:'',section3:'',notice:''};
 // 학생이 많으면 드롭다운에서 일일이 스크롤해서 찾기 번거로우므로, 앱 다른 곳과 동일한
 // 초성/부분일치 검색(korSearch)으로 드롭다운 옵션을 실시간으로 좁혀주기 위한 검색어 상태
 let GTSM_STU_SEARCH='';
@@ -9578,6 +9722,36 @@ ${origNote}
     if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-sparkles"></i> AI로 다듬기';}
   }
 }
+// 학부모용 특이사항을 AI 없이(=API 키 없이) 정해진 규칙만으로 다듬는다. 선생님끼리만 알아보는
+// 줄임말·화살표·영어 진행 표시 등을 자연스러운 한국어 표현으로 치환하는 정도만 하고, 문장의
+// 존댓말·어미는 건드리지 않는다 — 문법을 잘못 바꿔서 오히려 이상한 문장이 되는 걸 막기 위함
+// (진짜 AI처럼 통째로 다시 써주진 못하지만, API 키 없이 바로 쓸 수 있다).
+const REPORT_NOTE_REPLACE_RULES=[
+  [/오답\s*ck/gi,'오답 확인'],
+  [/숙제\s*ck/gi,'숙제 확인'],
+  [/진도\s*ck/gi,'진도 확인'],
+  [/오답\s*clear/gi,'오답 정리 완료'],
+  [/\(ing\)/gi,'(진행 중)'],
+  [/ing(?=[)\s]|$)/g,' 진행 중'], // "시험ing" 처럼 한글에 바로 붙은 ing만 풀어씀 (영어 단어는 안 건드림)
+];
+function reportNoteRuleBasedRewrite(){
+  const el=document.getElementById('reportn-text');
+  const date=el.dataset.date,sid=el.dataset.sid;
+  const r=D.R[date]?.[sid];
+  const origNote=(r?.note||'').trim();
+  if(!origNote){toast('원문(선생님 기록)이 비어있어서 다듬을 내용이 없어요');return;}
+  let out=origNote;
+  REPORT_NOTE_REPLACE_RULES.forEach(([pat,rep])=>{ out=out.replace(pat,rep); });
+  // 화살표(>)는 순서를 나타내려고 쓴 것이므로, 문장을 끊어주는 마침표로 바꿔서 자연스럽게 이어 읽히게 함
+  out=out.split('\n').map(line=>{
+    let l=line.replace(/\s*>\s*/g,'. ').trim();
+    if(l&&!/[.!?]$/.test(l))l+='.'; // 문장이 마침표 없이 끝나면 하나 붙여줌
+    return l;
+  }).join('\n');
+  out=out.replace(/[ \t]{2,}/g,' ').trim();
+  el.value=out;
+  toast('화살표·줄임말을 정리했어요 — AI가 아니라 정해진 규칙으로만 바꾼 거라, 자연스럽게 읽히는지 한 번 확인해주세요');
+}
 async function gtsmGenerateIntroAI(){
   const{provider,apiKey}=getAiSettings();
   if(!apiKey){
@@ -9634,6 +9808,12 @@ function openGtsm(sid){
 function gtsmOnField(key,val){
   GTSM_STATE[key]=val;
   gtsmRenderPreview();
+}
+// 작성 방식 전환 — 왼쪽 패널 입력칸 자체가 달라지므로(학생 선택·평가범위 유무 등) 전체를 다시 그림
+function gtsmSetMode(mode){
+  if(GTSM_STATE.mode===mode)return;
+  GTSM_STATE.mode=mode;
+  renderAll();
 }
 function gtsmOnSidChange(val){
   GTSM_SID=val||null;
@@ -9692,6 +9872,7 @@ function gtsmParseContent(raw){
 function gtsmRenderPreview(){
   const subEl=document.getElementById('gtsm-previewSub');
   if(!subEl)return; // 가정통신문 화면이 아니면 아무것도 안 함
+  const mode=GTSM_STATE.mode||'personal';
   const sid=GTSM_SID||document.getElementById('gtsm-sid')?.value||'';
   const name=sid||'학생 이름';
   const month=(document.getElementById('gtsm-month')?.value||'').trim();
@@ -9699,13 +9880,35 @@ function gtsmRenderPreview(){
   const intro=document.getElementById('gtsm-intro')?.value||'';
   const s1=document.getElementById('gtsm-section1')?.value||'';
   const s3=document.getElementById('gtsm-section3')?.value||'';
+  const notice=document.getElementById('gtsm-notice')?.value||'';
 
-  subEl.innerHTML=`${esc(name)} ${month?esc(month)+' ':''}월말평가 안내`;
+  subEl.innerHTML=mode==='simple'
+    ? `${month?esc(month)+' ':''}안내 말씀`
+    : `${esc(name)} ${month?esc(month)+' ':''}월말평가 안내`;
 
   const introFilled=intro.replaceAll('{month}',month||'이번 달').replaceAll('{examRange}',examRange||'평가 범위 미입력');
   const introEl=document.getElementById('gtsm-previewIntro');
   const parsedIntro=gtsmParseContent(introFilled);
   introEl.innerHTML=parsedIntro||'<p class="gtsm-empty-tag">학원 공통 인사말을 입력하면 여기에 표시됩니다.</p>';
+
+  if(mode==='simple'){
+    // 간단 공지 모드 — 평가범위 안내문·마무리 말씀 섹션은 통째로 감추고, 공지 내용 하나만 보여줌
+    const s1TitleEl=document.getElementById('gtsm-s1Title');
+    if(s1TitleEl)s1TitleEl.textContent='안내 말씀';
+    const examBox=document.getElementById('gtsm-previewExamRange')?.closest('.gtsm-callout');
+    if(examBox)examBox.style.display='none';
+    const p1=document.getElementById('gtsm-previewSection1');
+    const parsedN=gtsmParseContent(notice);
+    if(parsedN){p1.innerHTML=parsedN;p1.classList.remove('gtsm-empty-tag');}
+    else{p1.textContent='공지 내용을 입력하면 여기에 표시됩니다.';p1.classList.add('gtsm-empty-tag');}
+    const closingEl=document.getElementById('gtsm-closingBox');
+    if(closingEl)closingEl.style.display='none';
+    return;
+  }
+  const examBox=document.getElementById('gtsm-previewExamRange')?.closest('.gtsm-callout');
+  if(examBox)examBox.style.display='';
+  const closingEl=document.getElementById('gtsm-closingBox');
+  if(closingEl)closingEl.style.display='';
 
   const s1TitleEl=document.getElementById('gtsm-s1Title');
   if(s1TitleEl)s1TitleEl.textContent=`${name} 학생 학습 안내`;
@@ -9730,7 +9933,8 @@ function gtsmDownloadHtml(){
   if(!sheetEl||!styleEl)return;
   const sheetClone=sheetEl.outerHTML;
   const styles=styleEl.outerHTML;
-  const name=GTSM_SID||'학생';
+  const isSimple=(GTSM_STATE.mode||'personal')==='simple';
+  const name=isSimple?'전체안내':(GTSM_SID||'학생');
   const month=(document.getElementById('gtsm-month')?.value||'').trim();
   const fullHtml=`<!DOCTYPE html>
 <html lang="ko">
@@ -9754,7 +9958,8 @@ ${sheetClone}
   toast('가정통신문 HTML 파일을 저장했어요');
 }
 function gtsmPrint(){
-  const name=GTSM_SID||'학생';
+  const isSimple=(GTSM_STATE.mode||'personal')==='simple';
+  const name=isSimple?'전체안내':(GTSM_SID||'학생');
   const month=(document.getElementById('gtsm-month')?.value||'').trim();
   const originalTitle=document.title;
   document.title=`브레이닝수학학원 가정통신문 - ${name}${month?' '+month:''}`;
@@ -9766,12 +9971,14 @@ function gtsmPrint(){
 }
 function rGtsm(){
   const sid=GTSM_SID;
+  const mode=GTSM_STATE.mode||'personal';
   const stuOpts=gtsmStuOptions(GTSM_STU_SEARCH,sid);
   const month=GTSM_STATE.month||'';
   const examRange=GTSM_STATE.examRange||'';
   const intro=GTSM_STATE.intro||gtsmGetIntroTemplate();
   const section1=GTSM_STATE.section1||'';
   const section3=GTSM_STATE.section3||'';
+  const notice=GTSM_STATE.notice||'';
   let out=`<div class="no-print" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
     <button onclick="setTab(GTSM_RETURN_TAB||'report');" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
     <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-mail"></i> 가정통신문 생성기</div>
@@ -9846,23 +10053,31 @@ function rGtsm(){
     <div class="gtsm-panel no-print">
       <div class="gtsm-panel-title">BRAINING MATH ACADEMY</div>
       <h1>가정통신문 생성기</h1>
-      <div class="gtsm-desc">아이 정보와 이번 달 내용을 입력하면 오른쪽에 완성된 가정통신문이 만들어져요.</div>
+      <div class="gtsm-desc">${mode==='simple'?'인사말과 짧은 공지 내용만 넣어서, 학생 구분 없이 전체에 보낼 안내문을 빠르게 만들 수 있어요.':'아이 정보와 이번 달 내용을 입력하면 오른쪽에 완성된 가정통신문이 만들어져요.'}</div>
 
       <div class="gtsm-field">
+        <label>작성 방식</label>
+        <div style="display:flex;gap:6px;">
+          <button type="button" onclick="gtsmSetMode('personal')" style="flex:1;padding:8px 6px;border-radius:6px;border:1px solid ${mode==='personal'?'var(--gteal-deep)':'var(--gline)'};background:${mode==='personal'?'var(--gteal-deep)':'#fdfcf9'};color:${mode==='personal'?'#fff':'var(--gink)'};font-size:12px;font-weight:700;cursor:pointer;">학생 개별 리포트</button>
+          <button type="button" onclick="gtsmSetMode('simple')" style="flex:1;padding:8px 6px;border-radius:6px;border:1px solid ${mode==='simple'?'var(--gteal-deep)':'var(--gline)'};background:${mode==='simple'?'var(--gteal-deep)':'#fdfcf9'};color:${mode==='simple'?'#fff':'var(--gink)'};font-size:12px;font-weight:700;cursor:pointer;">전체 공지 (간단)</button>
+        </div>
+      </div>
+
+      ${mode==='personal'?`<div class="gtsm-field">
         <label>학생 선택</label>
         <input type="text" id="gtsm-stu-search" value="${gtsmEscRaw(GTSM_STU_SEARCH)}" placeholder="🔍 학생 이름 검색 (예: 이준우, ㅇㅈ, 준우)" oninput="gtsmFilterStu(this.value)" style="margin-bottom:8px;">
         <select id="gtsm-sid" onchange="gtsmOnSidChange(this.value)">${stuOpts?(sid?'':'<option value="">학생을 선택하세요</option>')+stuOpts:'<option value="">검색 결과가 없어요</option>'}</select>
-      </div>
+      </div>`:''}
 
       <div class="gtsm-row2">
         <div class="gtsm-field">
           <label>평가 월</label>
           <input type="text" id="gtsm-month" value="${gtsmEscRaw(month)}" placeholder="예: 4월" oninput="gtsmOnField('month',this.value)">
         </div>
-        <div class="gtsm-field">
+        ${mode==='personal'?`<div class="gtsm-field">
           <label>평가 범위</label>
           <input type="text" id="gtsm-examRange" value="${gtsmEscRaw(examRange)}" placeholder="예: 세 수의 덧셈과 뺄셈" oninput="gtsmOnField('examRange',this.value)">
-        </div>
+        </div>`:''}
       </div>
 
       <div class="gtsm-field">
@@ -9877,7 +10092,11 @@ function rGtsm(){
         </div>
       </div>
 
-      <div class="gtsm-field">
+      ${mode==='simple'?`<div class="gtsm-field">
+        <label>공지 내용</label>
+        <div class="gtsm-hint">예: 다음 주 월요일부터 상반기 전체 월말평가를 진행합니다. 전체 학생에게 공통으로 나갈 짧은 안내만 적어주세요.</div>
+        <textarea id="gtsm-notice" class="gtsm-tall" placeholder="예: 다음 주부터 상반기 전체 월말평가를 진행합니다..." oninput="gtsmOnField('notice',this.value)">${gtsmEscRaw(notice)}</textarea>
+      </div>`:`<div class="gtsm-field">
         <label>우리 아이 개별 평가 결과 &amp; 이번 달 학습 내용</label>
         <div class="gtsm-hint">아이의 평가 결과, 태도, 이번 달 수업 내용을 자유롭게 적어주세요.</div>
         <textarea id="gtsm-section1" class="gtsm-tall" placeholder="예: 문제를 끝까지 차분하게 읽고 풀이 과정을 잘 정리했습니다..." oninput="gtsmOnField('section1',this.value)">${gtsmEscRaw(section1)}</textarea>
@@ -9887,7 +10106,7 @@ function rGtsm(){
         <label>마무리 말씀 / 가정에서 도와주실 점</label>
         <div class="gtsm-hint">줄 앞에 <code>-</code> 를 붙이면 목록으로 표시됩니다.</div>
         <textarea id="gtsm-section3" placeholder="예:&#10;가정에서도 아래처럼 가볍게 도와주시면 큰 힘이 됩니다.&#10;- 천천히 정확하게 풀기&#10;- 외운 내용 반복 확인하기" oninput="gtsmOnField('section3',this.value)">${gtsmEscRaw(section3)}</textarea>
-      </div>
+      </div>`}
 
       <div class="gtsm-syntax-box">
         <b>입력 팁</b><br>
@@ -9942,11 +10161,13 @@ function rGtsm(){
         </div>
 
         <div class="gtsm-closing">
-          <div class="gtsm-section-title">
-            <div class="gtsm-section-label">CLOSING NOTE</div>
-            <h3>마무리 말씀</h3>
+          <div id="gtsm-closingBox">
+            <div class="gtsm-section-title">
+              <div class="gtsm-section-label">CLOSING NOTE</div>
+              <h3>마무리 말씀</h3>
+            </div>
+            <div id="gtsm-previewSection3" class="gtsm-empty-tag">내용을 입력하면 여기에 표시됩니다.</div>
           </div>
-          <div id="gtsm-previewSection3" class="gtsm-empty-tag">내용을 입력하면 여기에 표시됩니다.</div>
           <div class="gtsm-signature">브레이닝수학학원 드림</div>
         </div>
 
