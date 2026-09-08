@@ -1238,7 +1238,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-08-lohi-link-existing-student'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-08-hide-group-suffix-display'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1725,7 +1725,9 @@ function mintSagoDisplayId(baseName,isTaken){
 }
 // mintSagoDisplayId가 이름 충돌을 피하려고 붙인 "(사고력)"/"(사고력2)" 표시는 내부적으로 다른 학생과
 // 구분하기 위한 것일 뿐, 화면에 이름만 깔끔하게 보이길 원하는 곳(예: 전체시간표 칸)에서는 떼어서 보여준다.
-function dispStuName(id){ return String(id||'').replace(/\(사고력\d*\)$/,''); }
+// 저학년+고학년 연동(mintLoHiId)도 사고력 연동과 같은 이유로 "(고학년)"/"(저학년)" 접미사가 붙는다 —
+// 내부적으로만 구분하기 위한 것이니 화면에는 원래 이름만 보이게 함께 떼어준다.
+function dispStuName(id){ return String(id||'').replace(/\((사고력|고학년|저학년)\d*\)$/,''); }
 // 사고력 클라우드로 되돌려 보낼 때 원래 이름으로 복원되도록 별칭을 등록해둔다.
 // (등록하지 않으면 기존 사고력 관리앱에 "홍길동(사고력)"이라는 이상한 이름으로 나타남)
 function registerSagoAlias(originalName,displayId){
@@ -2908,7 +2910,7 @@ function rSch(){
       out+=`<div class="${cls}" onclick="openEdit('${esc(sid)}','${sl.id}','${date}')">
         <div class="sc-strip ${stC(displaySubj)}" style="${stripStyle}"></div>
         <div class="sc-body">
-          <div class="sc-top"><div><div class="sc-name">${s.id}</div>${(()=>{const dl=getStuDaysLabel(sid);return dl?`<div style="font-size:9px;color:var(--pri2);font-weight:600;margin-top:1px;">${dl}</div>`:''})()}</div><span class="sc-grade">${GL[s.grade]||s.grade}</span>${isOneTime?`<span onclick="event.stopPropagation();removeOneTime('${esc(sid)}','${date}','${sl.id}')" style="margin-left:auto;font-size:10px;color:${oneTimeType==='시간변동'?'#4C1D95':oneTimeType==='대체수업'?'#065F46':'#92400E'};background:${oneTimeType==='시간변동'?'#EDE9FE':oneTimeType==='대체수업'?'#ECFDF5':'#FEF3C7'};border:1px solid ${oneTimeType==='시간변동'?'#8B5CF6':oneTimeType==='대체수업'?'#34D399':'#FDE68A'};border-radius:10px;padding:1px 6px;cursor:pointer;" title="임시 추가 취소">${oneTimeType==='시간변동'?'🔀시간변동':oneTimeType==='대체수업'?'🔁대체수업':'🔄보충'}${extraEntry?.customTime?' '+extraEntry.customTime:''} ✕</span>`:''}</div>
+          <div class="sc-top"><div><div class="sc-name">${esc(dispStuName(s.id))}</div>${(()=>{const dl=getStuDaysLabel(sid);return dl?`<div style="font-size:9px;color:var(--pri2);font-weight:600;margin-top:1px;">${dl}</div>`:''})()}</div><span class="sc-grade">${GL[s.grade]||s.grade}</span>${isOneTime?`<span onclick="event.stopPropagation();removeOneTime('${esc(sid)}','${date}','${sl.id}')" style="margin-left:auto;font-size:10px;color:${oneTimeType==='시간변동'?'#4C1D95':oneTimeType==='대체수업'?'#065F46':'#92400E'};background:${oneTimeType==='시간변동'?'#EDE9FE':oneTimeType==='대체수업'?'#ECFDF5':'#FEF3C7'};border:1px solid ${oneTimeType==='시간변동'?'#8B5CF6':oneTimeType==='대체수업'?'#34D399':'#FDE68A'};border-radius:10px;padding:1px 6px;cursor:pointer;" title="임시 추가 취소">${oneTimeType==='시간변동'?'🔀시간변동':oneTimeType==='대체수업'?'🔁대체수업':'🔄보충'}${extraEntry?.customTime?' '+extraEntry.customTime:''} ✕</span>`:''}</div>
           <div class="sc-bdg">
             <span class="badge ${sC(displaySubj)}">${displaySubj}</span>
             ${isOtherClass?'<span style="background:#EDE9FE;color:#4C1D95;border:1px solid #C4B5FD;border-radius:20px;font-size:10px;padding:1px 5px;font-weight:700;">🟣 타수업</span>':''}
@@ -3064,7 +3066,7 @@ function rOvr(){
       const rowBg=absent?'background:#FFF5F5;':isOtherClass?'background:#F5F3FF;':hasWrongAnswerOvr?'background:#FEF2F2;':hasReinforceNeededOvr?'background:#F5F3FF;':activeImpNotes.length>0?'background:#FFFBEB;':hasN?'background:#F0F9FF;':'';
       out+=`<tr style="${rowBg};cursor:pointer;${absent?'border-left:4px solid #DC2626;':''}" onclick="openEdit('${esc(sid)}','${sl.id}','${date}')">
         <td>
-          <div class="ov-name">${sid}${isExtra?' <span style="background:#FEF3C7;color:#92400E;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;">🔄보강</span>':''}</div>
+          <div class="ov-name">${esc(dispStuName(sid))}${isExtra?' <span style="background:#FEF3C7;color:#92400E;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;">🔄보강</span>':''}</div>
           <div class="ov-subj">${GL[s.grade]||s.grade}</div>
           ${(()=>{const dl=getStuDaysLabel(sid);return dl?`<div style="font-size:9px;color:var(--pri2);font-weight:600;margin-top:1px;">${dl}</div>`:''})()}
         </td>
@@ -3355,7 +3357,7 @@ function rFullSchByGrade(){
   const dayTotals={};DAYS.forEach(d=>dayTotals[d]=0);
   // 학생 배지 자체도 (교재가 아니라) 학년 색으로 통일 — 같은 학년인데 교재가 달라서 색이 서로 달라
   // 보이는 것("같은 초2인데 색이 다르다")을 막기 위해, 소속 그룹의 학년 색을 그대로 씀
-  const stuChip=(s)=>{const[bg,fg]=gradeColor(s.grade);return`<span onclick="HSid='${esc(s.id)}';setTab('his');" title="${escAttr(s.id)} ${escAttr(GL[s.grade]||s.grade)}" style="cursor:pointer;font-size:9.5px;padding:2px 3px;display:block;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;box-sizing:border-box;background:${bg};color:${fg};border-radius:4px;font-weight:600;">${esc(s.id)}</span>`;};
+  const stuChip=(s)=>{const[bg,fg]=gradeColor(s.grade);return`<span onclick="HSid='${esc(s.id)}';setTab('his');" title="${escAttr(s.id)} ${escAttr(GL[s.grade]||s.grade)}" style="cursor:pointer;font-size:9.5px;padding:2px 3px;display:block;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;box-sizing:border-box;background:${bg};color:${fg};border-radius:4px;font-weight:600;">${esc(dispStuName(s.id))}</span>`;};
   out+=`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:2px solid #94A3B8;border-radius:8px;">
   <table style="width:100%;min-width:820px;table-layout:fixed;border-collapse:collapse;">
     <thead><tr>
@@ -3430,7 +3432,7 @@ function rFullSchSaturday(){
     list.sort((a,b)=>(gradeOrder.indexOf(a.grade)<0?99:gradeOrder.indexOf(a.grade))-(gradeOrder.indexOf(b.grade)<0?99:gradeOrder.indexOf(b.grade))||a.id.localeCompare(b.id));
     return list;
   }
-  const stuChip=(s)=>`<span onclick="HSid='${esc(s.id)}';setTab('his');" class="badge ${sC(s.subject)}" title="${escAttr(s.id)} ${escAttr(GL[s.grade]||s.grade)}${s.className?' · '+escAttr(s.className):''}" style="cursor:pointer;font-size:11px;padding:3px 8px;">${esc(s.id)} <span style="opacity:.7;font-weight:400;">${esc(GL[s.grade]||s.grade)}</span></span>`;
+  const stuChip=(s)=>`<span onclick="HSid='${esc(s.id)}';setTab('his');" class="badge ${sC(s.subject)}" title="${escAttr(s.id)} ${escAttr(GL[s.grade]||s.grade)}${s.className?' · '+escAttr(s.className):''}" style="cursor:pointer;font-size:11px;padding:3px 8px;">${esc(dispStuName(s.id))} <span style="opacity:.7;font-weight:400;">${esc(GL[s.grade]||s.grade)}</span></span>`;
   let grandTotal=0;
   let out=`<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r);padding:10px 13px;margin-bottom:12px;font-size:12px;color:#92400E;">
     🗓 <b>토요일 ${esc(satDate.slice(5).replace('-','/'))}</b> · 담당: <b>${esc(SAT_TEACHER)}</b> 단독 · 9:00~13:00 4타임${isToday?' · <b>오늘</b>':''}
@@ -3510,7 +3512,7 @@ function rFullSchByTeacher(){
   if(!SLOTS.length)return out+`<div class="empty"><i class="ti ti-calendar-off"></i>등록된 시간대가 없습니다.</div>`;
   let grandTotal=0;
   const dayTotals={};DAYS.forEach(d=>dayTotals[d]=0);
-  const stuChip=(s)=>`<span onclick="HSid='${esc(s.id)}';setTab('his');" class="badge ${sC(s.subject)}" title="${escAttr(s.id)} ${escAttr(GL[s.grade]||s.grade)}${s.className?' · '+escAttr(s.className):''}" style="cursor:pointer;font-size:9.5px;padding:2px 3px;display:block;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;box-sizing:border-box;">${esc(s.id)}</span>`;
+  const stuChip=(s)=>`<span onclick="HSid='${esc(s.id)}';setTab('his');" class="badge ${sC(s.subject)}" title="${escAttr(s.id)} ${escAttr(GL[s.grade]||s.grade)}${s.className?' · '+escAttr(s.className):''}" style="cursor:pointer;font-size:9.5px;padding:2px 3px;display:block;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;box-sizing:border-box;">${esc(dispStuName(s.id))}</span>`;
   // 📌 선생님 칸 안에서도 학년별로 묶어서 보여줌(저학년 전체시간표와 동일한 방식) — "중1 [이름 이름]
   // 중2 [이름 이름]"처럼 학년 태그 아래 그 학년 학생들을 모아서, 같은 선생님 아래 여러 학년이
   // 섞여 있어도 한눈에 구분되게 함.
@@ -3641,7 +3643,7 @@ function rClassTransferInbox(){
     <div style="display:flex;flex-direction:column;gap:6px;">
       ${waiting.map(s=>`<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #C7D2FE;border-radius:8px;padding:8px 11px;">
         <div style="flex:1;min-width:0;">
-          <span style="font-size:13px;font-weight:700;">${esc(s.id)}</span>
+          <span style="font-size:13px;font-weight:700;">${esc(dispStuName(s.id))}</span>
           <span style="font-size:11px;color:var(--muted);margin-left:6px;">${GL[s.grade]||s.grade} · 기존 ${esc(groupLabel(s.group||'저학년'))}${s.classMoveDate?` · ${esc(s.classMoveDate)} 반이동 처리`:''}</span>
         </div>
         <button onclick="openClassTransferToHigh('${esc(s.id)}')" style="padding:6px 13px;border-radius:20px;border:none;background:#4338CA;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">고학년 반 배정</button>
@@ -3704,7 +3706,7 @@ function rMgr(){
       <div class="stu-av" style="background:${bg};color:${c};">${s.id[0]}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
-          ${s.id}
+          ${esc(dispStuName(s.id))}
           <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);">${GL[s.grade]||s.grade}</span>
           <span class="badge ${sC(s.subject)}">${s.subject}</span>
           ${hasImp?'<span style="color:#F59E0B;font-size:14px;" title="중요내용 있음">📌</span>':''}
@@ -3772,7 +3774,7 @@ function rLevelSection(){
       gg.forEach(s=>{
         out+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${lc.bg};border:1px solid ${lc.fg}55;border-left:4px solid ${lc.fg};border-radius:var(--rs);margin-bottom:6px;">
           <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:700;color:${lc.fg};">${esc(s.id)} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span></div>
+            <div style="font-size:13px;font-weight:700;color:${lc.fg};">${esc(dispStuName(s.id))} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span></div>
           </div>
           <select onchange="setStuLevel('${esc(s.id)}',this.value)" style="padding:6px 9px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;background:#fff;outline:none;">
             <option value="">미지정</option>
@@ -4175,7 +4177,7 @@ function rBookList(){
         out+=`<div onclick="BOOK_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:9px;">
           <div style="width:34px;height:34px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${esc(s.id[0])}</div>
           <div style="min-width:0;flex:1;">
-            <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.id)}</div>
+            <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(dispStuName(s.id))}</div>
             <div style="font-size:10px;color:var(--muted);">${GL[s.grade]||s.grade} · 시작 ${done}권</div>
           </div>
         </div>`;
@@ -4194,7 +4196,7 @@ function rBookDetail(s){
     <button onclick="BOOK_SID=null;renderAll()" style="border:none;background:#F1F5F9;border-radius:8px;padding:7px 11px;cursor:pointer;font-size:12px;color:var(--muted);"><i class="ti ti-arrow-left"></i></button>
     <div style="width:34px;height:34px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${esc(s.id[0])}</div>
     <div>
-      <div style="font-size:14px;font-weight:700;">${esc(s.id)}${s.level?` <span style="font-size:9px;background:${lc.bg};color:${lc.fg};padding:1px 5px;border-radius:8px;font-weight:700;">${esc(s.level)}반</span>`:''}</div>
+      <div style="font-size:14px;font-weight:700;">${esc(dispStuName(s.id))}${s.level?` <span style="font-size:9px;background:${lc.bg};color:${lc.fg};padding:1px 5px;border-radius:8px;font-weight:700;">${esc(s.level)}반</span>`:''}</div>
       <div style="font-size:10px;color:var(--muted);">${GL[s.grade]||s.grade} · 진도체크</div>
     </div>
   </div>`;
@@ -4557,7 +4559,7 @@ function rHisSrch(){
       out+=`<div class="hg-card" onclick="HSid='${s.id}';renderAll()">
         <div class="hg-av" style="background:${bg};color:${c};">${s.id[0]}</div>
         <div style="min-width:0;flex:1;">
-          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.id}${isLinkedSid(s.id)?' <span style="font-size:9px;font-weight:700;padding:0 5px;border-radius:9px;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;vertical-align:1px;">🔗연동</span>':''}</div>
+          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(dispStuName(s.id))}${isLinkedSid(s.id)?' <span style="font-size:9px;font-weight:700;padding:0 5px;border-radius:9px;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;vertical-align:1px;">🔗연동</span>':''}</div>
           <div style="font-size:10px;color:var(--muted);">총 ${cnt}회${targetS?` · 이번달 ${sessAtt}/${targetS}일`+(!sessDone?'':' ✅'):''}
           </div>
           ${targetS?`<div style="background:#F1F5F9;border-radius:99px;height:4px;margin-top:3px;overflow:hidden;"><div style="height:100%;width:${sessPct}%;background:${sessDone?'#10B981':'#3B82F6'};border-radius:99px;"></div></div>`:''}
@@ -4618,7 +4620,7 @@ function rHisDet(sid){
     <div class="sp-top">
       ${avEl(sid,46)}
       <div style="flex:1;min-width:0;">
-        <div style="font-size:19px;font-weight:700;">${sid}</div>
+        <div style="font-size:19px;font-weight:700;">${esc(dispStuName(sid))}</div>
         <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;">
           <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);">${GL[s.grade]||s.grade}</span>
           <span class="badge ${sC(s.subject)}">${s.subject}</span>
@@ -4630,7 +4632,7 @@ function rHisDet(sid){
             const[bg,fg]=teacherColor(pt.teacher);
             return`<span title="선생님별 주간 수업시간: ${Object.entries(pt.breakdown).map(([t,m])=>`${t} ${m}분`).join(', ')}" style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${bg};color:${fg};border:1px solid ${fg};">🧮 대표담임 ${esc(pt.teacher)} · 주${pt.minutes}분</span>`;
           })()}
-          ${(()=>{const o=getLinkedStudent(sid);return o?`<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;">🔗 연동 · ${esc(o.id)} (${esc(linkProgStyle(o.group||'저학년').label)})</span>`:'';})()}
+          ${(()=>{const o=getLinkedStudent(sid);return o?`<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;">🔗 연동 · ${esc(dispStuName(o.id))} (${esc(linkProgStyle(o.group||'저학년').label)})</span>`:'';})()}
           ${getStuScheduleDetail(sid).map(x=>`<span style="padding:2px 7px;border-radius:20px;font-size:10px;background:#E0E7FF;color:#3730A3;border:1px solid #A5B4FC;">${x.day}요일 ${x.label}</span>`).join('')}
         </div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px;">${s.curriculum||'-'}${s.memo?` · <span style="color:var(--warn);">${esc(s.memo)}</span>`:''}</div>
@@ -5009,7 +5011,7 @@ function rMku(){
     out+=`<div class="mk-card ${mk.status}">
       <div class="stu-av" style="background:${bg};color:${c};width:34px;height:34px;font-size:13px;flex-shrink:0;">${mk.studentId[0]}</div>
       <div class="mk-info">
-        <div class="mk-name">${mk.studentId} <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);font-size:10px;">${s?GL[s.grade]:''}</span>${s?`<span class="badge ${sC(s.subject)}" style="font-size:10px;">${s.subject}</span>`:''}</div>
+        <div class="mk-name">${esc(dispStuName(mk.studentId))} <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);font-size:10px;">${s?GL[s.grade]:''}</span>${s?`<span class="badge ${sC(s.subject)}" style="font-size:10px;">${s.subject}</span>`:''}</div>
         <div class="mk-date">결석일: ${mk.absDate} ${mk.absSlot?`(${slotLabel(mk.absSlot)})`:''}
         ${effSession?` <span style="font-size:10px;background:${isOverridden?'#FEF3C7':'#EFF6FF'};color:${isOverridden?'#92400E':'#1E40AF'};border-radius:8px;padding:1px 6px;font-weight:600;" title="${isOverridden?'수동으로 지정한 적용 세션':'결석일 기준 자동 판단'}">${isOverridden?'📌 ':''}${esc(effSession.name)} 보강${isOverridden?' (지정)':''}</span>`:''}
         ${mk.mkDate?`<br>보충예약: <strong>${mk.mkDate} ${mk.mkTimeStart&&mk.mkTimeEnd?`${mk.mkTimeStart}~${mk.mkTimeEnd}`:mk.mkSlot?slotLabel(mk.mkSlot):''}</strong>${mismatch?` <span style="font-size:10px;color:var(--dan);">⚠ 실제 진행은 ${esc(mkSession.name)} 기간</span>`:''}`:''}</div>
@@ -6367,7 +6369,7 @@ function renderSlotList(){
       const inS=cur.includes(s.id);
       const isSkippedToday=inS&&skippedTodayIds.includes(s.id);
       if(isSkippedToday){
-        return`<button onclick="unskipToday('${s.id}')" title="정규 등록은 유지된 채, ${date}만 제외 처리되어 있습니다. 눌러서 오늘도 복구하세요." style="padding:6px 11px;border-radius:20px;border:1px solid #F59E0B;font-size:12px;cursor:pointer;background:#FEF3C7;color:#92400E;font-weight:700;">↩ ${s.id} <span style="opacity:.8;font-size:10px;">(오늘 제외됨 · 복구)</span></button>`;
+        return`<button onclick="unskipToday('${s.id}')" title="정규 등록은 유지된 채, ${date}만 제외 처리되어 있습니다. 눌러서 오늘도 복구하세요." style="padding:6px 11px;border-radius:20px;border:1px solid #F59E0B;font-size:12px;cursor:pointer;background:#FEF3C7;color:#92400E;font-weight:700;">↩ ${esc(dispStuName(s.id))} <span style="opacity:.8;font-size:10px;">(오늘 제외됨 · 복구)</span></button>`;
       }
       return`<button onclick="togSlot('${s.id}')" style="padding:6px 11px;border-radius:20px;border:1px solid;font-size:12px;cursor:pointer;background:${inS?'var(--pri-l)':'#F1F5F9'};color:${inS?'var(--pri2)':'var(--muted)'};border-color:${inS?'var(--pri2)':'var(--bdr)'};font-weight:${inS?600:400};">${inS?'✓ ':''}${s.id} <span style="opacity:.6;font-size:10px;">${GL[s.grade]||s.grade}</span></button>`;
     }).join('');
@@ -7921,7 +7923,7 @@ function rPctList(){
       out+=`<div onclick="PCT_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid ${b.unread>0?'#FCA5A5':'var(--bdr)'};border-radius:var(--rs);padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:9px;${b.unread>0?'background:#FFF5F5;':''}">
         <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
         <div style="min-width:0;flex:1;">
-          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.id}</div>
+          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(dispStuName(s.id))}</div>
           <div style="font-size:10px;color:var(--muted);">${b.total?`${b.total}건 · 최근 ${b.lastDate.slice(5).replace('-','/')}`:''}</div>
           ${b.unread>0?`<div style="font-size:10px;color:#DC2626;font-weight:700;">미확인 ${b.unread}건</div>`:''}
         </div>
@@ -7945,7 +7947,7 @@ function rPctDet(sid){
     <div style="display:flex;align-items:center;gap:10px;">
       ${avEl(sid,40)}
       <div>
-        <div style="font-size:17px;font-weight:700;">${sid}</div>
+        <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
         <div style="font-size:11px;color:var(--muted);">${GL[s.grade]||s.grade} · 상담 ${consults.length}건 · 최근: ${lastDate}</div>
       </div>
     </div>
@@ -8137,7 +8139,7 @@ function rGradeDist(){
       out+=`<div onclick="toggleTomaDist('${esc(s.id)}')" style="background:${isGiven?'#ECFDF5':'#fff'};border:1px solid ${isGiven?'#6EE7B7':'var(--bdr)'};border-radius:var(--rs);padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:9px;">
         <div style="width:34px;height:34px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
         <div style="min-width:0;flex:1;">
-          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.id}</div>
+          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(dispStuName(s.id))}</div>
           <div style="font-size:10px;color:${isGiven?'#059669':'var(--muted)'};font-weight:${isGiven?700:400};">${isGiven?'✓ 배부완료':'미배부'}</div>
         </div>
       </div>`;
@@ -8409,7 +8411,7 @@ function rScoreReport(){
   out+=`<style>.sr-tbl{width:100%;border-collapse:collapse;} .sr-tbl th{padding:6px 8px;text-align:left;font-size:11px;}</style>`;
   out+=`<div class="report-print" style="background:#fff;padding:0;">
     <div style="background:#042C53;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div><div style="font-size:10px;opacity:.65;letter-spacing:1.2px;margin-bottom:4px;">브레이닝 수학학원 · 성적 총정리</div><div style="font-size:21px;font-weight:700;">${esc(sid)} 학생</div></div>
+      <div><div style="font-size:10px;opacity:.65;letter-spacing:1.2px;margin-bottom:4px;">브레이닝 수학학원 · 성적 총정리</div><div style="font-size:21px;font-weight:700;">${esc(dispStuName(sid))} 학생</div></div>
       <div style="text-align:right;font-size:11px;opacity:.8;line-height:1.7;">${ds}<br>${GL[s.grade]||s.grade}${s.school?' · '+esc(s.school):''}</div>
     </div>
     <div style="background:#E6F1FB;padding:12px 20px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px;border-radius:0 0 10px 10px;margin-bottom:18px;">
@@ -8537,7 +8539,7 @@ function rGradeList(){
       out+=`<div onclick="GRADE_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid ${hasScore?'#BAE6FD':'var(--bdr)'};border-radius:var(--rs);padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:9px;${hasScore?'background:#F0F9FF;':''}">
         <div style="width:34px;height:34px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
         <div style="min-width:0;flex:1;">
-          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.id}</div>
+          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(dispStuName(s.id))}</div>
           ${hasScore
             ?`<div style="font-size:10px;color:${latest.retest&&!latest.retestScore&&!latest.score?'var(--dan)':latest.retest&&latest.retestScore?'var(--ok)':'#0369A1'};font-weight:600;">${latest.retest&&!latest.retestScore?'🔄 재시험 대상':latest.retest&&latest.retestScore?'✓ 재시험 '+latest.retestScore+'점':latest.score+'점'}</div>
                <div style="font-size:10px;color:var(--muted);">${latest.date}</div>`
@@ -8614,7 +8616,7 @@ function rGradeDetME(sid){
     <div style="display:flex;align-items:center;gap:10px;">
       ${avEl(sid,40)}
       <div>
-        <div style="font-size:17px;font-weight:700;">${sid}</div>
+        <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
         <div style="font-size:11px;color:var(--muted);">${GL[s.grade]||s.grade}${s.school?` · 🏫 ${esc(s.school)}`:''} · 🏆 월말평가 ${mes.length}회</div>
       </div>
     </div>
@@ -8748,7 +8750,7 @@ function rGradeDet(sid){
     <div style="display:flex;align-items:center;gap:10px;">
       ${avEl(sid,40)}
       <div>
-        <div style="font-size:17px;font-weight:700;">${sid}</div>
+        <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
         <div style="font-size:11px;color:var(--muted);">${GL[s.grade]||s.grade} · TOMA ${scores.length}회</div>
       </div>
     </div>
@@ -10264,7 +10266,7 @@ function rHov(){
       out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:10px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;">
         <div style="width:38px;height:38px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:700;">${s.id} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span> <span class="badge ${sC(s.subject)}" style="font-size:10px;">${s.subject}</span>${hasImp?'<span style="color:#F59E0B;margin-left:4px;">📌</span>':''}</div>
+          <div style="font-size:13px;font-weight:700;">${esc(dispStuName(s.id))} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span> <span class="badge ${sC(s.subject)}" style="font-size:10px;">${s.subject}</span>${hasImp?'<span style="color:#F59E0B;margin-left:4px;">📌</span>':''}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">${s.curriculum||'-'} ${dys.length?'· '+dys.join('·')+'요일':''}</div>
         </div>
         <button onclick="openHovModal('${s.id}')" style="background:var(--pri);color:#fff;border:none;border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;flex-shrink:0;"><i class="ti ti-file-text"></i> 자료 생성</button>
@@ -10318,7 +10320,7 @@ function buildHovHTML(sid){
     <div style="background:var(--pri);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px;">
       <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;">${sid[0]}</div>
       <div>
-        <div style="font-size:17px;font-weight:700;">${sid}</div>
+        <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
         <div style="font-size:12px;opacity:.85;">${GL[s.grade]||s.grade} · ${s.subject} · ${tdk()} 기준</div>
       </div>
     </div>
