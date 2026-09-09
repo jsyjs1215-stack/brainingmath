@@ -1244,7 +1244,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-09-unified-search-tab'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-09-uni-makeup-group-pill-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -4947,6 +4947,14 @@ function rHisDet(sid,backFn,extraHtml){
 // ⚠ 학생기록(curS() 기준 = ActiveGroup 그룹만)과 달리, 여기는 항상 전체 그룹(D.S 전체)에서
 // 찾는다 — "탭을 오가며 찾아야 해서 힘들다"는 문제 자체가 그룹별로 화면이 나뉘어 있어서 생긴
 // 것이므로, 지금 사고력/저학년/고학년 중 어느 그룹을 보고 있든 검색 결과는 항상 동일하다.
+// 이름(접미사 제외)이 같은 모든 학생 기록을 모은다 — linkId로 정식 연동된 것뿐 아니라, 이미
+// 다른 반과 연동돼 있어서(연동은 한 학생당 하나만 가능) 새로 못 엮이고 이름만 같은 채로 따로
+// 만들어진 기록(예: 보강을 세 번째 반으로 예약할 때 생기는 경우)까지 전부 포함한다.
+// getLinkedStudent()만 쓰면 linkId 상대 한 명만 잡혀서, 세 번째 반 기록이 통째로 누락됐었다.
+function allGroupMembersFor(sid){
+  const base=dispStuName(sid);
+  return D.S.filter(s=>s&&dispStuName(s.id)===base);
+}
 function rUni(){ return UniSid?rUniDet(UniSid):rUniSrch(); }
 function rUniSrch(){
   const sf=UniSearch;
@@ -4962,8 +4970,7 @@ function rUniSrch(){
     const base=dispStuName(s.id);
     if(seen.has(base))return;
     seen.add(base);
-    const other=getLinkedStudent(s.id);
-    const members=other?[s,other]:[s];
+    const members=allGroupMembersFor(s.id);
     groups.push({base,members,primary:s});
   });
   if(!groups.length)return `<div class="empty"><i class="ti ti-search"></i>검색 결과 없음</div>`;
@@ -4998,8 +5005,7 @@ function rUniDet(sid){
 }
 function rUniMakeupSection(sid){
   const s=gS(sid);if(!s)return'';
-  const other=getLinkedStudent(sid);
-  const ids=other?[sid,other.id]:[sid];
+  const ids=allGroupMembersFor(sid).map(m=>m.id);
   const items=D.makeups.filter(m=>ids.includes(m.studentId)&&m.status!=='done').sort((a,b)=>a.absDate.localeCompare(b.absDate));
   if(!items.length)return'';
   let out=`<div style="margin-bottom:12px;">
@@ -7567,10 +7573,12 @@ function openMkModal(id){
 }
 function saveMakeup(){
   const srcMk=D.makeups.find(m=>m.id==MKT);if(!srcMk)return;
-  // 🔗 연동 학생: 위에서 고른 반 쪽 보충 기록에 예약을 저장한다.
-  // 반대쪽을 골랐으면 그 반의 결석분 보충 기록(없으면 새로 만듦)에 저장하고, 원래 쪽 항목은
-  // 지우지 않고 그대로 남겨둔다 — 두 반 모두 보강이 필요할 수도 있고, 선생님이 모르는 사이
-  // 대기 항목이 사라지는 게 더 위험하기 때문.
+  // 🔗 다른 반을 골랐으면 그 반의 결석분 보충 기록(없으면 새로 만듦)에 예약을 저장한다.
+  // ⚠ 예전엔 원래 쪽 항목을 그대로 "대기중"에 남겨뒀는데("두 반 모두 보강이 필요할 수도 있다"는
+  // 이유였음) — 그러면 지금 막 예약을 저장한 화면에서 정작 보고 있던 카드는 계속 "대기중"으로
+  // 남아있어서 "예약이 안 됐다"처럼 보이는 문제가 있었다. 그래서 이제는 원래 쪽 항목을 완료
+  // 처리해서(기록은 지우지 않음 — 완료 필터·학생기록에서 계속 확인 가능, ↩되돌리기로 복구도 가능)
+  // "이 보강은 다른 반으로 처리됐다"는 게 한눈에 보이게 한다.
   let mk=srcMk, redirected=false;
   {
     const sideSel=document.getElementById('mkm-link-side');
@@ -7589,6 +7597,12 @@ function saveMakeup(){
         D.makeups.push(target);
       }
       mk=target;redirected=true;
+      if(srcMk.status!=='done'){
+        const movedLabel=linkProgStyle(gS(wantSid)?.group||'저학년').label;
+        srcMk.status='done';
+        srcMk.note=(srcMk.note?srcMk.note+' · ':'')+`🔗 ${movedLabel} 반 보강으로 처리됨`;
+        srcMk._updatedAt=Date.now();
+      }
     }
   }
   mk.mkDate=document.getElementById('mkm-date').value;
@@ -7615,7 +7629,7 @@ function saveMakeup(){
     // 두 반 데이터가 서로 다른 클라우드에 나뉘어 있으므로 저장 결과를 반드시 확인
     trackLinkedWrite(`${mk.studentId} 연동 보강 예약 (${mk.mkDate})`);
     const tgtLabel=linkProgStyle(gS(mk.studentId)?.group||'저학년').label;
-    toast(`🔗 ${tgtLabel} 보강으로 ${mk.studentId} 시간표에 예약했어요 — ${srcMk.studentId} 쪽 보충 항목은 그대로 남아있습니다`);
+    toast(`🔗 ${tgtLabel} 보강으로 ${mk.studentId} 시간표에 예약했어요 — 원래 쪽 항목은 완료 처리했어요(되돌리기로 복구 가능)`);
   } else {
     toast('보충 예약 저장 완료 — 수업입력·한눈에보기에 자동 반영됨');
   }
