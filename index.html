@@ -348,7 +348,6 @@ button,input,textarea,select{font-family:inherit;}
   <button class="nb" onclick="setTab('sch')"><i class="ti ti-writing"></i>수업입력</button>
   <button class="nb" onclick="setTab('ovr')"><i class="ti ti-eye"></i>한눈에보기</button>
   <button class="nb" id="nb-book" onclick="setTab('book')"><i class="ti ti-progress-check"></i>진도체크</button>
-  <button class="nb" onclick="setTab('uni')"><i class="ti ti-users"></i>통합검색</button>
   <button class="nb" onclick="setTab('his')"><i class="ti ti-search"></i>학생기록</button>
   <button class="nb" onclick="setTab('grade')"><i class="ti ti-chart-bar"></i>성적관리</button>
   <button class="nb" onclick="setTab('mku')"><i class="ti ti-refresh"></i>보충관리</button>
@@ -356,6 +355,7 @@ button,input,textarea,select{font-family:inherit;}
   <button class="nb" onclick="setTab('report')"><i class="ti ti-printer"></i>월간리포트</button>
   <button class="nb" onclick="setTab('hov')"><i class="ti ti-transfer"></i>인수인계</button>
   <button class="nb" onclick="setTab('admin')" style="position:relative;"><i class="ti ti-settings"></i>관리<span class="nbadge" id="admin-hwsms-badge" style="display:none;top:2px;right:10px;">0</span></button>
+  <button class="nb" onclick="setTab('uni')"><i class="ti ti-users"></i>통합검색</button>
 </div>
 
 <!-- CLOUD SYNC STATUS BAR -->
@@ -1244,7 +1244,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-09-sago-alias-cloud-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-09-uni-multigroup-schedule-pills'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2196,6 +2196,63 @@ function getStuScheduleDetail(sid){
 }
 function getStuScheduleLabelText(sid){
   return getStuScheduleDetail(sid).map(x=>`${x.day}요일 ${x.label}`).join(' / ');
+}
+// "4:15" 같은 시간대 라벨 조각을 분 단위로 — slotStartMinutes와 동일하게 8시 미만이면 오후로 간주
+// (이 앱의 시간대 라벨은 전부 오후 기준이라 "4:15"가 오전이 아니라 오후 4:15를 의미하기 때문)
+function timeLabelPartMinutes(str){
+  const s=(str||'').trim();
+  let[h,m]=s.split(':').map(Number);
+  if(isNaN(h))return 0;
+  if(h<8)h+=12;
+  return h*60+(m||0);
+}
+function minutesToTimeLabel(min){
+  let h=Math.floor(min/60),m=min%60;
+  if(h>12)h-=12;
+  return `${h}:${String(m).padStart(2,'0')}`;
+}
+// 통합검색 전용 — 연동된 모든 반(사고력/저학년/고학년)의 시간표를 요일별로 합쳐서 보여준다.
+// getStuScheduleDetail은 이 학생(sid) 하나가 속한 반의 시간표만 보여줘서, 사고력+저학년처럼
+// 같은 날 두 반을 연달아 다니는 아이는 뒤쪽 반 시간이 통째로 안 보였다 — 그래서 "수업이 끝나는
+// 시간이 안 보인다"고 느껴졌던 것(사실은 다른 반 수업 시간 전체가 빠져있던 것). 여기서는 이름이
+// 같은(=연동된) 모든 반 기록을 모아서 요일별로 "반별 시간"과 "그날 전체 시간"을 함께 계산한다.
+function getMultiGroupScheduleDetail(sid){
+  const members=(typeof allGroupMembersFor==='function'?allGroupMembersFor(sid):[gS(sid)].filter(Boolean));
+  const dayOrder=[...DAYS,'토'];
+  const perDay=[]; // {day, breakdown:[{grp,label}], totalLabel}
+  dayOrder.forEach(day=>{
+    const slotDefs=day==='토'?SAT_SLOTS:SLOTS;
+    const entries=[];
+    members.forEach(m=>{
+      const label=stuDaySlotLabel(m.id,day,slotDefs);
+      if(!label)return;
+      label.split(', ').forEach(seg=>{
+        const parts=seg.split('~');
+        if(parts.length<2)return;
+        entries.push({grp:m.group||'저학년',label:seg,startMin:timeLabelPartMinutes(parts[0]),endMin:timeLabelPartMinutes(parts[1])});
+      });
+    });
+    if(!entries.length)return;
+    entries.sort((a,b)=>a.startMin-b.startMin);
+    const totalStart=Math.min(...entries.map(e=>e.startMin));
+    const totalEnd=Math.max(...entries.map(e=>e.endMin));
+    perDay.push({day,breakdown:entries,totalLabel:`${minutesToTimeLabel(totalStart)}~${minutesToTimeLabel(totalEnd)}`});
+  });
+  return perDay;
+}
+// 위 결과를 학생기록 상세화면 상단의 "이름 옆 알약" 자리에 넣을 HTML로 렌더링.
+// 반이 하나뿐인 날은 기존과 동일하게 "화요일 4:15~5:10"만 보여주고, 두 반 이상 겹치는 날에만
+// "반이름 시간 / 반이름 시간"과 "총 4:15~6:10"을 함께 보여준다(불필요하게 복잡해지지 않도록).
+function renderMultiGroupSchedulePills(sid){
+  return getMultiGroupScheduleDetail(sid).map(d=>{
+    if(d.breakdown.length<2){
+      const only=d.breakdown[0];
+      return `<span style="padding:2px 7px;border-radius:20px;font-size:10px;background:#E0E7FF;color:#3730A3;border:1px solid #A5B4FC;">${d.day}요일 ${only.label}</span>`;
+    }
+    const parts=d.breakdown.map(e=>`${esc(linkProgStyle(e.grp).label)} ${e.label}`).join(' / ');
+    return `<span style="padding:2px 7px;border-radius:20px;font-size:10px;background:#E0E7FF;color:#3730A3;border:1px solid #A5B4FC;">${d.day}요일 ${parts}</span>`
+      +`<span style="padding:2px 7px;border-radius:20px;font-size:10px;background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;font-weight:700;">${d.day}요일 총 ${d.totalLabel}</span>`;
+  }).join('');
 }
 
 // ═══ 날짜별 시간표 이력 (SCH) ═══════════════
@@ -4592,7 +4649,9 @@ function rHisSrch(){
 // backFn: 기본은 학생기록 탭 자체("전체 목록") 버튼 동작. 통합검색처럼 다른 탭에서
 // 이 상세화면을 그대로 재사용할 때는 그 탭에 맞는 뒤로가기 동작을 넘겨줄 수 있다.
 // extraHtml: 상단 통계 카드 위에 끼워 넣을 추가 섹션(통합검색의 보강 현황 등).
-function rHisDet(sid,backFn,extraHtml){
+// schedulePillsHtml: 이름 옆 시간표 알약 줄을 다른 내용으로 바꿔치기(통합검색의 반별+총 시간표).
+// 안 주면 기존 학생기록과 완전히 같은 "이 학생 소속 반 하나"만 보여주는 방식 그대로 유지.
+function rHisDet(sid,backFn,extraHtml,schedulePillsHtml){
   const s=gS(sid);if(!s)return`<div class="empty">학생 없음</div>`;
   const sessions=[];
   Object.entries(D.R).forEach(([date,dr])=>{
@@ -4654,7 +4713,7 @@ function rHisDet(sid,backFn,extraHtml){
             return`<span title="선생님별 주간 수업시간: ${Object.entries(pt.breakdown).map(([t,m])=>`${t} ${m}분`).join(', ')}" style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${bg};color:${fg};border:1px solid ${fg};">🧮 대표담임 ${esc(pt.teacher)} · 주${pt.minutes}분</span>`;
           })()}
           ${(()=>{const o=getLinkedStudent(sid);return o?`<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;">🔗 연동 · ${esc(dispStuName(o.id))} (${esc(linkProgStyle(o.group||'저학년').label)})</span>`:'';})()}
-          ${getStuScheduleDetail(sid).map(x=>`<span style="padding:2px 7px;border-radius:20px;font-size:10px;background:#E0E7FF;color:#3730A3;border:1px solid #A5B4FC;">${x.day}요일 ${x.label}</span>`).join('')}
+          ${schedulePillsHtml!=null?schedulePillsHtml:getStuScheduleDetail(sid).map(x=>`<span style="padding:2px 7px;border-radius:20px;font-size:10px;background:#E0E7FF;color:#3730A3;border:1px solid #A5B4FC;">${x.day}요일 ${x.label}</span>`).join('')}
         </div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px;">${s.curriculum||'-'}${s.memo?` · <span style="color:var(--warn);">${esc(s.memo)}</span>`:''}</div>
         ${progStr(s)?`<div style="font-size:12px;color:#075985;margin-top:3px;">📖 현재진도: <strong>${esc(progStr(s))}</strong></div>`:''}
@@ -4998,10 +5057,11 @@ function rUniSrch(){
 }
 // 학생기록(rHisDet)을 그대로 재사용하되, 뒤로가기는 통합검색 자기 화면으로 돌아오게 하고
 // (학생기록 탭의 HSid를 건드리면 그 탭 상태까지 꼬이므로 절대 공유하지 않음), 학생기록에는
-// 없는 "보강 처리" 섹션만 위쪽에 끼워 넣는다.
+// 없는 "보강 처리" 섹션만 위쪽에 끼워 넣는다. 이름 옆 시간표도 연동된 모든 반을 합친 버전으로
+// 바꿔치기한다(학생기록 탭 자체는 원래 방식 그대로 — 여기서만 확장).
 function rUniDet(sid){
   const backFn="UniSid=null;UniSearch='';clearSearchBoxUI();renderAll()";
-  return rHisDet(sid,backFn,rUniMakeupSection(sid));
+  return rHisDet(sid,backFn,rUniMakeupSection(sid),renderMultiGroupSchedulePills(sid));
 }
 function rUniMakeupSection(sid){
   const s=gS(sid);if(!s)return'';
