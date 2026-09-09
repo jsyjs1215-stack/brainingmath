@@ -1238,7 +1238,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-08-tombstone-timestamp-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-09-makeup-tombstone-timestamp-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1266,6 +1266,12 @@ function activeSlotPeriod(dateStr){
 function slotsForPeriod(period){ return period==='aug' ? SLOTS_AUG : SLOTS_LEGACY; }
 function getSlotsForDate(dateStr){ return slotsForPeriod(activeSlotPeriod(dateStr)); }
 function syncActiveSlots(){ SLOTS = slotsForPeriod(activeSlotPeriod()); }
+// 🐛 학생등록(rm 모달) 전용 — "지금 보고 있는 주(WS)"가 아니라 항상 "오늘 실제 날짜" 기준
+// 시간대를 써야 한다. 교사가 8/1 이전 주를 보는 중에 새 학생을 등록/수정하면 SLOTS(WS 기준)가
+// legacy(A~F)로 잡혀서, 신규 학생의 시간표가 지난 시간대 체계로 저장되고 현재(G1~G8) 배정과
+// 겹쳐 "중복 배정"처럼 보이는 문제가 있었다(전역 SLOTS는 전체시간표 등 다른 화면에서 여전히
+// WS 기준이어야 하므로 그대로 두고, 등록 모달에서만 이 함수로 따로 계산해서 쓴다).
+function regSlots(){ return slotsForPeriod(activeSlotPeriod(tdk())); }
 function allSlotDefs(){ return [...SLOTS_LEGACY, ...SLOTS_AUG]; }
 // 같은 요일에 한 학생이 시간대 여러 곳에 동시에 배정되어 있는지 검사 (7월/8월 시간표 포함 전체 검사)
 function findDuplicateAssignments(){
@@ -2522,14 +2528,15 @@ function syncMEInputs(){
 
 // ═══ SCHEDULE GRID ════════════════════════
 function populateSchGrid(sid){
+  const slots=regSlots();
   const head=document.getElementById('sch-grid-head');
-  if(head)head.innerHTML='<th style="width:32px;"></th>'+SLOTS.map(sl=>`<th>${esc(sl.label)}</th>`).join('');
+  if(head)head.innerHTML='<th style="width:32px;"></th>'+slots.map(sl=>`<th>${esc(sl.label)}</th>`).join('');
   const periodLbl=document.getElementById('rm-sch-grid-period');
-  if(periodLbl)periodLbl.textContent=activeSlotPeriod()==='aug'?`8월(${SLOT_CUTOVER}~) 새 시간표`:`8월 이전 기존 시간표`;
+  if(periodLbl)periodLbl.textContent=activeSlotPeriod(tdk())==='aug'?`8월(${SLOT_CUTOVER}~) 새 시간표`:`8월 이전 기존 시간표`;
   const body=document.getElementById('sch-grid-body');let html='';
   DAYS.forEach(day=>{
     html+=`<tr><td class="day-col">${day}</td>`;
-    SLOTS.forEach(sl=>{
+    slots.forEach(sl=>{
       const checked=(D.SC[day]?.[sl.id]||[]).includes(sid)?'checked':'';
       // 체크할 때마다 아래 "요일별 고정 설정"이 바로 갱신되도록 함 — 신규 등록 중에도 저장하지 않고
       // 바로 그 자리에서 시간대별 담임(고학년) 등을 지정할 수 있게 하기 위함
@@ -2540,8 +2547,9 @@ function populateSchGrid(sid){
   body.innerHTML=html;
 }
 function readSchGrid(sid){
-  DAYS.forEach(day=>{SLOTS.forEach(sl=>{const a=D.SC[day]?.[sl.id];if(a)D.SC[day][sl.id]=a.filter(s=>s!==sid);});});
-  DAYS.forEach(day=>{SLOTS.forEach(sl=>{
+  const slots=regSlots();
+  DAYS.forEach(day=>{slots.forEach(sl=>{const a=D.SC[day]?.[sl.id];if(a)D.SC[day][sl.id]=a.filter(s=>s!==sid);});});
+  DAYS.forEach(day=>{slots.forEach(sl=>{
     const cb=document.getElementById(`sg-${day}-${sl.id}`);
     if(cb?.checked){if(!D.SC[day])D.SC[day]={};if(!D.SC[day][sl.id])D.SC[day][sl.id]=[];if(!D.SC[day][sl.id].includes(sid))D.SC[day][sl.id].push(sid);}
   });});
@@ -6712,9 +6720,10 @@ function renderRMLinkControls(){
   if(slotSel){
     const prev=slotSel.value;
     // 마지막 시간대는 "바로 다음 시간"이 없어서 짝을 만들 수 없으므로 후보에서 제외
-    const cands=SLOTS.filter(sl=>!!nextSlotAfter(sl.id,SLOTS));
+    const rslots=regSlots();
+    const cands=rslots.filter(sl=>!!nextSlotAfter(sl.id,rslots));
     slotSel.innerHTML='<option value="">시작 시간 선택</option>'+cands.map(sl=>{
-      const nx=nextSlotAfter(sl.id,SLOTS);
+      const nx=nextSlotAfter(sl.id,rslots);
       return `<option value="${esc(sl.id)}">${esc(sl.label)} → ${esc(nx.label)}</option>`;
     }).join('');
     if(cands.some(sl=>sl.id===prev))slotSel.value=prev;
@@ -6766,12 +6775,13 @@ function refreshRMLoHiLabels(){
   if(satWrap)satWrap.style.display=other==='고학년'?'block':'none';
 }
 function populateSchGrid2(){
+  const slots=regSlots();
   const head=document.getElementById('sch-grid2-head');
-  if(head)head.innerHTML='<th style="width:32px;"></th>'+SLOTS.map(sl=>`<th>${esc(sl.label)}</th>`).join('');
+  if(head)head.innerHTML='<th style="width:32px;"></th>'+slots.map(sl=>`<th>${esc(sl.label)}</th>`).join('');
   const body=document.getElementById('sch-grid2-body');let html='';
   DAYS.forEach(day=>{
     html+=`<tr><td class="day-col">${day}</td>`;
-    SLOTS.forEach(sl=>{ html+=`<td><input type="checkbox" id="sg2-${day}-${sl.id}"></td>`; });
+    slots.forEach(sl=>{ html+=`<td><input type="checkbox" id="sg2-${day}-${sl.id}"></td>`; });
     html+='</tr>';
   });
   body.innerHTML=html;
@@ -6781,7 +6791,8 @@ function populateSchGrid2(){
     </label>`).join('');
 }
 function readSchGrid2(sid){
-  DAYS.forEach(day=>{SLOTS.forEach(sl=>{
+  const slots=regSlots();
+  DAYS.forEach(day=>{slots.forEach(sl=>{
     const cb=document.getElementById(`sg2-${day}-${sl.id}`);
     if(cb?.checked){if(!D.SC[day])D.SC[day]={};if(!D.SC[day][sl.id])D.SC[day][sl.id]=[];if(!D.SC[day][sl.id].includes(sid))D.SC[day][sl.id].push(sid);}
   });});
@@ -6864,12 +6875,13 @@ function updateRMLinkPreview(){
   if(!isRMLinkMode()){box.innerHTML='';return;}
   const days=getRMLinkDays();
   const slotId=document.getElementById('rm-link-slot')?.value||'';
-  const nx=slotId?nextSlotAfter(slotId,SLOTS):null;
+  const rslots=regSlots();
+  const nx=slotId?nextSlotAfter(slotId,rslots):null;
   if(!days.length||!nx){
     box.innerHTML='<span style="color:#B45309;">요일과 시작 시간대를 골라주세요.</span>';
     return;
   }
-  const first=SLOTS.find(sl=>sl.id===slotId);
+  const first=rslots.find(sl=>sl.id===slotId);
   box.innerHTML=days.map(d=>{
     const order=getRMLinkOrderForDay(d);
     const firstGroup=order==='lo-first'?'저학년':'사고력';
@@ -7056,7 +7068,7 @@ function saveStu(){
 // 수정 흐름 끝에서 호출되며, 반대쪽 반 시간표는 sch-grid2-* 격자(반대쪽 반 시간표)에서 읽는다.
 // 시간표를 하나도 안 골랐으면(실수 방지) 아무 것도 만들지 않고 조용히 건너뛴다.
 function applyRMLoHiLinkToExisting(primaryId,grp){
-  const hasAnySlot=DAYS.some(d=>SLOTS.some(sl=>document.getElementById(`sg2-${d}-${sl.id}`)?.checked))
+  const hasAnySlot=DAYS.some(d=>regSlots().some(sl=>document.getElementById(`sg2-${d}-${sl.id}`)?.checked))
     ||SAT_SLOTS.some(sl=>document.getElementById(`sg2-토-${sl.id}`)?.checked);
   if(!hasAnySlot){toast('⚠ 반대쪽 반 시간표를 하나 이상 선택해야 연동됩니다 — 이번 저장에서는 연동을 건너뛰었어요.');return null;}
   const s=gS(primaryId);if(!s)return null;
@@ -7079,7 +7091,7 @@ function applyRMLoHiLinkToExisting(primaryId,grp){
 function saveLinkedStu({name,grade,school,grp,memo,subj,curr}){
   const days=getRMLinkDays();
   const startSlot=document.getElementById('rm-link-slot')?.value||'';
-  const nextSl=startSlot?nextSlotAfter(startSlot,SLOTS):null;
+  const nextSl=startSlot?nextSlotAfter(startSlot,regSlots()):null;
   if(!days.length){alert('연동 수강 요일을 하나 이상 선택해주세요.');return;}
   if(!startSlot||!nextSl){alert('연동 수강 시작 시간대를 선택해주세요.\n(마지막 시간대는 바로 다음 시간이 없어 짝을 만들 수 없습니다)');return;}
   // 이름 정하기 — 저학년 교과 쪽이 원래 이름, 사고력 쪽이 "(사고력)" 접미사.
@@ -10831,16 +10843,26 @@ function mergeArrById(localArr, serverArr, stickyField, tombstones){
 function mergeArrByIdTs(localArr, serverArr, tombstones){
   localArr=localArr||[]; serverArr=serverArr||[];
   const byId={}, order=[];
-  localArr.forEach(x=>{ if(x&&x.id!=null){byId[x.id]=x;order.push(x.id);} });
+  // ⚠ localArr 자체에 같은 id가 두 번 이상 들어있어도(정상적으로는 생기면 안 되지만) order에
+  // 중복으로 쌓이지 않도록 이미 본 id는 다시 push하지 않는다.
+  localArr.forEach(x=>{ if(x&&x.id!=null){ if(!(x.id in byId))order.push(x.id); byId[x.id]=x; } });
   serverArr.forEach(x=>{
     if(!x||x.id==null)return;
-    if(tombstones&&tombstones[x.id]!=null)return;
     if(byId[x.id]){
       const lTs=byId[x.id]._updatedAt||0, svTs=x._updatedAt||0;
       byId[x.id]=svTs>lTs?x:byId[x.id];
     } else { byId[x.id]=x; order.push(x.id); }
   });
-  const ids=tombstones?order.filter(id=>tombstones[id]==null):order;
+  // ⚠ tombstone은 한번 지워지면 합집합으로만 쌓여서 영원히 사라지지 않는데, makeups처럼 id를
+  // "mk-결석일-학생id"로 고정해서 쓰는 경우 같은 id를 나중에 다시(의도적으로) 만들 수 있다.
+  // 삭제 시각 이후로 실제 수정된(=다시 살아난) 기록까지 계속 걸러내면, 방금 예약/메모를 저장해도
+  // 다음 병합 때마다 다시 지워지는 문제가 생긴다(학생 tombstone과 동일한 문제 — students S-merge와
+  // 같은 방식으로 삭제 시각보다 최신 수정이 있으면 살려준다).
+  const ids=tombstones?order.filter(id=>{
+    const delTs=tombstones[id];
+    if(delTs==null)return true;
+    return (byId[id]?._updatedAt||0)>delTs;
+  }):order;
   return ids.map(id=>byId[id]);
 }
 // 삭제 시 호출 — 이 id(들)를 "삭제됨"으로 기록해서, 다른 기기의 예전 데이터와 동기화 병합돼도
