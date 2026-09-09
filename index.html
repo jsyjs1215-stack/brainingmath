@@ -348,6 +348,7 @@ button,input,textarea,select{font-family:inherit;}
   <button class="nb" onclick="setTab('sch')"><i class="ti ti-writing"></i>수업입력</button>
   <button class="nb" onclick="setTab('ovr')"><i class="ti ti-eye"></i>한눈에보기</button>
   <button class="nb" id="nb-book" onclick="setTab('book')"><i class="ti ti-progress-check"></i>진도체크</button>
+  <button class="nb" onclick="setTab('uni')"><i class="ti ti-users"></i>통합검색</button>
   <button class="nb" onclick="setTab('his')"><i class="ti ti-search"></i>학생기록</button>
   <button class="nb" onclick="setTab('grade')"><i class="ti ti-chart-bar"></i>성적관리</button>
   <button class="nb" onclick="setTab('mku')"><i class="ti ti-refresh"></i>보충관리</button>
@@ -876,8 +877,8 @@ button,input,textarea,select{font-family:inherit;}
     </div>
   </div>
   <!-- 🔗 저학년 + 고학년 동시 등록 — 화요일엔 저학년, 수요일엔 고학년처럼 요일마다 다른 반에
-       다니는 경우. 위 "수업 시간표"는 지금 고른 "구분" 쪽 반 시간표이고, 여기서 반대쪽 반
-       시간표를 요일·시간 상관없이 자유롭게 따로 골라서 두 반에 동시에 등록한다. -->
+       다니는 경우. 반대쪽 반 시간표를 고르는 실제 격자는 헷갈리지 않도록 아래쪽 "수업 시간표"
+       바로 밑(rm-lohi-secondary-grid-wrap)에 붙여뒀다 — 이 체크박스 영역엔 안내문만 있다. -->
   <div id="rm-lohi-link-box" style="display:none;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--rs);padding:11px 12px;margin-bottom:10px;">
     <label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;">
       <input type="checkbox" id="rm-lohi-link-chk" onchange="toggleRMLoHiLinkUI()" style="width:16px;height:16px;margin-top:1px;accent-color:#059669;cursor:pointer;flex-shrink:0;">
@@ -886,20 +887,8 @@ button,input,textarea,select{font-family:inherit;}
         <span style="display:block;font-size:11px;color:#047857;font-weight:400;margin-top:2px;">한 아이가 요일마다 다른 반에 다니는 경우(예: 화요일은 저학년, 수요일은 고학년). 아래에서 반대쪽 반 시간표를 요일·시간 상관없이 따로 고르면 두 반에 동시에 등록돼요.</span>
       </span>
     </label>
-    <div id="rm-lohi-link-detail" style="display:none;margin-top:10px;border-top:1px dashed #6EE7B7;padding-top:10px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">위 "수업 시간표"는 <b id="rm-lohi-primary-label"></b> 반, 아래는 <b id="rm-lohi-secondary-label"></b> 반 시간표예요 — 각자 원하는 요일·시간을 자유롭게 고르면 됩니다.</div>
-      <label class="flbl">반대쪽 반 수업 시간표</label>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table class="sch-grid" style="min-width:340px;">
-          <thead><tr id="sch-grid2-head"><th style="width:32px;"></th></tr></thead>
-          <tbody id="sch-grid2-body"></tbody>
-        </table>
-      </div>
-      <div id="rm-lohi-sat-wrap" style="display:none;margin-top:9px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 11px;">
-        <label class="flbl" style="margin-bottom:6px;">🗓 토요일 수업 (원장T 전용, 고학년만)</label>
-        <div id="rm-lohi-sat-grid" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:7px;line-height:1.5;">※ 위에서 입력한 <b>기본 교재·교과 진행</b>은 선택한 "구분" 쪽 반에만 저장돼요. 반대쪽 반 교재는 등록 후 각 반에서 지정해주세요.</div>
+    <div id="rm-lohi-link-detail" style="display:none;margin-top:10px;border-top:1px dashed #6EE7B7;padding-top:10px;font-size:11px;color:#047857;line-height:1.6;">
+      ✅ 이 아래 <b>"수업 시간표"</b>에서 <span id="rm-lohi-primary-label"></span> 시간표를, <b>그 아래 "반대쪽 반 수업 시간표"</b>에서 <span id="rm-lohi-secondary-label"></span> 시간표를 각각 골라주세요. 서로 다른 칸이니 헷갈리지 않게 색으로 구분해뒀어요.
     </div>
   </div>
   <!-- 수정 화면에서만 나오는 연동 상태 안내 -->
@@ -980,8 +969,8 @@ button,input,textarea,select{font-family:inherit;}
       <select id="rm-prog-unit"><option value="">단원/호</option></select>
     </div>
   </div>
-  <div class="fg" id="rm-sch-grid-wrap">
-    <label class="flbl">수업 시간표</label>
+  <div class="fg" id="rm-sch-grid-wrap" style="border-radius:var(--rs);padding:9px 11px;">
+    <label class="flbl" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">수업 시간표 <span id="rm-sch-grid-pill"></span></label>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table class="sch-grid" style="min-width:340px;">
         <thead><tr id="sch-grid-head"><th style="width:32px;"></th></tr></thead>
@@ -995,6 +984,22 @@ button,input,textarea,select{font-family:inherit;}
   <div class="fg" id="rm-sat-grid-wrap" style="display:none;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 11px;">
     <label class="flbl" style="margin-bottom:6px;">🗓 토요일 수업 (원장T 전용)</label>
     <div id="rm-sat-grid" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+  <!-- 🔗 저학년+고학년 동시 등록 — 반대쪽 반 시간표. 바로 위 "수업 시간표"(지금 고른 구분 쪽 반)
+       바로 아래 붙여서, 두 반 시간표를 위아래로 나란히 비교하며 고를 수 있게 함(색으로도 구분). -->
+  <div class="fg" id="rm-lohi-secondary-grid-wrap" style="display:none;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:var(--rs);padding:11px 12px;">
+    <label class="flbl" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">반대쪽 반 수업 시간표 <span id="rm-lohi-secondary-pill"></span></label>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="sch-grid" style="min-width:340px;">
+        <thead><tr id="sch-grid2-head"><th style="width:32px;"></th></tr></thead>
+        <tbody id="sch-grid2-body"></tbody>
+      </table>
+    </div>
+    <div id="rm-lohi-sat-wrap" style="display:none;margin-top:9px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 11px;">
+      <label class="flbl" style="margin-bottom:6px;">🗓 토요일 수업 (원장T 전용, 고학년만)</label>
+      <div id="rm-lohi-sat-grid" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:7px;line-height:1.5;">※ 위에서 입력한 <b>기본 교재·교과 진행</b>은 선택한 "구분" 쪽 반에만 저장돼요. 반대쪽 반 교재는 등록 후 각 반에서 지정해주세요.</div>
   </div>
   <div class="fg"><label class="flbl">메모</label><textarea class="fta" id="rm-memo" placeholder="특이사항" style="min-height:50px;"></textarea></div>
   <!-- 요일별 수업 교재 설정 -->
@@ -1094,9 +1099,10 @@ button,input,textarea,select{font-family:inherit;}
 <div class="modal">
   <div class="mhdr"><div class="mtitle">보충 수업 예약</div><button class="mclose" onclick="closeM('mkm')"><i class="ti ti-x"></i></button></div>
   <div id="mkm-info" style="font-size:14px;font-weight:600;margin-bottom:12px;"></div>
-  <!-- 🔗 연동 학생 전용 — 사고력/저학년 교과 중 어느 쪽 보강인지 고르는 칸. 연동이 아닌 학생에게는 숨겨짐 -->
-  <div id="mkm-link-area" class="fg" style="display:none;">
-    <label class="flbl">어느 반 보강인가요? <small style="font-weight:400;color:var(--muted);">(연동 학생 — 한쪽만 보강할 수도 있어요)</small></label>
+  <!-- 어느 반(사고력/저학년/고학년) 보강인지 고르는 칸 — 모든 학생에게 항상 보여준다.
+       연동이 안 된 반을 고르면 그 반 기록을 자동으로 새로 만든다. -->
+  <div id="mkm-link-area" class="fg">
+    <label class="flbl">어느 반 보강인가요? <small style="font-weight:400;color:var(--muted);">(지금 이 반이 아니어도 골라서 그 반 시간표에 넣을 수 있어요)</small></label>
     <select class="fsel" id="mkm-link-side" onchange="updateMkmTeacherOptions()"></select>
     <div id="mkm-link-note" style="font-size:11px;color:#5B21B6;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:8px;padding:6px 9px;margin-top:6px;line-height:1.5;"></div>
   </div>
@@ -1238,7 +1244,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-09-makeup-tombstone-timestamp-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-09-unified-search-tab'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1586,6 +1592,8 @@ let TAB='sch', DAY='화', WS;
 let ADMIN_TAB='students'; // 관리 탭 내부 서브탭: 'students' | 'closure' | 'removal' | 'wa' | 'hw'
 let ET=null, AST=null, RT=null, MKT=null;
 let HSid=null, HSearch='', StuGrade='전체', StuSearch='', ConSearch='', MkuFilter='pending', MkuSearch='';
+// 통합검색 탭 — 사고력/저학년/고학년 구분 없이 이름으로 찾아서 한 화면에서 다 보는 용도
+let UniSid=null, UniSearch='';
 // ── 사고력 그룹 전용 화면 상태 ──
 let BOOK_SID=null, BOOK_SEARCH=''; // 진도체크 탭: 선택된 학생 / 학생 검색어
 // 선생님별 필터 — 탭마다 따로 기억함(한 탭에서 거른 게 다른 탭까지 따라가지 않도록).
@@ -2640,11 +2648,11 @@ function setTab(t){
   const sb=document.getElementById('search-bar');
   const si=document.getElementById('global-search-input');
   if(sb&&si){
-    const showS=t==='his'||t==='grade'||t==='hov'||t==='mku'||t==='book'||(t==='admin'&&(ADMIN_TAB==='students'||ADMIN_TAB==='level'));
+    const showS=t==='his'||t==='grade'||t==='hov'||t==='mku'||t==='book'||t==='uni'||(t==='admin'&&(ADMIN_TAB==='students'||ADMIN_TAB==='level'));
     sb.style.display=showS?'block':'none';
     if(showS){
-      si.value=(t==='admin')?StuSearch:t==='his'?HSearch:t==='grade'?GRADE_SEARCH:t==='mku'?MkuSearch:t==='book'?BOOK_SEARCH:HOV_Search;
-      si.placeholder=t==='grade'?'학생 이름 검색 (예: 이준우, ㅇㅈ)':t==='hov'?'학생 이름 검색':t==='mku'?'보강할 학생 이름 검색':'이름 검색 (예: 이준우, ㅇㅈ, 준우)';
+      si.value=(t==='admin')?StuSearch:t==='his'?HSearch:t==='grade'?GRADE_SEARCH:t==='mku'?MkuSearch:t==='book'?BOOK_SEARCH:t==='uni'?UniSearch:HOV_Search;
+      si.placeholder=t==='grade'?'학생 이름 검색 (예: 이준우, ㅇㅈ)':t==='hov'?'학생 이름 검색':t==='mku'?'보강할 학생 이름 검색':t==='uni'?'전체 학생 통합 검색 (사고력·저학년·고학년)':'이름 검색 (예: 이준우, ㅇㅈ, 준우)';
     }
   }
   renderAll();
@@ -2670,9 +2678,10 @@ function onGlobalSearch(val){
   else if(TAB==='hov')HOV_Search=val;
   else if(TAB==='mku')MkuSearch=val;
   else if(TAB==='book'){BOOK_SEARCH=val;BOOK_SID=null;}
+  else if(TAB==='uni'){UniSearch=val;UniSid=null;}
   // main만 재렌더 — 검색창 DOM은 건드리지 않으므로 한글 조합 유지
   document.getElementById('main').innerHTML=
-    TAB==='admin'?rAdmin():TAB==='his'?rHis():TAB==='grade'?rGrade():TAB==='hov'?rHov():TAB==='mku'?rMku():TAB==='book'?rBook():'';
+    TAB==='admin'?rAdmin():TAB==='his'?rHis():TAB==='grade'?rGrade():TAB==='hov'?rHov():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='uni'?rUni():'';
 }
 function setDay(d){DAY=d;renderAll();}
 function prevWeek(){WS=new Date(WS);WS.setDate(WS.getDate()-7);renderAll();}
@@ -2709,7 +2718,7 @@ function renderAll(){
 
   try{
     document.getElementById('main').innerHTML=
-      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='gtsm'?rGtsm():rHov();
+      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='gtsm'?rGtsm():rHov();
   }catch(renderErr){
     // ⚠ 화면 렌더링 중 하나라도 오류가 나면(예: 예상 못한 데이터 모양) 그냥 조용히 이전 화면이
     // 그대로 남아있게 되어("학생이 분명 등록됐는데 시간표엔 안 보인다"처럼) 사용자가 원인을 알 수 없는
@@ -4580,7 +4589,10 @@ function rHisSrch(){
   if(!list.length)out+=`<div class="empty"><i class="ti ti-search"></i>검색 결과 없음</div>`;
   return out;
 }
-function rHisDet(sid){
+// backFn: 기본은 학생기록 탭 자체("전체 목록") 버튼 동작. 통합검색처럼 다른 탭에서
+// 이 상세화면을 그대로 재사용할 때는 그 탭에 맞는 뒤로가기 동작을 넘겨줄 수 있다.
+// extraHtml: 상단 통계 카드 위에 끼워 넣을 추가 섹션(통합검색의 보강 현황 등).
+function rHisDet(sid,backFn,extraHtml){
   const s=gS(sid);if(!s)return`<div class="empty">학생 없음</div>`;
   const sessions=[];
   Object.entries(D.R).forEach(([date,dr])=>{
@@ -4621,9 +4633,10 @@ function rHisDet(sid){
   const cons=D.C.filter(c=>c.name===sid);
 
   let out=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-    <button onclick="HSid=null;HSearch='';clearSearchBoxUI();renderAll()" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>전체 목록</button>
+    <button onclick="${backFn||"HSid=null;HSearch='';clearSearchBoxUI();renderAll()"}" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>전체 목록</button>
     <button onclick="printScoreReport('${esc(sid)}')" style="padding:7px 14px;background:#042C53;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 학부모용 성적표 인쇄</button>
   </div>`;
+  if(extraHtml)out+=extraHtml;
   out+=`<div class="sp-card">
     <div class="sp-top">
       ${avEl(sid,46)}
@@ -4924,6 +4937,96 @@ function rHisDet(sid){
   }
   return out;
 
+}
+
+// ═══ 통합검색 ══════════════════════════════
+// 사고력/저학년/고학년을 오갈 필요 없이 이름 하나로 그 아이의 전체 정보(시간표·수업기록·성적·
+// 상담·보강)를 한 화면에서 보고 처리할 수 있게 만든 탭. 기존 학생기록(rHisDet)이 이미 시간표·
+// 수업기록·성적·상담까지 다 보여주고 있어서 그걸 그대로 재사용하고(따로 만들면 두 화면이
+// 서로 다르게 관리되다 어긋날 수 있어서), 거기 없는 "보강 처리"만 이 탭 전용으로 얹는다.
+// ⚠ 학생기록(curS() 기준 = ActiveGroup 그룹만)과 달리, 여기는 항상 전체 그룹(D.S 전체)에서
+// 찾는다 — "탭을 오가며 찾아야 해서 힘들다"는 문제 자체가 그룹별로 화면이 나뉘어 있어서 생긴
+// 것이므로, 지금 사고력/저학년/고학년 중 어느 그룹을 보고 있든 검색 결과는 항상 동일하다.
+function rUni(){ return UniSid?rUniDet(UniSid):rUniSrch(); }
+function rUniSrch(){
+  const sf=UniSearch;
+  if(!sf){
+    return `<div class="empty"><i class="ti ti-users"></i>이름을 검색하면 사고력·저학년·고학년 전체에서 통합으로 찾아드려요<br><span style="font-size:11px;">(연동된 아이는 두 반 정보를 한 화면에 모아서 보여줘요)</span></div>`;
+  }
+  const matched=D.S.filter(s=>s&&korSearch(s.id,sf));
+  // 연동돼 있거나(사고력↔저학년, 저학년↔고학년) 이름이 같은 아이는 한 줄로 묶는다 —
+  // 실제로는 같은 아이라서 검색 결과에 두 번 따로 뜨면 오히려 헷갈리기 때문.
+  const seen=new Set();
+  const groups=[];
+  matched.forEach(s=>{
+    const base=dispStuName(s.id);
+    if(seen.has(base))return;
+    seen.add(base);
+    const other=getLinkedStudent(s.id);
+    const members=other?[s,other]:[s];
+    groups.push({base,members,primary:s});
+  });
+  if(!groups.length)return `<div class="empty"><i class="ti ti-search"></i>검색 결과 없음</div>`;
+  groups.sort((a,b)=>a.base.localeCompare(b.base,'ko'));
+  let out=`<div class="hist-grid">`;
+  groups.forEach(g=>{
+    const[bg,c]=avc(g.primary.id);
+    const ids=g.members.map(m=>m.id);
+    const mkCnt=D.makeups.filter(m=>ids.includes(m.studentId)&&m.status!=='done').length;
+    const statusBadge=g.members.some(m=>m.status&&m.status!=='active')
+      ?g.members.filter(m=>m.status&&m.status!=='active').map(m=>`<span style="font-size:9px;font-weight:700;padding:0 5px;border-radius:9px;background:#F1F5F9;color:var(--muted);border:1px solid var(--bdr);">${esc(m.status)}</span>`).join('')
+      :'';
+    out+=`<div class="hg-card" onclick="UniSid='${escAttr(g.primary.id)}';renderAll()">
+      <div class="hg-av" style="background:${bg};color:${c};">${esc(g.base[0]||'?')}</div>
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          ${esc(g.base)}${g.members.map(m=>linkProgPill(m.group||'저학년')).join('')}${statusBadge}
+        </div>
+        <div style="font-size:10px;color:var(--muted);">${GL[g.primary.grade]||g.primary.grade}${mkCnt?` · <span style="color:#B45309;font-weight:700;">🔄 보강 ${mkCnt}건</span>`:''}</div>
+      </div>
+    </div>`;
+  });
+  out+=`</div>`;
+  return out;
+}
+// 학생기록(rHisDet)을 그대로 재사용하되, 뒤로가기는 통합검색 자기 화면으로 돌아오게 하고
+// (학생기록 탭의 HSid를 건드리면 그 탭 상태까지 꼬이므로 절대 공유하지 않음), 학생기록에는
+// 없는 "보강 처리" 섹션만 위쪽에 끼워 넣는다.
+function rUniDet(sid){
+  const backFn="UniSid=null;UniSearch='';clearSearchBoxUI();renderAll()";
+  return rHisDet(sid,backFn,rUniMakeupSection(sid));
+}
+function rUniMakeupSection(sid){
+  const s=gS(sid);if(!s)return'';
+  const other=getLinkedStudent(sid);
+  const ids=other?[sid,other.id]:[sid];
+  const items=D.makeups.filter(m=>ids.includes(m.studentId)&&m.status!=='done').sort((a,b)=>a.absDate.localeCompare(b.absDate));
+  if(!items.length)return'';
+  let out=`<div style="margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;"><i class="ti ti-refresh" style="font-size:12px;vertical-align:-1px;"></i> 🔄 보강 대기·예약 (${items.length}건)</div>`;
+  items.forEach(mk=>{
+    const st=gS(mk.studentId);
+    const[bg,c]=avc(mk.studentId);
+    out+=`<div class="mk-card ${mk.status}">
+      <div class="stu-av" style="background:${bg};color:${c};width:34px;height:34px;font-size:13px;flex-shrink:0;">${esc(mk.studentId[0]||'?')}</div>
+      <div class="mk-info">
+        <div class="mk-name">${esc(dispStuName(mk.studentId))} ${linkProgPill(st?.group||'저학년')}</div>
+        <div class="mk-date">결석일: ${mk.absDate} ${mk.absSlot?`(${slotLabel(mk.absSlot)})`:''}
+        ${mk.mkDate?`<br>보충예약: <strong>${mk.mkDate} ${mk.mkTimeStart&&mk.mkTimeEnd?`${mk.mkTimeStart}~${mk.mkTimeEnd}`:mk.mkSlot?slotLabel(mk.mkSlot):''}</strong>`:''}</div>
+        <div style="display:flex;gap:5px;margin-top:5px;">
+          <input class="fi" id="mk-note-${mk.id}" style="font-size:11px;padding:5px 8px;flex:1;" placeholder="보강 진행 메모" value="${escAttr(mkNoteInputValue(mk))}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){this.blur();mkSaveNoteFromInput('${mk.id}');}">
+          <button class="mk-btn mk-btn-sch" onclick="mkSaveNoteFromInput('${mk.id}')">저장</button>
+        </div>
+      </div>
+      <div class="mk-actions">
+        ${mk.status==='pending'?`<button class="mk-btn mk-btn-sch" onclick="openMkModal('${mk.id}')">📅 예약</button>`:''}
+        ${mk.status==='scheduled'?`<button class="mk-btn mk-btn-sch" onclick="openMkModal('${mk.id}')">✏️ 수정</button>`:''}
+        <button class="mk-btn mk-btn-done" onclick="mkDone('${mk.id}')">✓ 완료</button>
+      </div>
+    </div>`;
+  });
+  out+=`</div>`;
+  return out;
 }
 
 // ═══ RECORD EDIT / DELETE ══════════════════
@@ -6647,6 +6750,7 @@ function applyRMGroupFieldVisibility(grp){
   const alreadyLinked=!!RT&&typeof isLinkedSid==='function'&&isLinkedSid(RT);
   if(lohiBox)lohiBox.style.display=((grp==='저학년'||grp==='고학년')&&!alreadyLinked)?'block':'none';
   if(typeof isRMLoHiAnyLinkMode==='function'&&isRMLoHiAnyLinkMode())refreshRMLoHiLabels();
+  if(typeof updateRMSchGridPill==='function')updateRMSchGridPill(grp);
 }
 // 신규 등록/수정 폼에서 그룹을 바꾸면, 그 그룹 전용 교재 목록으로 "기본 교재"·"현재 진도" 드롭다운을
 // 다시 채워줌 — 안 그러면 저학년 교재 목록이 그대로 남아 고학년 학생에게 엉뚱한 교재가 저장될 수 있음.
@@ -6769,10 +6873,18 @@ function rmLoHiOtherGroup(grp){ return grp==='고학년'?'저학년':'고학년'
 function refreshRMLoHiLabels(){
   const grp=document.getElementById('rm-group')?.value||'저학년';
   const other=rmLoHiOtherGroup(grp);
-  const p=document.getElementById('rm-lohi-primary-label');if(p)p.textContent=groupLabel(grp);
-  const s=document.getElementById('rm-lohi-secondary-label');if(s)s.textContent=groupLabel(other);
+  const p=document.getElementById('rm-lohi-primary-label');if(p)p.innerHTML=linkProgPill(grp);
+  const s=document.getElementById('rm-lohi-secondary-label');if(s)s.innerHTML=linkProgPill(other);
+  const pill=document.getElementById('rm-lohi-secondary-pill');if(pill)pill.innerHTML=linkProgPill(other);
   const satWrap=document.getElementById('rm-lohi-sat-wrap');
   if(satWrap)satWrap.style.display=other==='고학년'?'block':'none';
+  updateRMSchGridPill(grp);
+}
+// "수업 시간표" 칸 라벨 옆에 지금 고른 "구분"(사고력/저학년/고학년) 색 알약을 붙여서, 스크롤로
+// 위쪽 구분 버튼이 안 보여도 지금 이 칸이 어느 반 시간표인지 한눈에 알 수 있게 한다.
+function updateRMSchGridPill(grp){
+  const pill=document.getElementById('rm-sch-grid-pill');
+  if(pill)pill.innerHTML=linkProgPill(grp||document.getElementById('rm-group')?.value||'저학년');
 }
 function populateSchGrid2(){
   const slots=regSlots();
@@ -6806,6 +6918,8 @@ function toggleRMLoHiLinkUI(){
   const on=!!document.getElementById('rm-lohi-link-chk')?.checked;
   const detail=document.getElementById('rm-lohi-link-detail');
   if(detail)detail.style.display=on?'block':'none';
+  const gridWrap=document.getElementById('rm-lohi-secondary-grid-wrap');
+  if(gridWrap)gridWrap.style.display=on?'block':'none';
   // 사고력 연동과는 동시에 켤 수 없음 — 켜면 반대쪽은 끔
   if(on){
     const linkChk=document.getElementById('rm-link-chk');
@@ -7299,10 +7413,9 @@ function updateMkmTeacherOptions(){
   const area=document.getElementById('mkm-teacher-area');
   const sel=document.getElementById('mkm-teacher');
   if(!sel||!area)return;
-  // 🔗 연동 보강에서 "사고력 보강"을 고른 경우엔, 지금 보고 있는 탭이 저학년이어도 사고력 담당
+  // 🔗 "사고력 보강"을 고른 경우엔, 지금 보고 있는 탭이 저학년/고학년이어도 사고력 담당
   // 선생님을 지정할 수 있어야 하므로 그때도 이 칸을 보여준다.
-  const sideSel=document.getElementById('mkm-link-side');
-  const sideIsSago=!!(sideSel&&sideSel.value&&(gS(sideSel.value)?.group||'저학년')==='사고력');
+  const sideIsSago=mkmSelectedTargetGroup()==='사고력';
   if(ActiveGroup!=='사고력'&&!sideIsSago){area.style.display='none';sel.value='';return;}
   area.style.display='block';
   const prevVal=sel.value;
@@ -7366,26 +7479,66 @@ function removeAutoScheduledMakeup(mk){
   }
   mk._autoDate='';mk._autoSlot='';
 }
-// 🔗 연동 학생 보강 — 사고력 보강인지 저학년 교과 보강인지 고르는 칸.
-// 결석은 두 반에 동시에 잡히지만 보강은 한쪽만 필요할 수도 있고, 어느 반 수업을 메우는
-// 보강인지에 따라 그 반 시간표에 들어가야 하므로 여기서 대상을 고른다.
-// (연동이 아닌 학생에게는 칸 자체가 숨겨져서 기존 화면 그대로다.)
+// 🔗 보강을 어느 반(사고력/저학년/고학년) 시간표에 넣을지 고르는 칸 — 연동 여부와 상관없이
+// 모든 학생에게 항상 보여준다. 이미 그 반에 이 학생의 기록(연동되어 있거나, 같은 이름의
+// 별도 기록)이 있으면 그걸 그대로 쓰고, 없으면 저장할 때 새로 만든다(아래 createMakeupTargetStudent).
+const MKM_ALL_GROUPS=['사고력','저학년','고학년'];
+// 어떤 반이든 "같은 아이"의 기록을 찾는다 — 연동(linkId)된 상대가 그 반이면 그걸 쓰고,
+// 연동은 아니어도 같은 이름(접미사 제외)의 기록이 이미 그 반에 있으면 그것도 재사용한다.
+function findExistingGroupRecord(baseName,targetGrp){
+  return D.S.find(s=>s&&(s.group||'저학년')===targetGrp&&dispStuName(s.id)===baseName)||null;
+}
+// mkm-link-side에서 지금 고른 값이 실제로 어느 반을 가리키는지 — 아직 안 만들어진(__new__:) 반도
+// 포함해서 판단해야 하므로, 단순히 gS(value).group만 보면 안 된다(담당 선생님 칸 표시 등에 씀).
+function mkmSelectedTargetGroup(){
+  const sel=document.getElementById('mkm-link-side');
+  const val=sel?.value||'';
+  if(!val)return null;
+  if(val.startsWith('__new__:'))return val.slice('__new__:'.length);
+  return gS(val)?.group||'저학년';
+}
 function updateMkmLinkSideUI(mk){
   const area=document.getElementById('mkm-link-area');
   const sel=document.getElementById('mkm-link-side');
   const note=document.getElementById('mkm-link-note');
-  if(!area||!sel)return;
-  const other=mk?getLinkedStudent(mk.studentId):null;
-  if(!other){area.style.display='none';sel.innerHTML='';if(note)note.innerHTML='';return;}
+  if(!area||!sel||!mk)return;
   const me=gS(mk.studentId);
-  const opts=[
-    {sid:mk.studentId,grp:me?.group||'저학년'},
-    {sid:other.id,grp:other.group||'저학년'},
-  ];
+  const myGrp=me?.group||'저학년';
+  const baseName=dispStuName(mk.studentId);
+  const opts=MKM_ALL_GROUPS.map(grp=>{
+    if(grp===myGrp)return{grp,value:mk.studentId,isNew:false};
+    const existing=findExistingGroupRecord(baseName,grp);
+    return existing?{grp,value:existing.id,isNew:false}:{grp,value:'__new__:'+grp,isNew:true};
+  });
   area.style.display='block';
-  sel.innerHTML=opts.map(o=>`<option value="${escAttr(o.sid)}"${o.sid===mk.studentId?' selected':''}>${esc(linkProgStyle(o.grp).label)} 보강 — ${esc(o.sid)}</option>`).join('');
+  sel.innerHTML=opts.map(o=>`<option value="${escAttr(o.value)}"${o.value===mk.studentId?' selected':''}>${esc(linkProgStyle(o.grp).label)} 보강${o.isNew?' (신규 등록)':''}</option>`).join('');
   sel.value=mk.studentId;
-  if(note)note.innerHTML=`이 결석은 <b>${esc(mk.studentId)}</b> 기록에서 만들어졌어요. 실제 보강을 반대쪽 반(<b>${esc(other.id)}</b>)에서 진행한다면 위에서 바꿔주세요 — 그 반 시간표에 보강으로 들어갑니다.`;
+  if(note)note.innerHTML=`이 결석은 <b>${esc(baseName)}</b>(${esc(linkProgStyle(myGrp).label)}) 기록에서 만들어졌어요. 다른 반에서 보강을 진행한다면 위에서 반을 골라주세요 — "신규 등록"이라고 표시된 반은 아직 그 반에 이 학생 기록이 없다는 뜻이고, 저장하는 순간 자동으로 만들어져서 그 반 시간표에 보강으로 들어갑니다.`;
+}
+// mkm-link-side에서 아직 없는 반(__new__:반이름)을 골라 저장했을 때, 그 반에 이 학생 기록을
+// 새로 만든다. 아직 다른 반과 연동(linkId)돼 있지 않으면 이번에 새로 만드는 기록과 연동까지
+// 시켜서(학생기록 통합조회 등 연동 전용 기능도 바로 쓸 수 있게) 등록해준다 — 이미 다른 반과
+// 연동돼 있으면(연동은 한 학생당 하나만 가능) 연동 없이 보강 전용 기록만 만든다.
+function createMakeupTargetStudent(srcSid,targetGrp){
+  const src=gS(srcSid);if(!src)return srcSid;
+  const baseName=dispStuName(srcSid);
+  let newId;
+  if(targetGrp==='사고력'){
+    newId=mintSagoDisplayId(baseName);
+    registerSagoAlias(baseName,newId);
+  } else {
+    newId=mintLoHiId(baseName,groupLabel(targetGrp).replace('·중등·고등',''));
+  }
+  const now=Date.now();
+  const canLink=!src.linkId;
+  const linkId=canLink?mintLinkId():'';
+  const newStu={id:newId,group:targetGrp,grade:src.grade,school:src.school,memo:src.memo,
+    linkId,status:'active',impNotes:[],progress:{series:'',level:'',unit:''},
+    teacher:'',className:'',level:'',subject:'',curriculum:'',_updatedAt:now,_linkUpdatedAt:now};
+  D.S.push(newStu);
+  if(canLink){src.linkId=linkId;src._linkUpdatedAt=now;}
+  trackLinkedWrite(`${baseName} 보강 예약 중 ${groupLabel(targetGrp)} 반 기록 자동 생성${canLink?' (연동됨)':''}`);
+  return newId;
 }
 function openMkModal(id){
   MKT=id;
@@ -7421,8 +7574,13 @@ function saveMakeup(){
   let mk=srcMk, redirected=false;
   {
     const sideSel=document.getElementById('mkm-link-side');
-    const wantSid=(sideSel&&sideSel.offsetParent!==null)?(sideSel.value||srcMk.studentId):srcMk.studentId;
-    if(wantSid&&wantSid!==srcMk.studentId&&getLinkedStudent(srcMk.studentId)?.id===wantSid){
+    let wantSid=(sideSel&&sideSel.offsetParent!==null)?(sideSel.value||srcMk.studentId):srcMk.studentId;
+    // 아직 그 반에 기록이 없어서 "신규 등록"으로 표시됐던 반을 골랐으면, 저장하는 지금 그 반
+    // 기록을 실제로 만든다(그 전까지는 만들지 않아 — 열어만 보고 취소하면 아무 기록도 안 남게).
+    if(wantSid&&wantSid.startsWith('__new__:')){
+      wantSid=createMakeupTargetStudent(srcMk.studentId,wantSid.slice('__new__:'.length));
+    }
+    if(wantSid&&wantSid!==srcMk.studentId&&gS(wantSid)){
       const tid=`mk-${srcMk.absDate}-${wantSid}`;
       let target=D.makeups.find(m=>m.id===tid);
       if(!target){
