@@ -1244,7 +1244,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-09-uni-makeup-group-pill-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-09-sago-alias-cloud-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11343,6 +11343,21 @@ function startCloudListen() {
 
     const prev = JSON.stringify(D);
 
+    // ⚠ 사고력↔저학년/고학년 이름 겹침 별칭(SAGO_ID_ALIAS)을 가장 먼저 받아들인다 — 아래 S(학생)
+    // 병합과 사고력 동기화(isSagoSid 판단)가 모두 이 별칭에 의존하므로, 다른 기기가 이미 알아낸
+    // 별칭이 있으면 이 기기가 스스로 겹침을 알아챌 때까지 기다리지 않고 즉시 같은 이름으로
+    // 맞춘다. 이미 정해둔 별칭은 절대 바꾸지 않고(기록이 갈라지지 않도록) 새로 배운 것만 추가.
+    if (data.sagoAlias && typeof data.sagoAlias === 'object') {
+      let aliasChanged = false;
+      Object.entries(data.sagoAlias).forEach(([orig, alias]) => {
+        if (orig && alias && !SAGO_ID_ALIAS[orig]) { SAGO_ID_ALIAS[orig] = alias; aliasChanged = true; }
+      });
+      if (aliasChanged) {
+        rebuildSagoAliasRev();
+        try { localStorage.setItem('br5_sago_alias', JSON.stringify(SAGO_ID_ALIAS)); } catch(e) {}
+      }
+    }
+
     // ⚠ tombstones(삭제 무덤)는 다른 모든 병합보다 먼저 합쳐둬야 함 — 바로 아래 S(학생별 impNotes
     // 포함) 병합부터 이미 삭제된 항목을 다른 기기의 예전 데이터로 되살리지 않아야 하기 때문.
     // 두 기기가 각각 알고 있는 삭제 기록을 합집합으로 합침.
@@ -11497,7 +11512,12 @@ function startCloudListen() {
         }
         return merged;
       });
-      if (reAliased.length) D.S = D.S.concat(reAliased);
+      if (reAliased.length) {
+        D.S = D.S.concat(reAliased);
+        // ⚠ 방금 이 기기가 새로 알아낸 별칭이니, 다른 기기들도 곧바로 알 수 있게 즉시 올린다
+        // (사고력 리스너 쪽 rebuildSagoAlias와 동일한 이유).
+        scheduleCloudPush();
+      }
     }
     if (data.SC && Object.keys(data.SC).length > 0) {
       // ⚠ 시간표(D.SC) 병합 — "합집합" 방식은 두 선생님이 각자 다른 학생을 추가하는 경우는 안전하지만,
@@ -11770,6 +11790,15 @@ function buildCoursePayload(){
     highClassNames: D.highClassNames||{},
     slots: SLOTS_LEGACY,
     slotsAug: SLOTS_AUG,
+    // ⚠ 사고력↔저학년/고학년 이름 겹침 별칭(SAGO_ID_ALIAS)은 예전엔 이 기기의 localStorage에만
+    // 있어서 기기마다 따로 판단했다. 두 클라우드가 연결되는 순서는 기기·네트워크 상황마다
+    // 달라서, 어떤 기기는 겹침을 알아채 "이름(사고력)"로 잘 분리했는데 다른 기기는 아직
+    // 못 알아채고 원래 이름 그대로 쓰는 식으로 기기마다 서로 다르게 이해하는 상태가 생길 수
+    // 있었다 — 이게 "배정이 자꾸 제멋대로 바뀐다"는 신고의 진짜 원인 중 하나였다. 이제 한
+    // 기기가 알아낸 별칭을 여기 실어서 클라우드로 공유하면, 다른 기기는 자기가 직접 겹침을
+    // 알아챌 때까지 기다릴 필요 없이 즉시 같은 별칭을 쓰게 되어 모든 기기가 항상 같은 이름으로
+    // 이 학생을 가리키게 된다.
+    sagoAlias: SAGO_ID_ALIAS||{},
   };
 }
 let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실제 오류 — "저장 요청을 보내지 못했습니다"라는
@@ -12030,6 +12059,9 @@ function rebuildSagoAlias(serverStudents){
   if(JSON.stringify(SAGO_ID_ALIAS)!==before){
     try{ localStorage.setItem('br5_sago_alias',JSON.stringify(SAGO_ID_ALIAS)); }catch(e){}
     console.warn('[사고력 동기화] 이름이 겹쳐서 다른 이름으로 들여온 학생:', added);
+    // ⚠ 이 기기가 방금 처음 알아낸 별칭은 다른 기기들도 곧바로 알아야 같은 학생을 서로 다른
+    // 이름으로 오해하는 일이 없다 — 무관한 저장을 기다리지 않고 즉시 클라우드로 올린다.
+    scheduleCloudPush();
   }
   return SAGO_ID_ALIAS;
 }
@@ -12067,7 +12099,10 @@ function startSagoListen(){
       return;
     }
     rebuildSagoAlias(serverS);
-    const sagoIds=new Set(serverS.map(st=>sagoIn(st.id)));
+    // ⚠ 예전엔 여기서 "sagoIds=서버(사고력 클라우드)에 있는 id 목록" 집합을 만들어서 아래
+    // 여러 병합에서 "이 id가 사고력 학생인지" 판단 기준으로 썼는데, 이름이 겹치는(연동 없이
+    // 저학년/고학년에도 같은 이름으로 등록된) 학생을 사고력 학생으로 오판하는 문제가 있었다
+    // (아래 각 병합에서 isSagoSid로 바꾼 이유 참고). 이제 아무 데서도 안 써서 제거함.
 
     // ── 학생(S) ── 사고력 학생만 교체/병합. 저학년·고학년 학생은 전혀 건드리지 않음.
     {
@@ -12107,6 +12142,16 @@ function startSagoListen(){
 
     // ── 시간표(SC) ── 한 칸(요일·시간)에 세 그룹 학생이 함께 들어있으므로,
     // 사고력 학생만 서버 값으로 바꾸고 저학년·고학년 배정은 그대로 남겨둠.
+    // ⚠ CRITICAL FIX: 예전엔 "sagoIds(사고력 클라우드 서버에 있는 모든 id)"에 들어있으면 무조건
+    // kept에서 뺐는데, 사고력반과 저학년/고학년반에 같은 이름으로 각각 따로(연동 없이) 등록된
+    // 아이가 있으면 — 예: "강지후"가 저학년에도, 사고력에도 별도 이름으로 존재 — 그 저학년
+    // "강지후"의 시간표가 사고력 동기화가 올 때마다 "이건 사고력 학생일 것"이라고 오판되어
+    // 계속 지워지고 있었다(실제로 강지후·강윤후 등 여러 학생에게서 확인된, "배정이 자꾸
+    // 리셋된다"는 신고의 진짜 원인). 바로 위 학생(S) 병합에서는 이미 "isSagoSid(로컬 D.S 기준
+    // 진짜 이 id가 사고력 그룹인지)"로만 판단해서 이런 이름 충돌을 안전하게 피하고 있었으므로
+    // (line ~12087 "이름이 겹치는데 별칭이 안 잡힌 예외 상황 — 남의 그룹 데이터를 덮지 않음"),
+    // 여기 시간표 병합도 sagoIds(서버 쪽 id 목록)가 아니라 isSagoSid(로컬 D.S 기준)만으로
+    // 판단하도록 통일한다. 이 시점엔 위 학생 병합이 이미 끝나 D.S가 최신이라 안전하다.
     if(data.SC&&typeof data.SC==='object'){
       const scBefore=JSON.stringify(D.SC);
       DAYS.forEach(d=>{
@@ -12114,7 +12159,7 @@ function startSagoListen(){
         const srvDay=data.SC[d]||{};
         allSlotDefs().forEach(sl=>{
           const cur=Array.isArray(D.SC[d][sl.id])?D.SC[d][sl.id]:[];
-          const kept=cur.filter(sid=>!sagoIds.has(sid)&&!isSagoSid(sid)); // 다른 그룹 배정은 유지
+          const kept=cur.filter(sid=>!isSagoSid(sid)); // 로컬에서 실제로 사고력 그룹인 학생만 뺀다
           const incoming=(Array.isArray(srvDay[sl.id])?srvDay[sl.id]:[]).filter(Boolean).map(sagoIn);
           D.SC[d][sl.id]=[...kept,...incoming.filter(sid=>!kept.includes(sid))];
         });
@@ -12127,6 +12172,9 @@ function startSagoListen(){
     }
 
     // ── 수업기록(R) ── 사고력 학생의 기록만 병합 (다른 그룹 기록은 손대지 않음)
+    // ⚠ 위 시간표(SC) 병합과 같은 이유로 sagoIds(서버 id 목록)가 아니라 isSagoSid(로컬 D.S 기준)로
+    // 판단한다 — 안 그러면 이름이 겹치는 저학년/고학년 학생의 수업기록에 사고력 쪽 기록이 섞여
+    // 들어갈 수 있다.
     if(data.R&&typeof data.R==='object'){
       Object.entries(data.R).forEach(([date,dayRec])=>{
         if(!dayRec||typeof dayRec!=='object')return;
@@ -12134,7 +12182,7 @@ function startSagoListen(){
         Object.entries(dayRec).forEach(([rawSid,rec])=>{
           if(!rec||typeof rec!=='object')return;
           const sid=sagoIn(rawSid);
-          if(!sagoIds.has(sid))return;
+          if(!isSagoSid(sid))return;
           const localRec=D.R[date][sid];
           D.R[date][sid]=localRec?mergeLessonRecord(localRec,rec):rec;
         });
@@ -12142,20 +12190,24 @@ function startSagoListen(){
     }
 
     // ── 학생별로 키가 잡힌 자료들(요일별 고정설정 / 시간표 수정시각) ──
+    // ⚠ 마찬가지로 isSagoSid(로컬 기준)로 판단 — sagoIds만 보면 이름이 겹치는 저학년/고학년
+    // 학생의 요일별 고정설정·시간표 수정시각이 사고력 쪽 값으로 덮일 수 있었다.
     if(data.dayDefs&&typeof data.dayDefs==='object'){
       if(!D.dayDefs)D.dayDefs={};
-      Object.entries(data.dayDefs).forEach(([rawSid,v])=>{ const sid=sagoIn(rawSid); if(sagoIds.has(sid))D.dayDefs[sid]=v; });
+      Object.entries(data.dayDefs).forEach(([rawSid,v])=>{ const sid=sagoIn(rawSid); if(isSagoSid(sid))D.dayDefs[sid]=v; });
     }
     if(data.scMeta&&typeof data.scMeta==='object'){
       if(!D.scMeta)D.scMeta={};
-      Object.entries(data.scMeta).forEach(([rawSid,v])=>{ const sid=sagoIn(rawSid); if(sagoIds.has(sid))D.scMeta[sid]=v; });
+      Object.entries(data.scMeta).forEach(([rawSid,v])=>{ const sid=sagoIn(rawSid); if(isSagoSid(sid))D.scMeta[sid]=v; });
     }
 
     // ── 학생 id를 가진 목록형 자료들 ── 사고력 학생 것만 골라서 기존 병합 규칙 그대로 적용
+    // ⚠ 여기도 동일: sagoIds가 아니라 isSagoSid로 걸러야 이름이 겹치는 저학년/고학년 학생의
+    // 보충·상담·성적 기록에 사고력 쪽 기록이 잘못 섞여 들어가지 않는다.
     const remapList=(arr,sidField)=>(Array.isArray(arr)?arr:[]).map(x=>{
       if(!x||typeof x!=='object')return null;
       const sid=sagoIn(x[sidField]);
-      if(!sagoIds.has(sid))return null;
+      if(!isSagoSid(sid))return null;
       return Object.assign({},x,{[sidField]:sid});
     }).filter(Boolean);
     // 보충: 이 세션에서 이미 고쳐둔 "수정시각(_updatedAt) 기준 병합"을 그대로 사용
@@ -12170,11 +12222,11 @@ function startSagoListen(){
       const seen=new Set((D.dismissedMakeups||[]).map(x=>`${x.date}|${x.sid}`));
       incoming.forEach(x=>{ const k=`${x.date}|${x.sid}`; if(!seen.has(k)){D.dismissedMakeups.push(x);seen.add(k);} });
     }
-    // 상담기록(C)은 학생 이름이 name 필드에 들어있음
+    // 상담기록(C)은 학생 이름이 name 필드에 들어있음 (여기도 isSagoSid로 판단 — 이유는 위와 동일)
     D.C=mergeArrById(D.C,(Array.isArray(data.C)?data.C:[]).map(c=>{
       if(!c||typeof c!=='object')return null;
       const nm=sagoIn(c.name);
-      if(!sagoIds.has(nm))return null;
+      if(!isSagoSid(nm))return null;
       return Object.assign({},c,{name:nm});
     }).filter(Boolean),null,D.tombstones?.C);
     // 진도체크 레벨 구성은 사고력에서만 쓰는 설정이라 서버 값을 그대로 따름
