@@ -1253,7 +1253,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-10-high-daydef-slot-multibook'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-10-report-lohi-combined'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -9831,16 +9831,23 @@ function getSessionExpectedCount(sid,session){
 function buildMonthlyReport(sid,session){
   const s=gS(sid);if(!s)return'';
   const isSago=(s.group||'저학년')==='사고력'; // 사고력은 숙제가 없어서 숙제 이행률을 리포트에서 제외함
+  // 📌 저학년+고학년 이중등록 학생은 실제로 두 반을 모두 다니는 것이므로, 리포트도 두 반 수업
+  // 기록을 합쳐서 하나로 보여준다 — 한쪽 반 기록만 기준으로 만들면 실제로는 8회 들었는데
+  // 4회로만 보여서 학부모가 헷갈려함. 사고력은 교재·평가 방식이 아예 달라서 합치지 않는다.
+  const memberSids=isSago?[sid]:allGroupMembersFor(sid).filter(m=>['저학년','고학년'].includes(m.group||'저학년')&&isActiveStu(m)).map(m=>m.id);
+  const sidList=memberSids.length?memberSids:[sid];
+  const isCombined=sidList.length>1;
   const start=session.start,end=session.end;
   const today=tdk();
-  // 이 세션 기간의 실제 수업 기록만 모음
-  const entries=Object.entries(D.R)
-    .filter(([date,dr])=>date>=start&&date<=end&&date<=today&&dr[sid]&&isRealLesson(date,sid,dr[sid]))
-    .map(([date,dr])=>({date,...dr[sid]}))
-    .sort((a,b)=>a.date.localeCompare(b.date));
+  // 이 세션 기간의 실제 수업 기록만 모음 (이중등록이면 두 반 기록을 모두 모아 날짜순으로 정렬)
+  const entries=sidList.flatMap(msid=>
+    Object.entries(D.R)
+      .filter(([date,dr])=>date>=start&&date<=end&&date<=today&&dr[msid]&&isRealLesson(date,msid,dr[msid]))
+      .map(([date,dr])=>({date,_sid:msid,...dr[msid]}))
+  ).sort((a,b)=>a.date.localeCompare(b.date)||a._sid.localeCompare(b._sid));
   const attendCnt=entries.filter(x=>x.attend!=='결석').length;
   const absentCnt=entries.filter(x=>x.attend==='결석').length;
-  const target=getSessionExpectedCount(sid,session);
+  const target=sidList.reduce((sum,msid)=>sum+getSessionExpectedCount(msid,session),0);
   // ⚠ hwDone/hwPart를 전체 entries에서 세면, 결석했는데도 hwStatus가 기본값('완료')으로
   // 남아있는 기록까지 분자에 포함되어 분모(결석 제외)보다 커져서 100%를 넘는 경우가 있었음.
   // 반드시 hwBase(결석 제외)를 기준으로만 세야 함.
@@ -9853,9 +9860,17 @@ function buildMonthlyReport(sid,session){
   // 월말평가: "몇 월 평가인지"(meMonth)가 선생님이 직접 고른 정확한 기준이므로 이걸 최우선으로 매칭.
   // date(입력한 날짜)는 늦게 입력하면 다른 달짜로 찍힐 수 있어서, meMonth가 없는 예전 기록에 한해서만 보조로 사용.
   // 같은 달에 재시험 등 여러 응시가 있으면 가장 최근 날짜(=최종 결과)를 대표값으로 사용
-  // (개별 응시 내역은 아래 "평가 기록" 표에 전부 나열됨)
-  const meScoresDedup=getMEScores(sid);
-  const meScoresLatest=getLatestMEScorePerMonth(sid);
+  // (개별 응시 내역은 아래 "평가 기록" 표에 전부 나열됨). 이중등록이면 두 반 기록을 모두 모음.
+  const meScoresDedup=isCombined?sidList.flatMap(msid=>getMEScores(msid)):getMEScores(sid);
+  const meScoresLatest=isCombined?(()=>{
+    const byMonth={};
+    meScoresDedup.forEach(m=>{
+      const key=m.meMonth||0;
+      const existing=byMonth[key];
+      if(!existing||(m.date||'')>(existing.date||''))byMonth[key]=m;
+    });
+    return Object.values(byMonth).sort((a,b)=>(b.meMonth||0)-(a.meMonth||0));
+  })():getLatestMEScorePerMonth(sid);
   const meScore=meScoresLatest.find(m=>m.meMonth===Number(start.slice(5,7)))
     ||meScoresLatest.find(m=>!m.meMonth&&m.date>=start&&m.date<=end);
   const meTier=(meScore&&!meScore.notTaken)?meScoreStyle(meScore.score):{bg:'',border:'',color:'',icon:'',label:''};
@@ -9883,7 +9898,7 @@ function buildMonthlyReport(sid,session){
     <div style="text-align:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--pri2);">
       <div style="font-size:18px;font-weight:800;color:var(--pri2);">${esc(session.name)} 학습 리포트</div>
       <div style="font-size:12px;color:var(--muted);margin-top:2px;">${start} ~ ${end}</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:4px;">${isSago?`${esc(dispStuName(sid))}(사고력) (${GL[s.grade]||s.grade}) · ${esc(s.level?s.level+'반':'')}`:`${esc(sid)} (${GL[s.grade]||s.grade}) · ${esc(s.curriculum||s.subject||'')}`}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">${isSago?`${esc(dispStuName(sid))}(사고력) (${GL[s.grade]||s.grade}) · ${esc(s.level?s.level+'반':'')}`:`${esc(isCombined?dispStuName(sid):sid)} (${GL[s.grade]||s.grade}) · ${esc(s.curriculum||s.subject||'')}${isCombined?` <span style="color:#1E40AF;font-weight:700;">🔗 ${esc(sidList.map(m=>gS(m)?.group||'저학년').join('+'))} 통합</span>`:''}`}</div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:9px;margin-bottom:20px;">
@@ -9935,13 +9950,13 @@ function buildMonthlyReport(sid,session){
         <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">
           ${isAbs?'-':`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
             <span>${x.attitude||80}</span>
-            <button class="no-print" onclick="openReportAttEdit('${x.date}','${esc(sid)}')" style="border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="태도 점수 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
+            <button class="no-print" onclick="openReportAttEdit('${x.date}','${esc(x._sid)}')" style="border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="태도 점수 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
           </div>`}
         </td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);">
           <div style="display:flex;flex-direction:column;gap:6px;">
             <span>${esc(displayNote)}</span>
-            <button class="no-print" onclick="openReportNoteEdit('${x.date}','${esc(sid)}')" style="align-self:flex-start;border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="학부모용 문구 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
+            <button class="no-print" onclick="openReportNoteEdit('${x.date}','${esc(x._sid)}')" style="align-self:flex-start;border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="학부모용 문구 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
           </div>
         </td>
       </tr>`;
