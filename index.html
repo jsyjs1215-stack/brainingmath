@@ -1253,7 +1253,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-10-sago-sc-scmeta-merge-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-10-high-books-daydef-sync'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2447,6 +2447,36 @@ function dispCurr(r,s,date,slotId){
   if((s?.group||'저학년')==='사고력')return '';
   return s?.curriculum||'';
 }
+// 고학년·중등·고등: 하루 여러 권 교재를 나가는 경우가 많아서, "오늘교재" 표시도 그날 입력된
+// 책을 전부 보여준다. 우선순위: 오늘 저장된 기록(슬롯별→공통) → 요일별 고정 교재(dayDef.books) →
+// 없으면 빈 배열. 저학년/사고력처럼 학생 기본값(s.subject 등)으로 채우지 않는다 — 매일 책이
+// 달라져서 기본값을 보여주면 오히려 그날 실제로 뭘 나갔는지와 다른 정보를 보여주게 되기 때문.
+// 저학년/사고력은 기존 단일값 표시(dispSubj/dispCurr)를 그대로 1건짜리 배열로 감싸서 반환한다.
+function getTodayBooksList(r,s,date,slotId){
+  const isHigh=(s?.group||'저학년')==='고학년';
+  if(!isHigh){
+    const subj=dispSubj(r,s,date,slotId);
+    const curr=dispCurr(r,s,date,slotId);
+    if(subj==='월말평가')return[];
+    return (subj||curr)?[{subject:subj,curriculum:curr}]:[];
+  }
+  const slotBooks=(r&&r.slotData&&r.slotData[slotId]&&Array.isArray(r.slotData[slotId].books))?r.slotData[slotId].books:null;
+  if(slotBooks&&slotBooks.length)return slotBooks.filter(b=>b.subject||b.curriculum);
+  if(r&&Array.isArray(r.books)&&r.books.length)return r.books.filter(b=>b.subject||b.curriculum);
+  const savedSubj=getSlotSubj(r,slotId);
+  const savedCurr=getSlotCurr(r,slotId);
+  if(savedSubj==='월말평가')return[];
+  if(savedSubj)return [{subject:savedSubj,curriculum:savedCurr||''}];
+  if(date&&s){
+    const dt=new Date(date+'T00:00:00');
+    const dow=WD[dt.getDay()];
+    const resolvedSlot=slotId||findSlot(s.id,dow);
+    const def=getDayDef(s.id,dow,resolvedSlot);
+    if(def&&Array.isArray(def.books)&&def.books.length)return def.books.filter(b=>b.subject||b.curriculum);
+    if(def&&(def.subject||def.curriculum))return [{subject:def.subject||'',curriculum:def.curriculum||''}];
+  }
+  return [];
+}
 
 // ═══ DATALIST ════════════════════════════
 function updateDL(listId,subject){
@@ -3016,7 +3046,9 @@ function rSch(){
       // 📌 월말평가 보충 필요: 학생 단위로 하나만 관리 — 완료 처리 전까지 계속 표시 (모든 선생님이 볼 수 있게 공유)
       const hasReinforceNeeded=!!s._reinforceNeeded;
       const smsNeeded=r.hwStatus&&r.hwStatus!=='완료'&&!r.smsSent;
-      const displaySubj=dispSubj(r,s,date,sl.id);
+      const booksList=getTodayBooksList(r,s,date,sl.id);
+      const isHighCard=(s.group||'저학년')==='고학년';
+      const displaySubj=booksList[0]?.subject||dispSubj(r,s,date,sl.id);
       // prev hw to show on card - 항상 실제 최신 숙제를 기준으로 (캐시가 오래됐을 수 있으므로)
       const cardPrevHw=(latestHwR(sid,date)?.todayHw)||r.prevHwContent||r._ph||'';
       const cls=['sc',absent?'ab':'',isOtherClass?'c-other':'',att2===60?'c60':att2===100?'c100':'',hasN?'cn':'',hasUT?'cut':'',hasME?'cme':'',hasWrongAnswer?'cwa':'',isOneTime?'c-onetime':''].filter(Boolean).join(' ');
@@ -3026,7 +3058,9 @@ function rSch(){
         <div class="sc-body">
           <div class="sc-top"><div><div class="sc-name">${esc(dispStuName(s.id))}</div>${(()=>{const dl=getStuDaysLabel(sid);return dl?`<div style="font-size:9px;color:var(--pri2);font-weight:600;margin-top:1px;">${dl}</div>`:''})()}</div><span class="sc-grade">${GL[s.grade]||s.grade}</span>${isOneTime?`<span onclick="event.stopPropagation();removeOneTime('${esc(sid)}','${date}','${sl.id}')" style="margin-left:auto;font-size:10px;color:${oneTimeType==='시간변동'?'#4C1D95':oneTimeType==='대체수업'?'#065F46':'#92400E'};background:${oneTimeType==='시간변동'?'#EDE9FE':oneTimeType==='대체수업'?'#ECFDF5':'#FEF3C7'};border:1px solid ${oneTimeType==='시간변동'?'#8B5CF6':oneTimeType==='대체수업'?'#34D399':'#FDE68A'};border-radius:10px;padding:1px 6px;cursor:pointer;" title="임시 추가 취소">${oneTimeType==='시간변동'?'🔀시간변동':oneTimeType==='대체수업'?'🔁대체수업':'🔄보충'}${extraEntry?.customTime?' '+extraEntry.customTime:''} ✕</span>`:''}</div>
           <div class="sc-bdg">
-            <span class="badge ${sC(displaySubj)}">${displaySubj}</span>
+            ${isHighCard
+              ?(booksList.length?booksList.map(b=>`<span class="badge ${sC(b.subject)}">${esc(b.subject||'-')}</span>`).join(''):(hasME?'':`<span class="badge b-기타" style="opacity:.55;">교재 미입력</span>`))
+              :`<span class="badge ${sC(displaySubj)}">${displaySubj}</span>`}
             ${isOtherClass?'<span style="background:#EDE9FE;color:#4C1D95;border:1px solid #C4B5FD;border-radius:20px;font-size:10px;padding:1px 5px;font-weight:700;">🟣 타수업</span>':''}
             ${isOneTime&&oneTimeType==='보충'?'<span style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:20px;font-size:10px;padding:1px 5px;font-weight:700;">🔄 보충</span>':''}
             ${isOneTime&&oneTimeType==='시간변동'?'<span style="background:#EDE9FE;color:#4C1D95;border:1px solid #8B5CF6;border-radius:20px;font-size:10px;padding:1px 5px;font-weight:700;">🔀 시간변동</span>':''}
@@ -3044,16 +3078,18 @@ function rSch(){
             ${hasUndismissedNotes(sid)?'<span style="color:#F59E0B;font-size:13px;" title="중요내용">📌</span>':''}
           </div>
           ${progStr(s)?`<div class="sc-curr">📖 ${esc(progStr(s))}</div>`:''}
-          ${(()=>{
-            const slotCurr=dispCurr(r,s,date,sl.id);
-            const extraCurr=(r.slotData&&r.slotData[sl.id]?.extraCurr)||'';
-            const extraSubj=(r.slotData&&r.slotData[sl.id]?.extraSubj)||'';
-            const isME=dispSubj(r,s,date,sl.id)==='월말평가';
-            const parts=[];
-            if(slotCurr&&slotCurr!=='월말평가')parts.push(`<div class="sc-curr">📖 ${esc(slotCurr.substring(0,20))}</div>`);
-            if(isME&&extraCurr)parts.push(`<div class="sc-curr" style="color:#1E40AF;font-size:10px;">📖 ${extraSubj?esc(extraSubj.substring(0,4))+' ':''}${esc(extraCurr.substring(0,18))}</div>`);
-            return parts.join('');
-          })()}
+          ${isHighCard
+            ?booksList.filter(b=>b.curriculum).map(b=>`<div class="sc-curr">📖 ${esc(b.curriculum.substring(0,20))}</div>`).join('')
+            :(()=>{
+              const slotCurr=dispCurr(r,s,date,sl.id);
+              const extraCurr=(r.slotData&&r.slotData[sl.id]?.extraCurr)||'';
+              const extraSubj=(r.slotData&&r.slotData[sl.id]?.extraSubj)||'';
+              const isME=dispSubj(r,s,date,sl.id)==='월말평가';
+              const parts=[];
+              if(slotCurr&&slotCurr!=='월말평가')parts.push(`<div class="sc-curr">📖 ${esc(slotCurr.substring(0,20))}</div>`);
+              if(isME&&extraCurr)parts.push(`<div class="sc-curr" style="color:#1E40AF;font-size:10px;">📖 ${extraSubj?esc(extraSubj.substring(0,4))+' ':''}${esc(extraCurr.substring(0,18))}</div>`);
+              return parts.join('');
+            })()}
           ${(s.group||'저학년')==='사고력'?(()=>{
             // ⚠ 교재/단원은 위쪽 배지(displaySubj)와 dispCurr()가 이미 "이 요일·이 시간대" 기준으로
             // 정확히 계산해서 보여주고 있으므로 여기서 또 보여주지 않는다 — 예전에는 여기서 날짜와
@@ -3136,8 +3172,8 @@ function rOvr(){
       const isExtra=extraSids.includes(sid);
       autoFill(date,sid);
       const r=recs[sid]||{};
-      const displaySubj=dispSubj(r,s,date,sl.id);
-      const slotCurrOvr=dispCurr(r,s,date,sl.id);
+      const booksListOvr=getTodayBooksList(r,s,date,sl.id);
+      const isHighOvr=(s.group||'저학년')==='고학년';
       const prevInfo=peekPrevInfo(date,sid);
       const prevHwShow=prevInfo._ph||r.prevHwContent||r._ph||'';
       // 📌 직전 특이사항: 실시간으로 정확한 날짜까지 함께 가져옴 (며칠 전 건지 헷갈리지 않도록)
@@ -3187,11 +3223,13 @@ function rOvr(){
         <td>${(()=>{
           const slotMe=(r.slotData&&r.slotData[sl.id]?.monthlyEval)||(!r.slotData&&r.monthlyEval)||null;
           const isME=!!slotMe;
-          // 교재/진도 표시
-          let out2=displaySubj&&displaySubj!=='월말평가'
-            ?`<span class="badge ${sC(displaySubj)}" style="font-size:10px;padding:1px 5px;">${displaySubj.substring(0,4)}</span>`
-            :'';
-          if(slotCurrOvr&&displaySubj!=='월말평가')out2+=`<div style='font-size:9px;color:var(--muted);margin-top:1px;white-space:nowrap;'>${esc(slotCurrOvr)}</div>`;
+          // 교재/진도 표시 — 고학년은 그날 입력한 책을 전부 나열, 그 외 그룹은 기존처럼 1권만
+          let out2=booksListOvr.map(b=>{
+            let line=b.subject?`<span class="badge ${sC(b.subject)}" style="font-size:10px;padding:1px 5px;">${esc(b.subject.substring(0,4))}</span>`:'';
+            if(b.curriculum)line+=`<div style='font-size:9px;color:var(--muted);margin-top:1px;white-space:nowrap;'>${esc(b.curriculum)}</div>`;
+            return `<div style="margin-bottom:3px;">${line}</div>`;
+          }).join('');
+          if(!out2&&isHighOvr&&!isME)out2=`<span style="color:var(--muted);font-size:10px;font-style:italic;">교재 미입력</span>`;
           // 월말평가 배지 추가 (교재와 함께 표시)
           if(isME)out2+=`<div style="margin-top:2px;"><span style="background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;">🏆 월말평가</span></div>`;
           return out2||'<span style="color:var(--muted);font-size:11px;">-</span>';
@@ -4691,7 +4729,9 @@ function rHisSrch(){
 // extraHtml: 상단 통계 카드 위에 끼워 넣을 추가 섹션(통합검색의 보강 현황 등).
 // schedulePillsHtml: 이름 옆 시간표 알약 줄을 다른 내용으로 바꿔치기(통합검색의 반별+총 시간표).
 // 안 주면 기존 학생기록과 완전히 같은 "이 학생 소속 반 하나"만 보여주는 방식 그대로 유지.
-function rHisDet(sid,backFn,extraHtml,schedulePillsHtml){
+// afterStatCardHtml: 이름/기본정보 카드(sp-card) 바로 아래(통계 배너들보다 위)에 끼워 넣을 내용
+// (통합검색의 보강 현황 — 이름이 먼저 보이고 그 아래에 보강이 오도록).
+function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
   const s=gS(sid);if(!s)return`<div class="empty">학생 없음</div>`;
   const sessions=[];
   Object.entries(D.R).forEach(([date,dr])=>{
@@ -4768,6 +4808,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml){
       <div class="sp-stat" style="background:${avgC}22;"><div class="sp-stat-val" style="color:${avgC};">${avgAtt}</div><div class="sp-stat-lbl" style="color:${avgC};">평균태도</div></div>
     </div>
   </div>`;
+  if(afterStatCardHtml)out+=afterStatCardHtml;
 
   // ⏳ 단원평가 진행중 배너 (오답풀이 대기중과 동일한 스타일로 눈에 띄게)
   if(s._utPending){
@@ -5097,11 +5138,11 @@ function rUniSrch(){
 }
 // 학생기록(rHisDet)을 그대로 재사용하되, 뒤로가기는 통합검색 자기 화면으로 돌아오게 하고
 // (학생기록 탭의 HSid를 건드리면 그 탭 상태까지 꼬이므로 절대 공유하지 않음), 학생기록에는
-// 없는 "보강 처리" 섹션만 위쪽에 끼워 넣는다. 이름 옆 시간표도 연동된 모든 반을 합친 버전으로
-// 바꿔치기한다(학생기록 탭 자체는 원래 방식 그대로 — 여기서만 확장).
+// 없는 "보강 처리" 섹션을 이름 카드 바로 아래에 끼워 넣는다(이름이 먼저 보이도록). 이름 옆
+// 시간표도 연동된 모든 반을 합친 버전으로 바꿔치기한다(학생기록 탭 자체는 원래 방식 그대로).
 function rUniDet(sid){
   const backFn="UniSid=null;UniSearch='';clearSearchBoxUI();renderAll()";
-  return rHisDet(sid,backFn,rUniMakeupSection(sid),renderMultiGroupSchedulePills(sid));
+  return rHisDet(sid,backFn,null,renderMultiGroupSchedulePills(sid),rUniMakeupSection(sid));
 }
 function rUniMakeupSection(sid){
   const s=gS(sid);if(!s)return'';
@@ -5173,11 +5214,15 @@ function rMku(){
   Object.entries(D.R).forEach(([date,dr])=>{
     Object.entries(dr).forEach(([sid,r])=>{
       if(r.attend==='결석'){
-        const exists=D.makeups.find(m=>m.absDate===date&&m.studentId===sid);
+        const base=dispStuName(sid);
+        // ⚠ 사고력+저학년/고학년 이중등록 학생은 같은 날 결석이 두 반 모두에 기록되는 경우가 많음.
+        // 반(별칭)과 무관하게 학생 1명당 하루 보강 1건만 생기도록 base name(별칭 제거) 기준으로 존재 여부를 확인함 —
+        // 안 그러면 반마다 따로 보강이 자동생성되어 중복이 계속 되살아남.
+        const exists=D.makeups.find(m=>m.absDate===date&&dispStuName(m.studentId)===base);
         // ⚠ 관리자가 이 결석에 대한 보충을 명시적으로 삭제했다면(dismissedMakeups),
         // 결석 기록 자체는 그대로 있으니 여기서 다시 자동으로 만들어내면 안 됨 —
         // 삭제해도 화면을 새로고침할 때마다 계속 되살아나던 문제가 이것 때문이었음.
-        const dismissed=D.dismissedMakeups.some(x=>x.date===date&&x.sid===sid);
+        const dismissed=D.dismissedMakeups.some(x=>x.date===date&&dispStuName(x.sid)===base);
         if(!exists&&!dismissed){
           // ⚠ id를 date+sid 기준으로 고정해서, 여러 기기에서 거의 동시에 같은 결석에 대해
           // 각자 자동 생성하더라도 같은 id로 합쳐지게 함 (예전엔 Date.now()+Math.random()이라
