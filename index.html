@@ -1253,7 +1253,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-10-high-books-daydef-sync'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-10-high-daydef-slot-multibook'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7969,7 +7969,10 @@ function setDayDef(sid,day,subject,curriculum,slot,teacher,books){
   if(slot){
     // 슬롯별 설정
     if(!D.dayDefs[sid][day].slots)D.dayDefs[sid][day].slots={};
-    if(subject||curriculum||teacher){D.dayDefs[sid][day].slots[slot]={subject,curriculum,teacher:teacher||''};}
+    if(subject||curriculum||teacher||(books&&books.length)){
+      D.dayDefs[sid][day].slots[slot]={subject,curriculum,teacher:teacher||''};
+      if(books&&books.length)D.dayDefs[sid][day].slots[slot].books=books;
+    }
     else{delete D.dayDefs[sid][day].slots[slot];}
     // slots가 비면 정리
     if(Object.keys(D.dayDefs[sid][day].slots||{}).length===0)delete D.dayDefs[sid][day].slots;
@@ -8046,18 +8049,39 @@ function renderRMDayDefList(sid){
       // 시간대별 설정
       daySlotsReg.forEach(sl=>{
         const slDef=(dayData.slots||{})[sl.id]||{};
-        const sv=slDef.subject||'';const cv=slDef.curriculum||'';const tv=slDef.teacher||'';
-        html+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:5px 7px;background:#fff;border:1px solid #E2E8F0;border-radius:6px;flex-wrap:wrap;">
-          <div style="font-size:10px;font-weight:700;color:#475569;white-space:nowrap;min-width:54px;">${sl.label}</div>
-          <select id="rmdd-subj-${day}-${sl.id}" onchange="updateRMDDCurr('${day}','${sl.id}')" style="flex:1;padding:5px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;background:#fff;outline:none;">
-            <option value="">설정안함</option>${subjOpts(sv,rmGroup)}
-          </select>
-          <input id="rmdd-curr-${day}-${sl.id}" list="dl-rmdd-${day}-${sl.id}" value="${esc(cv)}" placeholder="진도" style="flex:2;padding:5px 7px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;outline:none;${cv?'border-color:var(--pri2);':''}">
-          <datalist id="dl-rmdd-${day}-${sl.id}"></datalist>
-          ${teacherListForGroup(rmGroup).length?`<select id="rmdd-teacher-${day}-${sl.id}" style="flex:1;padding:5px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;background:#fff;outline:none;" title="이 시간대 담당 선생님">
-            <option value="">담당 선택</option>${teacherListForGroup(rmGroup).map(t=>`<option${t===tv?' selected':''}>${t}</option>`).join('')}
-          </select>`:''}
-        </div>`;
+        const tv=slDef.teacher||'';
+        if(rmGroup==='고학년'){
+          // 고학년·중등·고등: 시간대별 설정에서도 하루(그 시간대) 여러 교재를 나갈 수 있으므로
+          // 요일 공통 설정과 동일하게 교재를 자유롭게 추가/삭제할 수 있는 행으로 보여준다.
+          const key=`${day}-${sl.id}`;
+          const slBooks=(Array.isArray(slDef.books)&&slDef.books.length)?slDef.books
+            :(slDef.subject||slDef.curriculum)?[{subject:slDef.subject||'',curriculum:slDef.curriculum||''}]
+            :[];
+          html+=`<div style="margin-bottom:8px;padding:7px 9px;background:#fff;border:1px solid #E2E8F0;border-radius:6px;">
+            <div style="font-size:10px;font-weight:700;color:#475569;margin-bottom:5px;">${sl.label}</div>
+            <div id="rmdd-books-${key}" style="display:flex;flex-direction:column;gap:5px;margin-bottom:5px;"></div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <button type="button" onclick="addRmddBookRow('${key}','','')" style="flex:1;min-width:90px;padding:5px;border-radius:var(--rs);border:1px dashed var(--bdr);background:#F8FAFC;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer;">+ 교재 추가</button>
+              ${teacherListForGroup(rmGroup).length?`<select id="rmdd-teacher-${day}-${sl.id}" style="flex:1;min-width:90px;padding:5px 6px;border:1px solid var(--bdr);border-radius:var(--rs);font-size:11px;background:#fff;outline:none;" title="이 시간대 담당 선생님">
+                <option value="">담당 선택</option>${teacherListForGroup(rmGroup).map(t=>`<option${t===tv?' selected':''}>${t}</option>`).join('')}
+              </select>`:''}
+            </div>
+            <datalist id="dl-rmdd-book-${key}">${subjListForGroup('고학년').map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
+          </div>`;
+        } else {
+          const sv=slDef.subject||'';const cv=slDef.curriculum||'';
+          html+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:5px 7px;background:#fff;border:1px solid #E2E8F0;border-radius:6px;flex-wrap:wrap;">
+            <div style="font-size:10px;font-weight:700;color:#475569;white-space:nowrap;min-width:54px;">${sl.label}</div>
+            <select id="rmdd-subj-${day}-${sl.id}" onchange="updateRMDDCurr('${day}','${sl.id}')" style="flex:1;padding:5px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;background:#fff;outline:none;">
+              <option value="">설정안함</option>${subjOpts(sv,rmGroup)}
+            </select>
+            <input id="rmdd-curr-${day}-${sl.id}" list="dl-rmdd-${day}-${sl.id}" value="${esc(cv)}" placeholder="진도" style="flex:2;padding:5px 7px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;outline:none;${cv?'border-color:var(--pri2);':''}">
+            <datalist id="dl-rmdd-${day}-${sl.id}"></datalist>
+            ${teacherListForGroup(rmGroup).length?`<select id="rmdd-teacher-${day}-${sl.id}" style="flex:1;padding:5px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;background:#fff;outline:none;" title="이 시간대 담당 선생님">
+              <option value="">담당 선택</option>${teacherListForGroup(rmGroup).map(t=>`<option${t===tv?' selected':''}>${t}</option>`).join('')}
+            </select>`:''}
+          </div>`;
+        }
       });
     } else if(rmGroup==='고학년'){
       // 고학년·중등·고등 요일 공통 설정 — 하루 여러 교재를 나가는 경우가 많아서 교재를 하나로
@@ -8095,7 +8119,17 @@ function renderRMDayDefList(sid){
     const daySlotsReg=rmCheckedSlots(day);
     const useSlots=hasSlotDefs(sid,day)||daySlotsReg.length>=2;
     if(useSlots&&daySlotsReg.length>=2){
-      daySlotsReg.forEach(sl=>updateRMDDCurr(day,sl.id));
+      if(rmGroup==='고학년'){
+        daySlotsReg.forEach(sl=>{
+          const slDef=((defs[day]||{}).slots||{})[sl.id]||{};
+          const slBooks=(Array.isArray(slDef.books)&&slDef.books.length)?slDef.books
+            :(slDef.subject||slDef.curriculum)?[{subject:slDef.subject||'',curriculum:slDef.curriculum||''}]
+            :[];
+          renderRmddBookRows(`${day}-${sl.id}`,slBooks);
+        });
+      } else {
+        daySlotsReg.forEach(sl=>updateRMDDCurr(day,sl.id));
+      }
     } else if(rmGroup==='고학년'){
       const dayData=defs[day]||{};
       const books=(Array.isArray(dayData.books)&&dayData.books.length)?dayData.books
@@ -8132,10 +8166,11 @@ function toggleSlotMode(sid,day){
     if(!D.dayDefs[sid])D.dayDefs[sid]={};
     if(!D.dayDefs[sid][day])D.dayDefs[sid][day]={};
     if(!D.dayDefs[sid][day].slots)D.dayDefs[sid][day].slots={};
-    // 기존 공통 설정이 있으면 첫 슬롯에 복사 (담임도 함께)
+    // 기존 공통 설정이 있으면 첫 슬롯에 복사 (담임·여러 교재 목록도 함께)
     const firstSlot=rmCheckedSlots(day)[0];
-    if(firstSlot&&(dayData.subject||dayData.curriculum||dayData.teacher)){
+    if(firstSlot&&(dayData.subject||dayData.curriculum||dayData.teacher||(dayData.books&&dayData.books.length))){
       D.dayDefs[sid][day].slots[firstSlot.id]={subject:dayData.subject||'',curriculum:dayData.curriculum||'',teacher:dayData.teacher||''};
+      if(dayData.books&&dayData.books.length)D.dayDefs[sid][day].slots[firstSlot.id].books=dayData.books;
     }
     SD();
   }
@@ -8189,10 +8224,17 @@ function saveRMDayDef(sid){
     if(useSlots&&daySlotsReg.length>=2){
       // 슬롯별 저장
       daySlotsReg.forEach(sl=>{
-        const subj=document.getElementById(`rmdd-subj-${day}-${sl.id}`)?.value||'';
-        const curr=document.getElementById(`rmdd-curr-${day}-${sl.id}`)?.value.trim()||'';
         const teacher=document.getElementById(`rmdd-teacher-${day}-${sl.id}`)?.value||'';
-        setDayDef(sid,day,subj,curr,sl.id,teacher);
+        if((gS(sid)?.group||'저학년')==='고학년'){
+          const books=readRmddBookRows(`${day}-${sl.id}`);
+          const subj=books.map(b=>b.subject).filter(Boolean).join(' + ');
+          const curr=books.map(b=>b.curriculum).filter(Boolean).join(', ');
+          setDayDef(sid,day,subj,curr,sl.id,teacher,books);
+        } else {
+          const subj=document.getElementById(`rmdd-subj-${day}-${sl.id}`)?.value||'';
+          const curr=document.getElementById(`rmdd-curr-${day}-${sl.id}`)?.value.trim()||'';
+          setDayDef(sid,day,subj,curr,sl.id,teacher);
+        }
       });
     } else if((gS(sid)?.group||'저학년')==='고학년'){
       // 고학년·중등·고등 요일 공통 저장 — 여러 교재 행을 그대로 저장하고, 다른 화면에서 쓰는
