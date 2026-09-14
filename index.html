@@ -350,7 +350,7 @@ button,input,textarea,select{font-family:inherit;}
   <button class="nb" id="nb-book" onclick="setTab('book')"><i class="ti ti-progress-check"></i>진도체크</button>
   <button class="nb" onclick="setTab('his')"><i class="ti ti-search"></i>학생기록</button>
   <button class="nb" onclick="setTab('grade')"><i class="ti ti-chart-bar"></i>성적관리</button>
-  <button class="nb" onclick="setTab('mku')"><i class="ti ti-refresh"></i>보충관리</button>
+  <button class="nb" onclick="setTab('mku')"><i class="ti ti-refresh"></i>결석&보강</button>
   <button class="nb" onclick="setTab('pct')"><i class="ti ti-phone"></i>학부모상담</button>
   <button class="nb" onclick="setTab('report')"><i class="ti ti-printer"></i>월간리포트</button>
   <button class="nb" onclick="setTab('hov')"><i class="ti ti-transfer"></i>인수인계</button>
@@ -1264,7 +1264,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-14-force-reload-overlay'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-14-absence-quick-mgmt'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -5153,7 +5153,24 @@ function rUniSrch(){
 // 시간표도 연동된 모든 반을 합친 버전으로 바꿔치기한다(학생기록 탭 자체는 원래 방식 그대로).
 function rUniDet(sid){
   const backFn="UniSid=null;UniSearch='';clearSearchBoxUI();renderAll()";
-  return rHisDet(sid,backFn,null,renderMultiGroupSchedulePills(sid),rUniMakeupSection(sid));
+  return rHisDet(sid,backFn,null,renderMultiGroupSchedulePills(sid),rUniAbsenceQuick(sid)+rUniMakeupSection(sid));
+}
+// 통합검색에서 학생을 찾은 김에 바로 결석 처리할 수 있게 — 오늘 정규 수업이 있는 날에만 보여주고
+// (수업 없는 날 실수로 결석 처리하는 걸 막기 위함), 이미 결석 처리했으면 취소 버튼으로 바꿔 보여줌.
+function rUniAbsenceQuick(sid){
+  const s=gS(sid);if(!s)return'';
+  const date=tdk();
+  const dow=WD[new Date(date+'T00:00:00').getDay()];
+  const slot=findSlot(sid,dow);
+  const already=D.R[date]?.[sid]?.attend==='결석';
+  if(!slot&&!already)return'';
+  return `<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;padding:9px 12px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--rs);">
+    <i class="ti ti-user-x" style="color:#991B1B;font-size:16px;flex-shrink:0;"></i>
+    <div style="flex:1;font-size:12px;color:#991B1B;font-weight:600;">오늘(${date}) ${already?'결석 처리됨':'결석 처리'}</div>
+    ${already
+      ?`<button onclick="undoAbsent('${esc(sid)}','${date}')" style="padding:6px 12px;border-radius:16px;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;">취소</button>`
+      :`<button onclick="markStudentAbsent('${esc(sid)}','${date}')" style="padding:6px 14px;border-radius:16px;border:none;background:#DC2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">결석 처리</button>`}
+  </div>`;
 }
 function rUniMakeupSection(sid){
   const s=gS(sid);if(!s)return'';
@@ -5217,6 +5234,57 @@ function confirmClearAllRecords(sid){
 }
 
 
+// ═══ 결석 빠른 등록 ═══════════════════════
+// 그날짜로 들어가서 학생을 찾아 클릭하는 번거로운 과정 없이, 이름 검색만으로 바로 결석
+// 처리할 수 있게 하는 단축 기능. 결석&보강 탭과 통합검색 학생 상세에서 함께 쓴다.
+function markStudentAbsent(sid,date){
+  const s=gS(sid);if(!s){toast('학생을 찾을 수 없습니다');return;}
+  const dow=WD[new Date(date+'T00:00:00').getDay()];
+  const slot=findSlot(sid,dow);
+  if(!slot&&!confirm(`${dispStuName(sid)} 학생은 ${date}(${dow}요일)에 정규 수업이 없습니다. 그래도 결석으로 기록할까요?`))return;
+  const r=gR(date,sid);
+  if(slot&&!r.slot)r.slot=slot;
+  sR(date,sid,'attend','결석');
+  renderAll();
+  toast(`${dispStuName(sid)} ${date} 결석 처리 완료`);
+}
+function undoAbsent(sid,date){
+  sR(date,sid,'attend','출석');
+  renderAll();
+  toast(`${dispStuName(sid)} ${date} 결석이 취소되고 출석으로 되돌아갔습니다`);
+}
+let AbsMgmtSearch='',AbsMgmtDate=null;
+function rAbsMgmt(){
+  const date=AbsMgmtDate||tdk();
+  const q=AbsMgmtSearch.trim();
+  const matches=q?D.S.filter(s=>s&&isActiveStu(s)&&korSearch(dispStuName(s.id),q)).slice(0,8):[];
+  let out=`<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--rs);padding:12px;margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px;display:flex;align-items:center;gap:5px;"><i class="ti ti-user-x"></i> 결석 등록 <span style="font-size:10px;font-weight:400;color:var(--muted);">— 날짜에 들어가지 않고 바로 결석 처리</span></div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+      <input type="text" placeholder="학생 이름 검색" value="${escAttr(q)}" oninput="AbsMgmtSearch=this.value;renderAll()" style="flex:2;min-width:140px;padding:8px 10px;border:1px solid var(--bdr);border-radius:var(--rs);font-size:13px;">
+      <input type="date" value="${esc(date)}" onchange="AbsMgmtDate=this.value;renderAll()" style="flex:1;min-width:130px;padding:8px 10px;border:1px solid var(--bdr);border-radius:var(--rs);font-size:13px;">
+    </div>`;
+  if(q){
+    if(matches.length){
+      matches.forEach(s=>{
+        const already=D.R[date]?.[s.id]?.attend==='결석';
+        out+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:#fff;border:1px solid #FCA5A5;border-radius:var(--rs);margin-bottom:6px;">
+          <div style="flex:1;font-size:13px;"><strong>${esc(dispStuName(s.id))}</strong> <span style="font-size:10px;color:var(--muted);">(${esc(s.group||'저학년')})</span></div>
+          ${already
+            ?`<span style="font-size:11px;color:#991B1B;font-weight:700;">✓ 결석 처리됨</span><button onclick="undoAbsent('${esc(s.id)}','${esc(date)}')" style="padding:5px 10px;border-radius:16px;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;">취소</button>`
+            :`<button onclick="markStudentAbsent('${esc(s.id)}','${esc(date)}')" style="padding:6px 12px;border-radius:16px;border:none;background:#DC2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">결석 처리</button>`}
+        </div>`;
+      });
+    } else {
+      out+=`<div style="font-size:12px;color:var(--muted);padding:6px 0;">검색 결과가 없습니다</div>`;
+    }
+  } else {
+    out+=`<div style="font-size:11px;color:var(--muted);">이름을 입력하면 검색됩니다</div>`;
+  }
+  out+=`</div>`;
+  return out;
+}
+
 let MkuSessionFilter='all';
 function rMku(){
   // Collect absences from records
@@ -5249,7 +5317,8 @@ function rMku(){
   const mkuInGroup=m=>{const st=gS(m.studentId);return !st||(st.group||'저학년')===ActiveGroup;};
   const filters=['pending','scheduled','done'];
   const fLabels={pending:'대기중',scheduled:'예약됨',done:'완료'};
-  let out=`<div style="display:flex;gap:6px;margin-bottom:10px;">`;
+  let out=rAbsMgmt();
+  out+=`<div style="display:flex;gap:6px;margin-bottom:10px;">`;
   filters.forEach(f=>{
     const cnt=D.makeups.filter(m=>m.status===f&&mkuInGroup(m)).length;
     out+=`<button style="flex:1;padding:7px;border-radius:var(--rs);border:1px solid var(--bdr);background:${MkuFilter===f?'var(--pri)':'#fff'};color:${MkuFilter===f?'#fff':'var(--muted)'};font-size:12px;cursor:pointer;" onclick="MkuFilter='${f}';renderAll()">${fLabels[f]} (${cnt})</button>`;
