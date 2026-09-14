@@ -372,18 +372,7 @@ button,input,textarea,select{font-family:inherit;}
      눈에 띄게 띄운다 — 매번 "탭을 다시 열어보세요"라고 안내할 필요 없이 스스로 알아채게 함. -->
 <div id="new-version-banner" style="display:none;background:#DC2626;color:#fff;padding:10px 16px;font-size:13px;font-weight:600;align-items:center;gap:10px;cursor:pointer;" onclick="location.reload()">
   <i class="ti ti-refresh" style="font-size:18px;"></i>
-  <span>🔄 새 버전이 있어요 — 다른 선생님이 최신 내용을 올렸어요. 눌러서 새로고침하면 바로 반영돼요.</span>
-</div>
-
-<!-- 🔒 강제 새로고침 오버레이 — 배너를 놓치거나 무시하고 예전 버전을 계속 켜두는 기기가
-     남아있으면(특히 버그 수정 배포 직후) 문제가 계속 재발할 수 있어서, 배너보다 훨씬 눈에
-     띄는 전체화면 알림 + 카운트다운으로 강제 새로고침을 유도한다. 완전히 못 누르게 막지는
-     않고(누군가 입력 중인 내용이 있을 수 있으므로) "지금 새로고침" 버튼과 몇 초의 유예를 둔다. -->
-<div id="force-reload-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.94);z-index:99999;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:#fff;text-align:center;padding:24px;">
-  <i class="ti ti-refresh" style="font-size:40px;"></i>
-  <div style="font-size:17px;font-weight:800;">🔄 새 버전이 배포됐어요</div>
-  <div style="font-size:13px;color:#CBD5E1;max-width:340px;line-height:1.6;">이 화면을 계속 켜두고 계셨네요. 방금 올라온 버그 수정 내용을 받으려면 새로고침이 꼭 필요해요.<br><span id="force-reload-sec">15</span>초 후 자동으로 새로고침됩니다.</div>
-  <button onclick="location.reload()" style="padding:13px 30px;background:#fff;color:#1E293B;border:none;border-radius:24px;font-size:14px;font-weight:800;cursor:pointer;">지금 새로고침</button>
+  <span>🔄 새 버전이 있어요 — 다른 선생님이 최신 내용을 올렸어요. 지금 입력 중인 내용이 없을 때 눌러서 새로고침해주세요.</span>
 </div>
 
 <div class="day-bar" id="day-bar">
@@ -1264,7 +1253,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-14-uni-teacher-book-display'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-14-remove-force-reload'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -4492,12 +4481,12 @@ function rAdmin(){
     {key:'students',label:'학생관리'},
     // 레벨(반) 관리는 사고력 그룹에서만 쓰는 개념이라 그 그룹일 때만 서브탭으로 보여줌
     ...(ActiveGroup==='사고력'?[{key:'level',label:'레벨 관리'}]:[]),
-    {key:'closure',label:'휴원일·세션'},
-    {key:'removal',label:'배정 복구·이동·중복'},
-    {key:'wa',label:'오답풀이 상태'},
     {key:'hwsms',label:'숙제 문자 발송'},
     {key:'newbook',label:'새책'},
+    {key:'wa',label:'오답풀이 상태'},
+    {key:'closure',label:'휴원일·세션'},
     {key:'hw',label:'숙제 기록 정리'},
+    {key:'removal',label:'배정 복구·이동·중복'},
   ];
   const hwSmsPendingCnt=collectHwSmsNeeded().length;
   let out=`<div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;margin-bottom:10px;"><i class="ti ti-settings"></i> 관리 도구</div>
@@ -6520,7 +6509,9 @@ function collectHwSmsNeeded(){
     Object.entries(dr).forEach(([sid,r])=>{
       if(!r||r.attend==='결석')return;
       const st=gS(sid);if(st&&(st.group||'저학년')!==ActiveGroup)return;
-      if(r.hwStatus&&r.hwStatus!=='완료'&&!r.smsSent){
+      // ⚠ _hwSmsAck: 문자를 실제로 보내진 않았지만(시간이 지나 발송이 의미 없어진 경우 등) 확인은
+      // 했다고 표시한 건 — 발송한 것처럼 "발송완료" 이력에 섞이면 안 되니 smsSent와는 별도로 관리.
+      if(r.hwStatus&&r.hwStatus!=='완료'&&!r.smsSent&&!r._hwSmsAck){
         out.push({sid,date,hwStatus:r.hwStatus});
       }
     });
@@ -6540,6 +6531,21 @@ function collectHwSmsSentRecent(){
   });
   return out.slice(0,10);
 }
+// 문자는 안 보냈지만(시간이 지나서 이제 와서 보내는 게 의미 없어진 경우 등) "확인했다"고 표시해서
+// 목록에서 빼고 싶을 때 쓰는 목록 — 발송완료와 구분해서 따로 보여줌
+function collectHwSmsAckRecent(){
+  const out=[];
+  Object.keys(D.R).sort().reverse().slice(0,14).forEach(date=>{
+    const dr=D.R[date];if(!dr)return;
+    Object.entries(dr).forEach(([sid,r])=>{
+      const st=gS(sid);if(st&&(st.group||'저학년')!==ActiveGroup)return;
+      if(r&&r._hwSmsAck&&r.hwStatus&&r.hwStatus!=='완료'){
+        out.push({sid,date,hwStatus:r.hwStatus});
+      }
+    });
+  });
+  return out.slice(0,10);
+}
 function sendHwSms(sid,date){
   window.open(SMS_SITE_URL,'_blank');
   const r=D.R[date]?.[sid];
@@ -6553,14 +6559,28 @@ function undoHwSms(sid,date){
   SD();renderAll();
   toast(`${sid} (${date}) 발송완료 표시를 취소했습니다`);
 }
+// 문자를 보내지 않고 "확인"만 처리 — 시간이 지나 문자 보내는 게 의미 없어진 경우 등에 목록에서만 뺌
+function ackHwSms(sid,date){
+  const r=D.R[date]?.[sid];
+  if(r){r._hwSmsAck=true;r._updatedAt=Date.now();}
+  SD();renderAll();
+  toast(`${sid} (${date}) 확인 처리했습니다 (문자는 발송하지 않음)`);
+}
+function undoAckHwSms(sid,date){
+  const r=D.R[date]?.[sid];
+  if(r){r._hwSmsAck=false;r._updatedAt=Date.now();}
+  SD();renderAll();
+  toast(`${sid} (${date}) 확인 처리를 취소했습니다`);
+}
 function rHwSmsSection(){
   const items=collectHwSmsNeeded();
   const sent=collectHwSmsSentRecent();
+  const acked=collectHwSmsAckRecent();
   let out=`<div style="margin-top:18px;border-top:2px solid #FCA5A5;padding-top:14px;">
     <div style="font-size:14px;font-weight:700;color:#991B1B;display:flex;align-items:center;gap:5px;margin-bottom:6px;">
       <i class="ti ti-message-2"></i> 숙제 안 한 학생 문자 발송
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">"문자보내기"를 누르면 문자 발송 사이트가 새 탭으로 열리고, 동시에 이 학생은 발송완료로 표시됩니다.</div>`;
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">"문자보내기"를 누르면 문자 발송 사이트가 새 탭으로 열리고 발송완료로 표시됩니다. 시간이 지나 문자를 보내지 못한 경우엔 "확인"을 누르면 문자는 안 보낸 채로 목록에서만 빠집니다.</div>`;
   if(!items.length){
     out+=`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;"><i class="ti ti-check" style="font-size:26px;display:block;margin-bottom:6px;opacity:.4;"></i>문자 발송이 필요한 학생이 없습니다.</div>`;
   } else {
@@ -6570,6 +6590,7 @@ function rHwSmsSection(){
           <div style="font-size:13px;font-weight:700;">${esc(i.sid)}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px;">${i.date} <span class="badge b-${i.hwStatus}" style="font-size:10px;padding:1px 5px;">${i.hwStatus}</span></div>
         </div>
+        <button onclick="ackHwSms('${esc(i.sid)}','${i.date}')" style="padding:7px 11px;border-radius:20px;background:#fff;color:var(--muted);border:1px solid var(--bdr);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;" title="문자는 보내지 않고 확인만 처리(목록에서 제거)"><i class="ti ti-check"></i> 확인</button>
         <button onclick="sendHwSms('${esc(i.sid)}','${i.date}')" style="padding:7px 13px;border-radius:20px;background:#EF4444;color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;"><i class="ti ti-brand-messenger"></i> 문자보내기</button>
       </div>`).join('')}
     </div>`;
@@ -6580,6 +6601,15 @@ function rHwSmsSection(){
       ${sent.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 9px;background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px;">
         <div style="flex:1;font-size:11px;color:var(--muted);">${esc(i.sid)} — ${i.date} <span class="b-sms">📱발송</span></div>
         <button onclick="undoHwSms('${esc(i.sid)}','${i.date}')" style="padding:4px 9px;border-radius:14px;background:transparent;color:var(--dan);border:1px solid var(--dan-b);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">취소</button>
+      </div>`).join('')}
+    </div>`;
+  }
+  if(acked.length){
+    out+=`<div style="margin-top:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;">☑ 최근 확인 처리 (${acked.length}건) <span style="font-weight:400;">— 문자는 발송 안 함 · 잘못 눌렀으면 취소할 수 있어요</span></div>
+      ${acked.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 9px;background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px;">
+        <div style="flex:1;font-size:11px;color:var(--muted);">${esc(i.sid)} — ${i.date} <span style="color:var(--muted);">☑ 확인함</span></div>
+        <button onclick="undoAckHwSms('${esc(i.sid)}','${i.date}')" style="padding:4px 9px;border-radius:14px;background:transparent;color:var(--dan);border:1px solid var(--dan-b);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">취소</button>
       </div>`).join('')}
     </div>`;
   }
@@ -10010,16 +10040,20 @@ function buildMonthlyReport(sid,session){
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:9px;margin-bottom:20px;">
       <div style="background:#F8FAFC;border-radius:var(--rs);padding:12px;text-align:center;">
-        <div style="font-size:20px;font-weight:800;color:var(--pri2);">${attendCnt}<span style="font-size:12px;color:var(--muted);">/${target}일</span></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">출석${absentCnt?` (결석 ${absentCnt})`:''}</div>
+        <div style="font-size:20px;font-weight:800;color:var(--pri2);">${target}<span style="font-size:12px;color:var(--muted);">일</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">총수업</div>
+      </div>
+      <div style="background:#F8FAFC;border-radius:var(--rs);padding:12px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:var(--pri2);">${target?Math.round(attendCnt/target*100):0}%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">출석률 <span style="opacity:.75;">(${attendCnt}/${target}일${absentCnt?` · 결석 ${absentCnt}`:''})</span></div>
       </div>
       ${isSago?'':`<div style="background:#F8FAFC;border-radius:var(--rs);padding:12px;text-align:center;">
         <div style="font-size:20px;font-weight:800;color:#1E40AF;">${hwRate}%</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">숙제 이행률</div>
       </div>`}
-      <div style="background:#F8FAFC;border-radius:var(--rs);padding:12px;text-align:center;">
-        <div style="font-size:20px;font-weight:800;color:${attitudeColor};">${attitudeLabel}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">수업 태도</div>
+      <div style="background:${attitudeColor}1A;border-radius:var(--rs);padding:12px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:${attitudeColor};">${avgAttitude}</div>
+        <div style="font-size:11px;color:${attitudeColor};margin-top:2px;font-weight:600;">평균 수업태도 <span style="opacity:.8;font-weight:400;">(${attitudeLabel})</span></div>
       </div>
       <div style="background:${meScore?.notTaken?'#FEE2E2':meTier.label?meTier.bg:'#F8FAFC'};border:1px solid ${meScore?.notTaken?'#FCA5A5':meTier.label?meTier.border:'transparent'};border-radius:var(--rs);padding:12px;text-align:center;">
         <div style="font-size:20px;font-weight:800;color:${meScore?.notTaken?'#991B1B':meTier.label?meTier.color:'var(--txt)'};">${meScore?.notTaken?'🚫':(meScore?.score?meScore.score+'점':'-')}</div>
@@ -11691,31 +11725,15 @@ function switchToDefaultCloud() {
 // 예전 탭을 계속 켜두고 있어서였는데, 그걸 알아챌 방법이 없어 매번 "탭을 닫았다 다시 여세요"라고
 // 안내해야 했다. 이제는 클라우드 데이터가 갱신될 때마다(=누군가 저장할 때마다) 자동으로 버전을
 // 비교해서, 다르면 눈에 띄는 배너로 바로 알려준다.
-let FORCE_RELOAD_TIMER=null;
+// ⚠ 한때 배너와 별개로 "전체화면 알림 + 몇 초 후 자동 새로고침"까지 강제로 했었는데,
+// 한창 뭔가 입력 중일 때도 튀어나와서 화면이 새로고침되며 입력하던 내용이 그대로 날아가는
+// 문제가 있었다("이걸로 인해 입력 중이던 내용이 지워진다"는 신고). 그래서 자동 새로고침은
+// 완전히 없애고, 배너를 눌러서 본인이 원할 때만 새로고침하는 방식으로 되돌렸다.
 function checkAppBuildMismatch(serverBuild){
   const banner=document.getElementById('new-version-banner');
+  if(!banner)return;
   const mismatched=!!serverBuild&&serverBuild!==APP_BUILD;
-  if(banner)banner.style.display=mismatched?'flex':'none';
-  if(mismatched)startForceReloadCountdown();
-}
-// ⚠ 배너만으로는 "다른 선생님이 배너를 못 보거나 무시해서 예전 버전을 계속 켜두는" 경우를
-// 막을 방법이 없었다 — 그 기기가 버그가 수정되기 전 코드로 계속 동기화하면서 고친 문제가
-// 다시 재발할 수 있었음. 그래서 버전이 다르다고 감지되면 전체화면 알림을 띄우고 몇 초 뒤
-// 자동으로 새로고침한다. 이미 카운트다운 중이면 다시 시작하지 않음(중복 타이머 방지).
-function startForceReloadCountdown(){
-  if(FORCE_RELOAD_TIMER)return;
-  const overlay=document.getElementById('force-reload-overlay');
-  const secEl=document.getElementById('force-reload-sec');
-  if(!overlay)return;
-  overlay.style.display='flex';
-  let sec=15;
-  const tick=()=>{
-    if(secEl)secEl.textContent=sec;
-    if(sec<=0){location.reload();return;}
-    sec--;
-    FORCE_RELOAD_TIMER=setTimeout(tick,1000);
-  };
-  tick();
+  banner.style.display=mismatched?'flex':'none';
 }
 // 이 기기가 클라우드에 연결될 때마다(최초 연결·재연결·"공식 주소로 전환" 포함) 자신이 지금
 // 실행 중인 버전을 클라우드에 알려준다 — 그래야 예전 버전을 켜놓고 있던 다른 기기가 이 값을
