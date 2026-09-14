@@ -375,6 +375,17 @@ button,input,textarea,select{font-family:inherit;}
   <span>🔄 새 버전이 있어요 — 다른 선생님이 최신 내용을 올렸어요. 눌러서 새로고침하면 바로 반영돼요.</span>
 </div>
 
+<!-- 🔒 강제 새로고침 오버레이 — 배너를 놓치거나 무시하고 예전 버전을 계속 켜두는 기기가
+     남아있으면(특히 버그 수정 배포 직후) 문제가 계속 재발할 수 있어서, 배너보다 훨씬 눈에
+     띄는 전체화면 알림 + 카운트다운으로 강제 새로고침을 유도한다. 완전히 못 누르게 막지는
+     않고(누군가 입력 중인 내용이 있을 수 있으므로) "지금 새로고침" 버튼과 몇 초의 유예를 둔다. -->
+<div id="force-reload-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.94);z-index:99999;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:#fff;text-align:center;padding:24px;">
+  <i class="ti ti-refresh" style="font-size:40px;"></i>
+  <div style="font-size:17px;font-weight:800;">🔄 새 버전이 배포됐어요</div>
+  <div style="font-size:13px;color:#CBD5E1;max-width:340px;line-height:1.6;">이 화면을 계속 켜두고 계셨네요. 방금 올라온 버그 수정 내용을 받으려면 새로고침이 꼭 필요해요.<br><span id="force-reload-sec">15</span>초 후 자동으로 새로고침됩니다.</div>
+  <button onclick="location.reload()" style="padding:13px 30px;background:#fff;color:#1E293B;border:none;border-radius:24px;font-size:14px;font-weight:800;cursor:pointer;">지금 새로고침</button>
+</div>
+
 <div class="day-bar" id="day-bar">
   <button class="db" id="db-월" onclick="setDay('월')"><span class="dn">월</span><span class="dd" id="dd-월">-</span><span class="dc" id="dc-월">-</span></button>
   <button class="db" id="db-화" onclick="setDay('화')"><span class="dn">화</span><span class="dd" id="dd-화">-</span><span class="dc" id="dc-화">-</span></button>
@@ -1253,7 +1264,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-10-report-lohi-combined'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-14-force-reload-overlay'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11584,11 +11595,31 @@ function switchToDefaultCloud() {
 // 예전 탭을 계속 켜두고 있어서였는데, 그걸 알아챌 방법이 없어 매번 "탭을 닫았다 다시 여세요"라고
 // 안내해야 했다. 이제는 클라우드 데이터가 갱신될 때마다(=누군가 저장할 때마다) 자동으로 버전을
 // 비교해서, 다르면 눈에 띄는 배너로 바로 알려준다.
+let FORCE_RELOAD_TIMER=null;
 function checkAppBuildMismatch(serverBuild){
   const banner=document.getElementById('new-version-banner');
-  if(!banner)return;
   const mismatched=!!serverBuild&&serverBuild!==APP_BUILD;
-  banner.style.display=mismatched?'flex':'none';
+  if(banner)banner.style.display=mismatched?'flex':'none';
+  if(mismatched)startForceReloadCountdown();
+}
+// ⚠ 배너만으로는 "다른 선생님이 배너를 못 보거나 무시해서 예전 버전을 계속 켜두는" 경우를
+// 막을 방법이 없었다 — 그 기기가 버그가 수정되기 전 코드로 계속 동기화하면서 고친 문제가
+// 다시 재발할 수 있었음. 그래서 버전이 다르다고 감지되면 전체화면 알림을 띄우고 몇 초 뒤
+// 자동으로 새로고침한다. 이미 카운트다운 중이면 다시 시작하지 않음(중복 타이머 방지).
+function startForceReloadCountdown(){
+  if(FORCE_RELOAD_TIMER)return;
+  const overlay=document.getElementById('force-reload-overlay');
+  const secEl=document.getElementById('force-reload-sec');
+  if(!overlay)return;
+  overlay.style.display='flex';
+  let sec=15;
+  const tick=()=>{
+    if(secEl)secEl.textContent=sec;
+    if(sec<=0){location.reload();return;}
+    sec--;
+    FORCE_RELOAD_TIMER=setTimeout(tick,1000);
+  };
+  tick();
 }
 // 이 기기가 클라우드에 연결될 때마다(최초 연결·재연결·"공식 주소로 전환" 포함) 자신이 지금
 // 실행 중인 버전을 클라우드에 알려준다 — 그래야 예전 버전을 켜놓고 있던 다른 기기가 이 값을
@@ -12332,7 +12363,14 @@ function isSagoSid(sid){ const s=gS(sid); return !!s&&(s.group||'저학년')==='
 // 사고력 클라우드에서 받은 이름 → 이 앱에서 쓸 이름 (겹치면 "(사고력)"을 붙임)
 function sagoIn(id){ return SAGO_ID_ALIAS[id]||id; }
 // 이 앱에서 쓰는 이름 → 사고력 클라우드에 되돌려 보낼 원래 이름
-function sagoOut(id){ return SAGO_ID_ALIAS_REV[id]||id; }
+function sagoOut(id){
+  const out=SAGO_ID_ALIAS_REV[id]||id;
+  // ⚠ 마지막 안전장치: REV 매핑이 어떤 이유로든 깨져 있으면(예: 다른 기기가 별칭만 옮고 REV
+  // 재구성은 안 된 상태로 내보내는 경우) "(사고력2)" 같은 내부 접미사가 그대로 사고력
+  // 클라우드로 새어나가서, 진짜 학생과 별개인 "조지훈(사고력2)"라는 유령 이름으로 저장되는
+  // 사고가 있었다. 접미사가 남아있으면 무조건 원래 이름으로 강제로 벗겨서 내보낸다.
+  return /\((사고력|고학년|저학년)\d*\)$/.test(out)?dispStuName(out):out;
+}
 // 이 앱의 학생 이름(id)은 사람 이름 그 자체라서, 사고력 학생과 저학년/고학년 학생의 이름이
 // 똑같을 수 있음(예: 저학년 "김민서"와 사고력 "김민서"). 그대로 합치면 두 명이 한 명으로
 // 뭉개지므로, 겹치는 경우에만 사고력 쪽 이름 뒤에 "(사고력)"을 붙여서 따로 관리한다.
@@ -12340,10 +12378,21 @@ function sagoOut(id){ return SAGO_ID_ALIAS_REV[id]||id; }
 function rebuildSagoAlias(serverStudents){
   const before=JSON.stringify(SAGO_ID_ALIAS);
   const otherGroupIds=new Set((D.S||[]).filter(s=>s&&(s.group||'저학년')!=='사고력').map(s=>s.id));
+  // ⚠ 로컬에 이미 저장된 사고력 학생 id 집합 — 별칭이 "실제로 존재하는" 학생을 가리키는지
+  // 검증하는 데 씀. (아래 stale 별칭 재계산 참고)
+  const localSagoIds=new Set((D.S||[]).filter(s=>s&&(s.group||'저학년')==='사고력').map(s=>s.id));
   const added={};
   (serverStudents||[]).forEach(st=>{
     if(!st||!st.id)return;
-    if(SAGO_ID_ALIAS[st.id])return; // 이미 정해둔 별칭은 그대로 유지 (기록이 갈라지지 않도록)
+    const existingAlias=SAGO_ID_ALIAS[st.id];
+    // ⚠ 별칭이 이미 있어도, 그 별칭이 가리키는 학생 레코드가 로컬에 실제로 없으면(=다른 기기에서
+    // 별칭 뒷자리가 바뀐 뒤 클라우드의 sagoAlias 필드는 예전 값 그대로 남아있던 경우) stale로
+    // 보고 다시 계산한다. 이 검증 없이 예전 값을 그냥 믿으면, 아직 이 별칭을 한 번도 스스로
+    // 알아낸 적 없는 기기(새 기기·캐시 삭제 등)가 그 stale 별칭("박서은(사고력)")을 그대로 받아들여
+    // 실제 학생("박서은(사고력2)")과는 별개인 유령 레코드를 계속 새로 만들어내고, 그 유령
+    // 레코드의 시간표가 저학년 쪽 "박서은"의 시간표와 뒤섞이는 문제가 있었다
+    // ("저학년 시간표가 자꾸 마음대로 바뀐다"는 신고의 실제 원인).
+    if(existingAlias&&localSagoIds.has(existingAlias))return; // 이미 정해둔 유효한 별칭은 그대로 유지
     if(otherGroupIds.has(st.id)){
       // 이름 짓는 규칙은 연동 등록(mintSagoDisplayId)과 반드시 같은 함수를 써야 함 — 규칙이 갈라지면
       // 같은 아이의 기록이 "홍길동(사고력)"과 "홍길동(사고력2)"처럼 둘로 나뉠 수 있기 때문.
@@ -12361,6 +12410,45 @@ function rebuildSagoAlias(serverStudents){
     scheduleCloudPush();
   }
   return SAGO_ID_ALIAS;
+}
+// ⚠ 별칭이 stale했던 예전 동기화 때문에 이 기기에 이미 같은 아이의 사고력 레코드가 두 개
+// 생겨버린 경우(예: "조지훈(사고력)" 유령 + "조지훈(사고력2)" 진짜)를 정리한다. rebuildSagoAlias는
+// "새 유령이 생기는 것"만 막고, 이미 생긴 유령은 그대로 두므로 별도로 청소해야 한다.
+// 진짜 레코드는 지금 별칭(SAGO_ID_ALIAS_REV)이 가리키는 쪽으로 판단하고, 유령 쪽은 가진 정보 중
+// 진짜 쪽에 없는 값만 채워준 뒤 완전히 지우고 tombstone을 남겨서 다른 기기로 다시 퍼지지 않게 한다.
+function cleanupDuplicateSagoRecords(){
+  const byBase={};
+  (D.S||[]).forEach(s=>{
+    if(!s||(s.group||'저학년')!=='사고력')return;
+    const base=dispStuName(s.id);
+    if(!byBase[base])byBase[base]=[];
+    byBase[base].push(s);
+  });
+  let cleaned=false;
+  Object.values(byBase).forEach(list=>{
+    if(list.length<2)return;
+    const aliasTargetId=Object.keys(SAGO_ID_ALIAS_REV).find(id=>list.some(s=>s.id===id)&&dispStuName(id)===dispStuName(list[0].id));
+    const keep=list.find(s=>s.id===aliasTargetId)||list.slice().sort((a,b)=>(b._updatedAt||0)-(a._updatedAt||0))[0];
+    list.forEach(s=>{
+      if(s===keep)return;
+      Object.keys(s).forEach(k=>{ if(k!=='id'&&(keep[k]===undefined||keep[k]===''))keep[k]=s[k]; });
+      allSlotDefs().forEach(sl=>{ DAYS.concat(['토']).forEach(d=>{ if(D.SC[d]?.[sl.id])D.SC[d][sl.id]=D.SC[d][sl.id].filter(x=>x!==s.id); }); });
+      Object.keys(D.R||{}).forEach(date=>{ if(D.R[date][s.id])delete D.R[date][s.id]; });
+      if(!D.tombstones)D.tombstones={};
+      if(!D.tombstones.students)D.tombstones.students={};
+      D.tombstones.students[s.id]=Date.now();
+      D.S=D.S.filter(x=>x!==s);
+      const rawName=SAGO_ID_ALIAS_REV[s.id];
+      if(rawName){ SAGO_ID_ALIAS[rawName]=keep.id; SAGO_ID_ALIAS_REV[keep.id]=rawName; delete SAGO_ID_ALIAS_REV[s.id]; }
+      cleaned=true;
+    });
+  });
+  if(cleaned){
+    try{ localStorage.setItem('br5_sago_alias',JSON.stringify(SAGO_ID_ALIAS)); }catch(e){}
+    console.warn('[사고력 동기화] 중복된 사고력 레코드를 정리했습니다.');
+    scheduleCloudPush();
+  }
+  return cleaned;
 }
 
 function startSagoListen(){
@@ -12396,17 +12484,36 @@ function startSagoListen(){
       return;
     }
     rebuildSagoAlias(serverS);
+    cleanupDuplicateSagoRecords();
     // ⚠ 예전엔 여기서 "sagoIds=서버(사고력 클라우드)에 있는 id 목록" 집합을 만들어서 아래
     // 여러 병합에서 "이 id가 사고력 학생인지" 판단 기준으로 썼는데, 이름이 겹치는(연동 없이
     // 저학년/고학년에도 같은 이름으로 등록된) 학생을 사고력 학생으로 오판하는 문제가 있었다
     // (아래 각 병합에서 isSagoSid로 바꾼 이유 참고). 이제 아무 데서도 안 써서 제거함.
 
     // ── 학생(S) ── 사고력 학생만 교체/병합. 저학년·고학년 학생은 전혀 건드리지 않음.
+    let sagoAliasFixed=false;
     {
       const localById={};(D.S||[]).forEach(st=>{if(st&&st.id)localById[st.id]=st;});
       serverS.forEach(st=>{
         if(!st||!st.id)return;
-        const id=sagoIn(st.id);
+        let id=sagoIn(st.id);
+        // ⚠ 별칭(SAGO_ID_ALIAS)이 stale해서(다른 기기에서 별칭 뒷자리가 바뀐 뒤 클라우드에는
+        // 예전 값이 남아있는 경우) 엉뚱한 id("박서은(사고력)")로 유령 레코드를 새로 만들려는
+        // 상황을 막는 안전장치. 한 아이는 사고력 레코드를 하나만 가질 수 있으므로, 지금 만들려는
+        // id에 해당하는 레코드가 없는데 같은 원래 이름(base)을 가리키는 다른 사고력 레코드가
+        // 이미 있으면 그 유령을 만들지 않고 기존 레코드로 합치면서 별칭 자체를 바로잡는다.
+        // (이걸 안 하면 유령 레코드가 한 번이라도 생기는 순간, 그 자체가 "실제로 존재하는
+        // 레코드"가 되어버려서 별칭 재검증으로도 다시는 못 고치는 문제가 있었다.)
+        if(!localById[id]){
+          const base=dispStuName(id);
+          const sameBaseExisting=(D.S||[]).find(s2=>s2&&s2.id!==id&&(s2.group||'저학년')==='사고력'&&dispStuName(s2.id)===base);
+          if(sameBaseExisting){
+            id=sameBaseExisting.id;
+            SAGO_ID_ALIAS[st.id]=id;
+            SAGO_ID_ALIAS_REV[id]=st.id;
+            sagoAliasFixed=true;
+          }
+        }
         // ⚠ 교과 쪽과 동일한 이유로, tombstone이 있어도 삭제 시각보다 더 최근에 수정된 기록이면
         // (=삭제 이후 다시 등록된 것) 살려준다 — 안 그러면 재등록한 사고력 학생도 계속 사라진다.
         {
@@ -12435,6 +12542,12 @@ function startSagoListen(){
         if(keepLink){cur.linkId=keepLink.linkId;cur._linkUpdatedAt=Math.max(lLk,sLk);}
         cur.group='사고력';
       });
+    }
+    if(sagoAliasFixed){
+      try{ localStorage.setItem('br5_sago_alias',JSON.stringify(SAGO_ID_ALIAS)); }catch(e){}
+      // ⚠ 방금 이 기기가 stale 별칭을 바로잡았으니, 다른 기기들도 곧바로 맞는 별칭을 받아야
+      // 유령 레코드가 다시 생기지 않는다 — 무관한 저장을 기다리지 않고 즉시 클라우드로 올린다.
+      scheduleCloudPush();
     }
 
     // ── 시간표(SC) ── 한 칸(요일·시간)에 세 그룹 학생이 함께 들어있으므로,
