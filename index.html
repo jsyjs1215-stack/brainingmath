@@ -1253,7 +1253,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-14-next-month-curr-dup'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-14-book-inventory'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1542,6 +1542,43 @@ function getBookLevelConfig(){
   }
   return D.bookLevelConfig;
 }
+
+// ═══ 교재 재고 관리 — 초기 카탈로그(교재 이름만, 재고는 0에서 시작 — 실제 수량은 직접 입력) ═══
+// 사고력 교재(팩토·수학이재밌어·필즈)는 진도체크에서 쓰는 것과 정확히 같은 레벨/단계 이름으로
+// 맞춰서, 학생이 진도체크에서 시작 체크를 하면 자동으로 정확히 이 항목의 재고가 줄어들게 했다.
+// 저학년·고학년 교재(아이비츠·최상위수학·개념완성 등)는 "새 책 시작" 입력칸에 선생님이 직접
+// 적는 텍스트와 대조해서 자동 차감하므로, 학원에서 실제로 쓰는 표기(1-1, 4-1 워크북1 등)를 그대로 썼다.
+function _invRange(prefix,n){ const out={}; for(let i=1;i<=n;i++)out[`${prefix}${i}`]={stock:0}; return out; }
+function _invUnitsForLevels(levels,unitsPerLevel){
+  const out={};
+  levels.forEach(lv=>{ for(let u=1;u<=unitsPerLevel;u++)out[`${lv}-${u}`]={stock:0}; });
+  return out;
+}
+function DEFAULT_BOOK_INV(){
+  const bookLv=DEFAULT_BOOK_LEVELS; // 진도체크 기본 레벨 구성과 반드시 맞춰야 자동차감이 정확히 됨
+  return {
+    '팩토':_invUnitsForLevels(bookLv['팩토'],12),
+    '수학이재밌어':_invUnitsForLevels(bookLv['수학이재밌어'],12),
+    '필즈':Object.fromEntries(FIELDS_STAGES.map(s=>[s,{stock:0}])),
+    '아이비츠':{'3-1':{stock:0},'3-2':{stock:0},'4-1':{stock:0},'4-2':{stock:0},'5-1':{stock:0},'5-2':{stock:0},'6-1':{stock:0},'6-2':{stock:0}},
+    '최상위수학':{'3-1':{stock:0},'3-2':{stock:0},'4-1':{stock:0},'4-2':{stock:0},'5-1':{stock:0},'5-2':{stock:0},'6-1':{stock:0},'6-2':{stock:0}},
+    '개념완성':{...Object.fromEntries(['4-1','4-2','5-1','5-2','6-1','6-2'].flatMap(base=>[[base,{stock:0}],[`${base} 워크북1`,{stock:0}],[`${base} 워크북2`,{stock:0}],[`${base} 워크북3`,{stock:0}]]))},
+    '체크체크':{'1-1':{stock:0},'1-2':{stock:0},'2-1':{stock:0},'2-2':{stock:0},'3-1':{stock:0},'3-2':{stock:0}},
+    '절대강자':{'1-1':{stock:0},'1-2':{stock:0},'2-1':{stock:0},'2-2':{stock:0},'3-1':{stock:0},'3-2':{stock:0}},
+    'RPM':{'1-1':{stock:0},'1-2':{stock:0},'2-1':{stock:0},'2-2':{stock:0},'3-1':{stock:0},'3-2':{stock:0}},
+    '쎈':{'1-1':{stock:0},'1-2':{stock:0},'2-1':{stock:0},'2-2':{stock:0},'3-1':{stock:0},'3-2':{stock:0}},
+    '소마셈':{..._invRange('k',8),..._invRange('p',8),..._invRange('A',8),..._invRange('B',2)},
+    '브레이닝수학':_invRange('k',12),
+    '팩토타임키즈':_invRange('',6),
+    '아리수':{}, // PDF상 단원 범위가 명확하지 않아 이름만 만들고 항목은 직접 추가하도록 비워둠
+    '기타교재':{'1031 입문A':{stock:0},'폴리오미노 2단계':{stock:0},'체크체크1-2':{stock:0},'왕수학 5-1':{stock:0},'쎈수학1-2':{stock:0},'쎈수학3-1':{stock:0},'쎈수학 3-2':{stock:0}},
+  };
+}
+function getBookInv(){
+  if(!D.bookInv){ D.bookInv=DEFAULT_BOOK_INV(); SD_local(); }
+  return D.bookInv;
+}
+function getInvLowThreshold(){ return D.bookInvLowThreshold||3; }
 // 전체시간표에서 학년(반)을 색으로 바로 구분할 수 있도록 학년별 고정 색상표 [배경,글자색]
 // 학년별 색상 — 요청받은 대로 1학년=노란색, 2학년=보라색, 3학년=하늘색으로 고정하고,
 // 나머지 학년도 서로 겹치지 않게 구분되는 색으로 지정
@@ -2738,7 +2775,9 @@ function renderNotices(){
 function updAdminBadge(){
   const badge=document.getElementById('admin-hwsms-badge');
   if(!badge)return;
-  const cnt=collectHwSmsNeeded().length;
+  // 관리 버튼 배지는 숙제 문자 발송 대기 + 입고 대기 중인 교재 신청을 합쳐서 보여준다
+  // (둘 다 "잊지 말고 처리해야 할 것"이라는 점에서 같은 성격이라 하나로 묶음)
+  const cnt=collectHwSmsNeeded().length+collectPendingBookOrders().length;
   badge.style.display=cnt>0?'flex':'none';
   badge.textContent=cnt>99?'99+':cnt;
 }
@@ -4102,6 +4141,7 @@ function toggleBookUnit(sid,brand,level,unit){
     delete map[key];
     s._updatedAt=Date.now();
     s._bookUpdatedAt=Date.now();
+    restoreInvStock(brand,`${level}-${unit}`); // 시작 체크를 해제하는 거면 실제로는 안 나간 셈이니 재고를 되돌림
     // ⚠ 복구 기록은 SD()보다 먼저 남겨야 이번 저장에 함께 포함됨
     const rmId=logRemoval({type:'bookunit',sid,brand,level,unit,date:savedDate});
     syncDayDefFromBookCheck(sid,brand,level);
@@ -4112,6 +4152,7 @@ function toggleBookUnit(sid,brand,level,unit){
     const d=prompt(`${brand} ${bookLevelLabel(brand,level)} ${unit}번을 나간 날짜를 입력하세요\n${BOOK_DATE_HINT}\n(비워두면 날짜 없이 체크만 됩니다)`,tdk());
     if(d===null)return; // 취소하면 체크하지 않음
     map[key]=d.trim();
+    deductInvStock(brand,`${level}-${unit}`); // 교재 재고관리에 등록해둔 항목이면 자동으로 1권 차감
     const unitLabel=`${bookLevelLabel(brand,level)} ${unit}번`;
     // 📌 오늘 날짜로 새 단원을 체크하면, 수업입력·한눈에보기·학생기록에서 쓰는 "오늘 진도" 기록에도
     // 그대로 반영해서 화면마다 따로 입력하지 않아도 자동으로 연동되게 한다 (관리>새책 목록에도 함께 뜸).
@@ -4173,6 +4214,7 @@ function toggleFieldsStage(sid,stage){
     delete map[stage];
     s._updatedAt=Date.now();
     s._bookUpdatedAt=Date.now();
+    restoreInvStock('필즈',stage);
     const rmId=logRemoval({type:'fieldstage',sid,stage,date:savedDate});
     SD();renderAll();
     toastUndo(`필즈 ${stage} 체크 해제됨`,rmId);
@@ -4181,6 +4223,7 @@ function toggleFieldsStage(sid,stage){
     const d=prompt(`필즈 ${stage} 단계를 나간 날짜를 입력하세요\n${BOOK_DATE_HINT}\n(비워두면 날짜 없이 체크만 됩니다)`,tdk());
     if(d===null)return;
     map[stage]=d.trim();
+    deductInvStock('필즈',stage);
   }
   s._updatedAt=Date.now();
   s._bookUpdatedAt=Date.now();
@@ -4500,6 +4543,7 @@ function rAdmin(){
     // 레벨(반) 관리는 사고력 그룹에서만 쓰는 개념이라 그 그룹일 때만 서브탭으로 보여줌
     ...(ActiveGroup==='사고력'?[{key:'level',label:'레벨 관리'}]:[]),
     {key:'hwsms',label:'숙제 문자 발송'},
+    {key:'inv',label:'교재관리'},
     {key:'newbook',label:'새책'},
     {key:'wa',label:'오답풀이 상태'},
     {key:'closure',label:'휴원일·세션'},
@@ -4507,9 +4551,13 @@ function rAdmin(){
     {key:'removal',label:'배정 복구·이동·중복'},
   ];
   const hwSmsPendingCnt=collectHwSmsNeeded().length;
+  const invPendingCnt=collectPendingBookOrders().length;
   let out=`<div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;margin-bottom:10px;"><i class="ti ti-settings"></i> 관리 도구</div>
   <div style="display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap;">
-    ${subTabs.map(t=>`<button onclick="setAdminTab('${t.key}')" style="padding:7px 14px;border-radius:20px;border:2px solid ${ADMIN_TAB===t.key?'var(--pri2)':'var(--bdr)'};background:${ADMIN_TAB===t.key?'var(--pri2)':'#fff'};color:${ADMIN_TAB===t.key?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">${t.label}${t.key==='hwsms'&&hwSmsPendingCnt?` <span style="background:#EF4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;">${hwSmsPendingCnt}</span>`:''}</button>`).join('')}
+    ${subTabs.map(t=>{
+      const cnt=t.key==='hwsms'?hwSmsPendingCnt:t.key==='inv'?invPendingCnt:0;
+      return `<button onclick="setAdminTab('${t.key}')" style="padding:7px 14px;border-radius:20px;border:2px solid ${ADMIN_TAB===t.key?'var(--pri2)':'var(--bdr)'};background:${ADMIN_TAB===t.key?'var(--pri2)':'#fff'};color:${ADMIN_TAB===t.key?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">${t.label}${cnt?` <span style="background:#EF4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;">${cnt}</span>`:''}</button>`;
+    }).join('')}
   </div>`;
   if(ADMIN_TAB==='students'){
     out+=rMgr();
@@ -4530,6 +4578,8 @@ function rAdmin(){
     out+=waHtml||`<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px;"><i class="ti ti-check" style="font-size:28px;display:block;margin-bottom:6px;opacity:.4;"></i>확인할 오답풀이 상태가 없습니다.</div>`;
   } else if(ADMIN_TAB==='hwsms'){
     out+=rHwSmsSection();
+  } else if(ADMIN_TAB==='inv'){
+    out+=rBookInvSection();
   } else if(ADMIN_TAB==='newbook'){
     out+=rNewBookSection();
   } else if(ADMIN_TAB==='hw'){
@@ -6167,20 +6217,34 @@ function saveRec(){
   if(allSlots.length<=1){sR(date,sid,'sessionSubject',finalSubj);sR(date,sid,'curriculum',finalCurr);}
   sR(date,sid,'_daylock_unlocked',false); // 저장 후 잠금 복원
   // 새 책 시작 — 📌 중요내용에는 더 이상 자동으로 등록하지 않음(중복 방지). "새책/월말/단원" 칸에서만 확인.
+  // ⚠ 재고관리 자동차감: 이전에 체크돼 있던 새책과 지금 저장하는 값이 다를 때만 차감/복구한다 —
+  // 안 그러면 같은 새책 기록을 그대로 다시 저장(수정 없이 재저장)할 때마다 계속 차감되어버린다.
+  const prevNewBook=r.newBook?{subject:r.newBook.subject,title:r.newBook.title}:null;
   const nbChk=document.getElementById('em-newbook-chk')?.checked;
   if(nbChk){
     const nbSubj=document.getElementById('em-nb-subj').value;
     const nbTitle=document.getElementById('em-nb-title').value.trim();
     if(nbTitle){
+      const nbChanged=!prevNewBook||prevNewBook.subject!==nbSubj||prevNewBook.title!==nbTitle;
       sR(date,sid,'newBook',{subject:nbSubj,title:nbTitle});
+      if(nbChanged){
+        if(prevNewBook)adjustInvStockFuzzy(prevNewBook.subject,prevNewBook.title,1); // 바뀐 거면 이전 교재는 취소된 셈
+        adjustInvStockFuzzy(nbSubj,nbTitle,-1);
+      }
       // 📌 아리수 새책: 오늘 새 책을 나갔으면, 오늘교재(학생 기본 진도)를 그 새 책 기준으로 즉시 갱신
       // → 다음 시험을 보고 또 새 책을 나가기 전까지는 계속 이 값이 "오늘교재"로 표시됨
       if(nbSubj==='아리수'&&s){
         s.curriculum=nbTitle;
         s._updatedAt=Date.now();
       }
-    } else { sR(date,sid,'newBook',null); }
-  } else { sR(date,sid,'newBook',null); }
+    } else {
+      sR(date,sid,'newBook',null);
+      if(prevNewBook)adjustInvStockFuzzy(prevNewBook.subject,prevNewBook.title,1);
+    }
+  } else {
+    sR(date,sid,'newBook',null);
+    if(prevNewBook)adjustInvStockFuzzy(prevNewBook.subject,prevNewBook.title,1);
+  }
   const utChk=document.getElementById('ut-chk')?.checked;
   const utInProgress=utChk&&(document.getElementById('ut-inprogress-chk')?.checked||false);
   sR(date,sid,'unitTest',utChk?{type:document.getElementById('ut-type').value,level:document.getElementById('ut-level').value,number:document.getElementById('ut-num').value,score:document.getElementById('ut-score').value,pass:document.getElementById('ut-pass').value,note:document.getElementById('ut-note').value,inProgress:utInProgress}:null);
@@ -6683,6 +6747,246 @@ function rHwSearchSection(){
     </button>
   </div>`;
 }
+// ═══ 교재 재고 관리 ═══════════════════════
+function addInvBrand(){
+  const name=(prompt('추가할 교재 브랜드 이름을 입력하세요\n예) 왕수학, 디딤돌')||'').trim();
+  if(!name)return;
+  const inv=getBookInv();
+  if(inv[name]){toast('이미 있는 브랜드예요');return;}
+  inv[name]={};
+  SD();renderAll();
+}
+function removeInvBrand(brand){
+  const inv=getBookInv();
+  const items=Object.keys(inv[brand]||{});
+  if(!confirm(`"${brand}" 브랜드를 전체 삭제할까요?${items.length?`\n(교재 ${items.length}개도 함께 삭제됩니다 — 재고 기록은 사라지지만 이미 나간 학생 기록에는 영향 없어요)`:''}`))return;
+  markDeleted('bookInvItems',items.map(item=>`${brand}|${item}`));
+  markDeleted('bookInvBrands',brand);
+  delete inv[brand];
+  SD();renderAll();
+  toast(`${brand} 삭제 완료`);
+}
+function addInvItem(brand){
+  const name=(prompt(`${brand}에 추가할 교재(단계·번호)를 입력하세요\n예) 1-1, Lv.2-5, 베이직 상`)||'').trim();
+  if(!name)return;
+  const inv=getBookInv();
+  if(!inv[brand])inv[brand]={};
+  if(inv[brand][name]){toast('이미 있는 항목이에요');return;}
+  inv[brand][name]={stock:0,_updatedAt:Date.now()};
+  SD();renderAll();
+}
+function removeInvItem(brand,item){
+  if(!confirm(`"${brand} ${item}" 항목을 삭제할까요?`))return;
+  const inv=getBookInv();
+  if(inv[brand])delete inv[brand][item];
+  markDeleted('bookInvItems',`${brand}|${item}`);
+  SD();renderAll();
+}
+function setInvStock(brand,item,val){
+  const inv=getBookInv();
+  if(!inv[brand]||!inv[brand][item])return;
+  const n=Math.max(0,parseInt(val,10)||0);
+  inv[brand][item].stock=n;
+  inv[brand][item]._updatedAt=Date.now();
+  SD();renderAll();
+}
+function promptSetInvStock(brand,item){
+  const inv=getBookInv();
+  const cur=(inv[brand]&&inv[brand][item]&&inv[brand][item].stock)||0;
+  const v=prompt(`${brand} ${item} 현재 재고 수량을 입력하세요`,String(cur));
+  if(v===null)return;
+  setInvStock(brand,item,v);
+}
+function bumpInvStock(brand,item,delta){
+  const inv=getBookInv();
+  if(!inv[brand]||!inv[brand][item])return;
+  inv[brand][item].stock=Math.max(0,(inv[brand][item].stock||0)+delta);
+  inv[brand][item]._updatedAt=Date.now();
+  SD();renderAll();
+}
+function setInvLowThreshold(){
+  const v=prompt('재고가 몇 권 이하로 남으면 "부족"으로 표시할까요?',String(getInvLowThreshold()));
+  if(v===null)return;
+  D.bookInvLowThreshold=Math.max(0,parseInt(v,10)||0);
+  SD();renderAll();
+}
+// 사고력 진도체크(팩토·수학이재밌어·필즈)에서 정확한 브랜드+항목 키로 직접 차감/복구할 때 사용
+function deductInvStock(brand,item){
+  const inv=getBookInv();
+  if(!inv[brand]||!inv[brand][item])return;
+  inv[brand][item].stock=Math.max(0,(inv[brand][item].stock||0)-1);
+  inv[brand][item]._updatedAt=Date.now();
+  SD();
+}
+function restoreInvStock(brand,item){
+  const inv=getBookInv();
+  if(!inv[brand]||!inv[brand][item])return;
+  inv[brand][item].stock=(inv[brand][item].stock||0)+1;
+  inv[brand][item]._updatedAt=Date.now();
+  SD();
+}
+// 저학년·고학년의 "새 책 시작"은 선생님이 직접 텍스트로 입력하므로(자유 형식), 카탈로그 항목 이름과
+// 공백을 무시하고 대조해서(브랜드 이름이 앞에 중복으로 들어있으면 그것도 떼고) 일치하는 항목을 찾아
+// 차감/복구한다. 일치하는 항목이 카탈로그에 없으면 조용히 무시 — 수업 기록 저장 자체는 절대 막지 않는다.
+function adjustInvStockFuzzy(brand,title,delta){
+  if(!brand||!title)return;
+  const inv=getBookInv();
+  const b=inv[brand];
+  if(!b)return;
+  const norm=s=>String(s||'').replace(/\s+/g,'').trim();
+  const t=norm(title);
+  const bn=norm(brand);
+  const tNoBrand=t.startsWith(bn)?t.slice(bn.length):t;
+  const key=Object.keys(b).find(k=>{ const nk=norm(k); return nk===t||nk===tNoBrand; });
+  if(!key)return;
+  b[key].stock=Math.max(0,(b[key].stock||0)+delta);
+  b[key]._updatedAt=Date.now();
+  SD();
+}
+
+// ═══ 교재 신청 ═══════════════════════
+function getBookOrders(){ if(!D.bookOrders)D.bookOrders=[]; return D.bookOrders; }
+function collectPendingBookOrders(){ return getBookOrders().filter(o=>!o.received); }
+let BookOrderForm={label:'',brand:'',item:'',qty:'',note:''};
+function addBookOrder(label,brand,item,qty,note){
+  getBookOrders().push({id:Date.now()+Math.random(),label,brand,item,qty,note:note||'',date:tdk(),received:false,receivedDate:'',_updatedAt:Date.now()});
+  SD();
+}
+function submitBookOrder(){
+  const label=document.getElementById('bo-label').value.trim();
+  const brand=document.getElementById('bo-brand').value;
+  const item=document.getElementById('bo-item').value.trim();
+  const qty=parseInt(document.getElementById('bo-qty').value,10);
+  const note=document.getElementById('bo-note').value.trim();
+  if(!brand){alert('브랜드를 선택해주세요.');return;}
+  if(!item){alert('교재를 입력해주세요.');return;}
+  if(!qty||qty<1){alert('수량을 입력해주세요.');return;}
+  addBookOrder(label,brand,item,qty,note);
+  BookOrderForm={label,brand:'',item:'',qty:'',note:''}; // 세션 라벨은 남겨두고(연속 입력 편하게) 나머지는 초기화
+  renderAll();
+  toast('교재 신청을 등록했습니다');
+}
+function receiveBookOrder(id){
+  const o=getBookOrders().find(x=>x.id===id);if(!o||o.received)return;
+  o.received=true;o.receivedDate=tdk();o._updatedAt=Date.now();
+  const inv=getBookInv();
+  if(!inv[o.brand])inv[o.brand]={};
+  if(!inv[o.brand][o.item])inv[o.brand][o.item]={stock:0,_updatedAt:Date.now()};
+  inv[o.brand][o.item].stock=(inv[o.brand][o.item].stock||0)+(o.qty||0);
+  inv[o.brand][o.item]._updatedAt=Date.now();
+  SD();renderAll();
+  toast(`${o.brand} ${o.item} ${o.qty}권 입고 처리 — 재고에 반영됐습니다`);
+}
+function undoReceiveBookOrder(id){
+  const o=getBookOrders().find(x=>x.id===id);if(!o||!o.received)return;
+  o.received=false;o.receivedDate='';o._updatedAt=Date.now();
+  const inv=getBookInv();
+  if(inv[o.brand]&&inv[o.brand][o.item]){
+    inv[o.brand][o.item].stock=Math.max(0,(inv[o.brand][o.item].stock||0)-(o.qty||0));
+    inv[o.brand][o.item]._updatedAt=Date.now();
+  }
+  SD();renderAll();
+  toast('입고 처리를 취소했습니다');
+}
+function deleteBookOrder(id){
+  const o=getBookOrders().find(x=>x.id===id);if(!o)return;
+  if(!confirm(`"${o.label||'교재 신청'}" — ${o.brand} ${o.item} ${o.qty}권 신청 기록을 삭제할까요?${o.received?'\n⚠ 이미 입고 처리된 항목이라, 삭제해도 재고는 그대로 유지됩니다.':''}`))return;
+  markDeleted('bookOrders',id);
+  D.bookOrders=getBookOrders().filter(x=>x.id!==id);
+  SD();renderAll();
+  toast('신청 기록을 삭제했습니다');
+}
+function rBookInvSection(){
+  const inv=getBookInv();
+  const threshold=getInvLowThreshold();
+  const brands=Object.keys(inv).sort((a,b)=>a.localeCompare(b,'ko'));
+  let out=`<div style="font-size:13px;font-weight:700;color:var(--pri2);margin-bottom:4px;display:flex;align-items:center;gap:6px;"><i class="ti ti-stack-2"></i> 교재 재고</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">여기 등록해둔 교재는, 학생이 진도체크·새 책 시작으로 그 교재를 나가기 시작하면 재고가 자동으로 1권씩 줄어듭니다. 재고가 ${threshold}권 이하로 남으면 "부족"으로 표시돼요.</div>
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+    <button onclick="addInvBrand()" style="padding:7px 13px;border-radius:20px;border:1px dashed var(--pri2);background:#fff;color:var(--pri2);font-size:12px;font-weight:700;cursor:pointer;">+ 브랜드 추가</button>
+    <button onclick="setInvLowThreshold()" style="padding:7px 13px;border-radius:20px;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">부족 기준: ${threshold}권 이하 ✎</button>
+  </div>`;
+  if(!brands.length){
+    out+=`<div class="empty"><i class="ti ti-books-off"></i>등록된 교재가 없습니다. "브랜드 추가"부터 시작해주세요.</div>`;
+  }
+  brands.forEach(brand=>{
+    const items=Object.entries(inv[brand]||{}).sort((a,b)=>a[0].localeCompare(b[0],'ko',{numeric:true}));
+    const lowCnt=items.filter(([k,v])=>(v.stock||0)<=threshold).length;
+    out+=`<div style="border:1px solid var(--bdr);border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;background:#FAFAFA;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:13px;font-weight:700;">${esc(brand)} ${lowCnt?`<span style="background:#FEE2E2;color:#991B1B;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px;">부족 ${lowCnt}</span>`:''}</div>
+        <div style="display:flex;gap:5px;">
+          <button onclick="addInvItem('${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;">+ 교재 추가</button>
+          <button onclick="removeInvBrand('${escAttr(brand)}')" style="padding:4px 8px;border-radius:14px;border:1px solid var(--dan-b);background:var(--dan-l);color:var(--dan);font-size:11px;cursor:pointer;">브랜드 삭제</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${items.length?items.map(([item,data])=>{
+          const low=(data.stock||0)<=threshold;
+          return `<div style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid ${low?'#FCA5A5':'var(--bdr)'};border-radius:10px;padding:5px 7px 5px 10px;">
+            <span style="font-size:11.5px;font-weight:600;${low?'color:#991B1B;':''}">${esc(item)}</span>
+            <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',-1)" style="width:20px;height:20px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;cursor:pointer;line-height:1;padding:0;">−</button>
+            <span onclick="promptSetInvStock('${escAttr(brand)}','${escAttr(item)}')" style="min-width:20px;text-align:center;font-size:12px;font-weight:800;cursor:pointer;${low?'color:#DC2626;':''}" title="눌러서 직접 입력">${data.stock||0}</span>
+            <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',1)" style="width:20px;height:20px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;cursor:pointer;line-height:1;padding:0;">+</button>
+            <span onclick="removeInvItem('${escAttr(brand)}','${escAttr(item)}')" style="cursor:pointer;color:var(--dan);font-weight:700;padding:0 3px;font-size:12px;">×</span>
+          </div>`;
+        }).join(''):`<div style="font-size:11px;color:var(--muted);">등록된 교재가 없어요</div>`}
+      </div>
+    </div>`;
+  });
+  out+=rBookOrderSection();
+  return out;
+}
+function rBookOrderSection(){
+  const pending=collectPendingBookOrders().sort((a,b)=>b._updatedAt-a._updatedAt);
+  const received=getBookOrders().filter(o=>o.received).sort((a,b)=>(b.receivedDate||'').localeCompare(a.receivedDate||'')).slice(0,10);
+  const inv=getBookInv();
+  const brands=Object.keys(inv).sort((a,b)=>a.localeCompare(b,'ko'));
+  let out=`<div style="margin-top:20px;border-top:2px solid var(--bdr);padding-top:14px;">
+    <div style="font-size:14px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:5px;margin-bottom:6px;"><i class="ti ti-truck-delivery"></i> 교재 신청</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">세션이 정해진 날짜 없이 돌아가더라도, 다음 세션 대비 교재를 미리 신청해둔 걸 기록해두세요. 실제로 책이 도착하면 "입고 처리"를 눌러서 재고에 그대로 더해줍니다.</div>
+    <div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:var(--rs);padding:11px;margin-bottom:12px;">
+      <input class="fi" id="bo-label" placeholder="예) 10월 세션대비 교재신청" value="${escAttr(BookOrderForm.label)}" style="margin-bottom:6px;width:100%;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+        <select class="fsel" id="bo-brand" style="flex:1;min-width:100px;" onchange="BookOrderForm.brand=this.value;renderAll()">
+          <option value="">브랜드 선택</option>
+          ${brands.map(b=>`<option value="${esc(b)}" ${BookOrderForm.brand===b?'selected':''}>${esc(b)}</option>`).join('')}
+        </select>
+        <input class="fi" id="bo-item" list="dl-bo-item" placeholder="교재(직접 입력 가능)" value="${escAttr(BookOrderForm.item)}" style="flex:1;min-width:100px;">
+        <input class="fi" id="bo-qty" type="number" min="1" placeholder="수량" value="${escAttr(BookOrderForm.qty)}" style="width:70px;">
+      </div>
+      <input class="fi" id="bo-note" placeholder="메모(선택)" value="${escAttr(BookOrderForm.note)}" style="margin-bottom:8px;width:100%;">
+      <datalist id="dl-bo-item">${BookOrderForm.brand&&inv[BookOrderForm.brand]?Object.keys(inv[BookOrderForm.brand]).map(k=>`<option value="${esc(k)}">`).join(''):''}</datalist>
+      <button onclick="submitBookOrder()" style="width:100%;padding:9px;border-radius:var(--rs);background:var(--pri2);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">신청 등록</button>
+    </div>`;
+  if(!pending.length){
+    out+=`<div style="text-align:center;padding:16px;color:var(--muted);font-size:12.5px;"><i class="ti ti-check" style="font-size:24px;display:block;margin-bottom:5px;opacity:.4;"></i>입고 대기 중인 신청이 없습니다.</div>`;
+  } else {
+    out+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+      ${pending.map(o=>`<div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;color:var(--muted);">${esc(o.label||'')}</div>
+          <div style="font-size:13px;font-weight:700;">${esc(o.brand)} ${esc(o.item)} <span style="color:var(--pri2);">× ${o.qty}</span></div>
+          ${o.note?`<div style="font-size:11px;color:var(--muted);">${esc(o.note)}</div>`:''}
+        </div>
+        <button onclick="receiveBookOrder(${o.id})" style="padding:6px 11px;border-radius:16px;background:#10B981;color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">입고 처리</button>
+        <button onclick="deleteBookOrder(${o.id})" style="padding:6px 9px;border-radius:16px;background:#fff;color:var(--dan);border:1px solid var(--dan-b);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button>
+      </div>`).join('')}
+    </div>`;
+  }
+  if(received.length){
+    out+=`<div style="margin-top:10px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;">✅ 최근 입고완료 (${received.length}건)</div>
+      ${received.map(o=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 9px;background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px;">
+        <div style="flex:1;font-size:11px;color:var(--muted);">${esc(o.label||'')} — ${esc(o.brand)} ${esc(o.item)} × ${o.qty} <span style="color:#10B981;">✓ ${o.receivedDate}</span></div>
+        <button onclick="undoReceiveBookOrder(${o.id})" style="padding:4px 9px;border-radius:14px;background:transparent;color:var(--dan);border:1px solid var(--dan-b);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">취소</button>
+      </div>`).join('')}
+    </div>`;
+  }
+  out+=`</div>`;
+  return out;
+}
+
 // ═══ 새책 관리 ═══════════════════════
 // "새 책 시작"으로 입력된 기록들을 날짜순으로 모아서 한눈에 확인/관리할 수 있는 화면
 let NEWBOOK_SEARCH='';
@@ -6703,7 +7007,10 @@ function collectNewBookRecords(search){
 function clearNewBookRecord(sid,date){
   if(!confirm(`${sid} 학생의 ${date} 새책 시작 기록을 삭제할까요?`))return;
   const r=D.R[date]?.[sid];
-  if(r){r.newBook=null;r._updatedAt=Date.now();}
+  if(r){
+    if(r.newBook)adjustInvStockFuzzy(r.newBook.subject,r.newBook.title,1); // 삭제하는 만큼 재고를 다시 채워줌
+    r.newBook=null;r._updatedAt=Date.now();
+  }
   SD();renderAll();
   toast('새책 기록을 삭제했습니다');
 }
@@ -11493,6 +11800,27 @@ function mergeArrByIdTs(localArr, serverArr, tombstones){
   }):order;
   return ids.map(id=>byId[id]);
 }
+// 교재 재고(bookInv)는 배열이 아니라 {브랜드:{항목:{stock,_updatedAt}}} 형태라 위 함수들을 그대로
+//못 써서 따로 만듦 — 항목 하나하나마다 "더 최근에 수정된 쪽"을 신뢰하는 방식은 동일. 브랜드/항목
+// 삭제는 tombstone으로 걸러서, 한쪽 기기가 아직 그 삭제를 모른 채 예전 항목을 다시 보내도 살아나지 않게 함.
+function mergeBookInv(localInv,serverInv,tombstoneItems,tombstoneBrands){
+  localInv=localInv||{}; serverInv=serverInv||{};
+  const brands=new Set([...Object.keys(localInv),...Object.keys(serverInv)]);
+  const merged={};
+  brands.forEach(brand=>{
+    if(tombstoneBrands&&tombstoneBrands[brand]!=null)return;
+    const l=localInv[brand]||{}, s=serverInv[brand]||{};
+    const items=new Set([...Object.keys(l),...Object.keys(s)]);
+    const mergedItems={};
+    items.forEach(item=>{
+      if(tombstoneItems&&tombstoneItems[`${brand}|${item}`]!=null)return;
+      const li=l[item], si=s[item];
+      mergedItems[item]=(li&&si)?((si._updatedAt||0)>(li._updatedAt||0)?si:li):(li||si);
+    });
+    merged[brand]=mergedItems;
+  });
+  return merged;
+}
 // 삭제 시 호출 — 이 id(들)를 "삭제됨"으로 기록해서, 다른 기기의 예전 데이터와 동기화 병합돼도
 // 다시 살아나지 않게 함. field는 D의 배열 필드명(예: 'meScores','tomaScores','makeups','parentConsult','pendingMoves').
 function markDeleted(field, ids){
@@ -12059,6 +12387,11 @@ function startCloudListen() {
       data.dismissedMakeups.forEach(x=>{ if(x&&!seen.has(x.date+'|'+x.sid)){ seen.add(x.date+'|'+x.sid); merged.push(x); } });
       D.dismissedMakeups = merged;
     }
+    // 교재 재고·신청: 항목/id 단위로 "더 최근에 수정된 쪽"을 신뢰 — makeups와 같은 이유로
+    // 통째로 덮어쓰면 한 기기가 방금 조정한 재고가 다른 기기의 예전 값으로 되돌아갈 수 있음
+    if (data.bookInv) D.bookInv = mergeBookInv(D.bookInv, data.bookInv, D.tombstones?.bookInvItems, D.tombstones?.bookInvBrands);
+    if (data.bookOrders) D.bookOrders = mergeArrByIdTs(D.bookOrders, data.bookOrders, D.tombstones?.bookOrders);
+    if (data.bookInvLowThreshold != null && !D.bookInvLowThreshold) D.bookInvLowThreshold = data.bookInvLowThreshold;
     if (data.closureDays) D.closureDays = Array.from(new Set([...(D.closureDays||[]), ...(data.closureDays||[])]));
     if (data.dayDefs && Object.keys(data.dayDefs).length > 0) {
       // sid별로 병합 (요일별 고정설정도 학생별 병합 - S와 동일한 이유)
@@ -12259,6 +12592,10 @@ function buildCoursePayload(){
     // 알아챌 때까지 기다릴 필요 없이 즉시 같은 별칭을 쓰게 되어 모든 기기가 항상 같은 이름으로
     // 이 학생을 가리키게 된다.
     sagoAlias: SAGO_ID_ALIAS||{},
+    // 교재 재고는 저학년·고학년·사고력이 다 함께 쓰는 자료라 코스 클라우드로 공유한다.
+    bookInv: D.bookInv||{},
+    bookOrders: D.bookOrders||[],
+    bookInvLowThreshold: D.bookInvLowThreshold||3,
   };
 }
 let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실제 오류 — "저장 요청을 보내지 못했습니다"라는
