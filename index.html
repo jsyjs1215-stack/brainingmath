@@ -1293,7 +1293,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-15-brand-rename-reorder'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-15-progress-count-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -4064,18 +4064,27 @@ function bookFieldsMap(bc){
   bc['필즈']=v;
   return v;
 }
+// ⚠ 예전에 과거 어느 시점엔가(정확한 원인은 계속 조사 중) 팩토·수학이재밌어 체크 현황에
+// 단원번호(1~12) 자리에 날짜 문자열이나 "null"이 잘못 끼어든 경우가 있었다 — 체크박스 칸은
+// 1~12번만 그려서 화면엔 정상으로 보이지만, "N/12"·"시작 N권" 같은 개수 표시는 그 쓰레기 키까지
+// 그대로 세어버려서 실제로 체크한 것보다 훨씬 큰 숫자가 나왔다. 개수를 셀 때는 항상 이 함수로
+// "진짜 1~12번 단원 키만" 걸러서 센다(데이터 자체는 지우지 않음 — 표시만 정확하게 고침).
+function validUnitKeyCount(map){
+  if(!map||typeof map!=='object')return 0;
+  return Object.keys(map).filter(k=>{ const n=parseInt(k,10); return n>=1&&n<=BOOK_UNITS&&String(n)===k; }).length;
+}
 function bookCheckedCount(s){
   const bc=s.bookCheck;if(!bc)return 0;
   let n=0;
   ['팩토','수학이재밌어'].forEach(brand=>{
     Object.values(bc[brand]||{}).forEach(v=>{
-      if(Array.isArray(v))n+=v.length;
-      else if(v&&typeof v==='object')n+=Object.keys(v).length;
+      if(Array.isArray(v)){ v.forEach(u=>{ const k=String(u).trim(); const num=parseInt(k,10); if(num>=1&&num<=BOOK_UNITS&&String(num)===k)n++; }); }
+      else if(v&&typeof v==='object')n+=validUnitKeyCount(v);
     });
   });
   const fz=bc['필즈'];
-  if(Array.isArray(fz))n+=fz.length;
-  else if(fz&&typeof fz==='object')n+=Object.keys(fz).length;
+  if(Array.isArray(fz)){ fz.forEach(st=>{ if(FIELDS_STAGES.includes(String(st).trim()))n++; }); }
+  else if(fz&&typeof fz==='object')n+=Object.keys(fz).filter(k=>FIELDS_STAGES.includes(k)).length;
   return n;
 }
 // ═══ 진도체크 ↔ 오늘교재 연동 ═══════════════
@@ -4465,7 +4474,7 @@ function rBookDetail(s){
     levels.forEach(lv=>{
       const map=bookUnitMap(bc,brand,lv);
       const nmap=getUnitNoteMap(s,brand,lv);
-      const doneCount=Object.keys(map).length;
+      const doneCount=validUnitKeyCount(map);
       const bookDay=getBookDay(s,brand,lv);
       out+=`<div style="margin-bottom:10px;">
         <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
