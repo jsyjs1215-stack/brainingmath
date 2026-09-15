@@ -756,6 +756,47 @@ button,input,textarea,select{font-family:inherit;}
       <button class="tog" id="sp-u-하" onclick="setSpUnderstand('하')">하</button>
     </div>
   </div>
+  <div class="fg">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+      <label class="flbl" style="margin:0;">📚 새 책 시작</label>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--pri2);">
+        <input type="checkbox" id="sp-newbook-chk" onchange="togSpNewBook()" style="width:16px;height:16px;accent-color:var(--pri);cursor:pointer;">
+        오늘 새 책 시작했어요
+      </label>
+    </div>
+    <div id="sp-newbook-detail" style="display:none;background:#F0FDF4;border:1px solid #86EFAC;border-radius:var(--rs);padding:10px;">
+      <div class="frow" style="margin-bottom:7px;">
+        <div>
+          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">브랜드</label>
+          <select class="fsel" id="sp-nb-brand" onchange="updateSpNbFields()">
+            <option value="">브랜드 선택</option>
+            <option value="팩토">팩토</option>
+            <option value="수학이재밌어">수학이재밌어</option>
+            <option value="필즈">필즈</option>
+            <option value="기타교재">기타교재</option>
+          </select>
+        </div>
+        <div id="sp-nb-lvunit-wrap" style="display:none;">
+          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">레벨 · 단원</label>
+          <div style="display:flex;gap:5px;">
+            <select class="fsel" id="sp-nb-level" style="flex:1;"></select>
+            <select class="fsel" id="sp-nb-unit" style="width:64px;"></select>
+          </div>
+        </div>
+        <div id="sp-nb-stage-wrap" style="display:none;">
+          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">단계</label>
+          <select class="fsel" id="sp-nb-stage"></select>
+        </div>
+        <div id="sp-nb-title-wrap" style="display:none;">
+          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">책 제목</label>
+          <input class="fi" id="sp-nb-title" placeholder="예) 1031 입문A" style="border-color:#86EFAC;">
+        </div>
+      </div>
+      <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;">
+        💡 교재관리에 등록해둔 교재면 재고가 자동으로 1권 줄어들어요. 진도체크 탭 체크 현황에도 함께 반영돼요.
+      </div>
+    </div>
+  </div>
   <div class="fg"><label class="flbl">수업 태도</label>
     <div class="att-sel">
       <button class="asb" id="sp-as-100" onclick="setSpAttitude(100)">100점<br>PERFECT</button>
@@ -1253,7 +1294,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-15-book-order-custom-brand'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-15-sago-newbook-inv'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -5619,6 +5660,7 @@ function saveSagoProgress(){
   if(!checkSpConflict())return;
   const{date,sid}=ET;
   const r=gR(date,sid);
+  const s=gS(sid);
   const myName=getTeacherName()||'이름 미설정';
   const domBook=document.getElementById('sp-book').value;
   const domUnit=document.getElementById('sp-unit').value;
@@ -5637,10 +5679,84 @@ function saveSagoProgress(){
       sR(date,sid,'note',domNote);
     }
   }
+  saveSpNewBook(date,sid,r,s);
   sR(date,sid,'_lastEditedBy',myName);
   clearSpDraft(sid,date,ET.slot);
   closeM('sp');renderAll();
   toast(`${sid} 진도 기록이 저장되었습니다`);
+}
+// 📚 사고력 "새 책 시작" 저장 처리
+// · 팩토·수학이재밌어·필즈는 진도체크 탭과 같은 체크 현황(s.bookCheck)을 그대로 공유해서 체크한다.
+//   이미 체크돼 있는 단원/단계면 아무 것도 하지 않음(멱등) — 두 화면 중 어디서 체크했든 중복 차감되지 않는다.
+// · 기타교재는 진도체크 탭에 구조가 없어서(자유 텍스트) 저학년·고학년의 "새 책 시작"과 같은 방식으로
+//   r.newBook에 기록하고, 그 값이 바뀌거나 취소되면 이전 재고를 복구하고 새 값만큼 차감한다.
+function saveSpNewBook(date,sid,r,s){
+  const nbChk=document.getElementById('sp-newbook-chk')?.checked;
+  const nbBrand=nbChk?document.getElementById('sp-nb-brand').value:'';
+  const prevOther=(r.newBook&&r.newBook.subject==='기타교재')?{subject:r.newBook.subject,title:r.newBook.title}:null;
+  if(nbBrand==='기타교재'){
+    const title=(document.getElementById('sp-nb-title')?.value||'').trim();
+    if(title){
+      const changed=!prevOther||prevOther.title!==title;
+      sR(date,sid,'newBook',{subject:'기타교재',title});
+      if(changed){
+        if(prevOther)adjustInvStockFuzzy('기타교재',prevOther.title,1);
+        adjustInvStockFuzzy('기타교재',title,-1);
+      }
+    } else if(prevOther){
+      sR(date,sid,'newBook',null);
+      adjustInvStockFuzzy('기타교재',prevOther.title,1);
+    }
+    return;
+  }
+  if(prevOther){ // 브랜드를 다른 걸로 바꿨거나 체크를 해제했으면, 이전 "기타교재" 기록은 취소
+    sR(date,sid,'newBook',null);
+    adjustInvStockFuzzy('기타교재',prevOther.title,1);
+  }
+  if(!nbChk||!s)return;
+  if(nbBrand==='팩토'||nbBrand==='수학이재밌어'){
+    const level=document.getElementById('sp-nb-level').value;
+    const unit=document.getElementById('sp-nb-unit').value;
+    if(!level||!unit)return;
+    const bc=getBookCheck(s);
+    const map=bookUnitMap(bc,nbBrand,level);
+    const key=String(unit);
+    if(Object.prototype.hasOwnProperty.call(map,key)){
+      toast('이미 체크된 단원이에요 — 재고는 차감하지 않았어요');
+      return;
+    }
+    map[key]=date;
+    deductInvStock(nbBrand,`${level}-${unit}`);
+    const unitLabel=`${bookLevelLabel(nbBrand,level)} ${unit}번`;
+    sR(date,sid,'sagoBook',nbBrand);
+    sR(date,sid,'sagoUnit',unitLabel);
+    sR(date,sid,'sessionSubject',nbBrand);
+    sR(date,sid,'curriculum',unitLabel);
+    sR(date,sid,'newBook',{subject:nbBrand,title:unitLabel});
+    s.progress={series:nbBrand,level:'',unit:unitLabel};
+    s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
+    syncDayDefFromBookCheck(sid,nbBrand,level);
+    toast(`${nbBrand} ${unitLabel} 새 책 체크 + 재고 1권 차감`);
+  } else if(nbBrand==='필즈'){
+    const stage=document.getElementById('sp-nb-stage').value;
+    if(!stage)return;
+    const bc=getBookCheck(s);
+    const map=bookFieldsMap(bc);
+    if(Object.prototype.hasOwnProperty.call(map,stage)){
+      toast('이미 체크된 단계예요 — 재고는 차감하지 않았어요');
+      return;
+    }
+    map[stage]=date;
+    deductInvStock('필즈',stage);
+    sR(date,sid,'sagoBook','필즈');
+    sR(date,sid,'sagoUnit',stage);
+    sR(date,sid,'sessionSubject','필즈');
+    sR(date,sid,'curriculum',stage);
+    sR(date,sid,'newBook',{subject:'필즈',title:stage});
+    s.progress={series:'필즈',level:'',unit:stage};
+    s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
+    toast(`필즈 ${stage} 새 책 체크 + 재고 1권 차감`);
+  }
 }
 function openSagoProgress(sid,slot,date){
   const dt0=new Date(date+'T00:00:00');
@@ -5684,6 +5800,18 @@ function openSagoProgress(sid,slot,date){
   setSpAtUI(r.attend||'출석');
   setSpUnderstandUI(r.sagoUnderstand||'');
   setSpAttUI(r.attitude||80);
+  // 📚 새 책 시작 체크는 "체크+저장=차감"의 1회성 동작이라 열 때마다 항상 빈 상태로 시작함
+  // (직전에 다른 학생 카드에서 체크해뒀던 상태가 남아있지 않도록)
+  {
+    const nbChk=document.getElementById('sp-newbook-chk');
+    if(nbChk){
+      nbChk.checked=false;
+      document.getElementById('sp-newbook-detail').style.display='none';
+      document.getElementById('sp-nb-brand').value='';
+      document.getElementById('sp-nb-title').value='';
+      updateSpNbFields();
+    }
+  }
   {
     // ⚠ 이 모달은 (em 모달과 달리) 슬롯별 월말평가를 따로 쓰지 않고 항상 r.monthlyEval(공통값)만
     // 사용하므로, slotData 유무와 상관없이 이 값 하나만 보면 된다.
@@ -6912,6 +7040,12 @@ function rBookInvSection(){
   const inv=getBookInv();
   const threshold=getInvLowThreshold();
   const brands=sortBookBrands(Object.keys(inv));
+  // 항목별 "입고 대기 중" 신청 수량 합계 — 재고 옆에 현재고/신청중 형태로 같이 보여주기 위함
+  const pendingByKey={};
+  collectPendingBookOrders().forEach(o=>{
+    const k=`${o.brand}|${o.item}`;
+    pendingByKey[k]=(pendingByKey[k]||0)+(o.qty||0);
+  });
   const brandStats=brands.map(brand=>{
     const items=Object.entries(inv[brand]||{}).sort((a,b)=>a[0].localeCompare(b[0],'ko',{numeric:true}));
     const lowCnt=items.filter(([k,v])=>(v.stock||0)<=threshold).length;
@@ -6949,14 +7083,16 @@ function rBookInvSection(){
         <div style="display:flex;flex-direction:column;border-top:1px solid var(--bdr);">
           ${items.length?items.map(([item,data],idx)=>{
             const low=(data.stock||0)<=threshold;
-            return `<div onclick="event.stopPropagation();" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 4px;${idx?'border-top:1px solid #EEE;':''}background:${low?'#FEF2F2':'transparent'};">
-              <span style="font-size:12.5px;font-weight:600;flex:1;min-width:0;${low?'color:#991B1B;':''}">${esc(item)}</span>
-              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            const pendingQty=pendingByKey[`${brand}|${item}`]||0;
+            return `<div onclick="event.stopPropagation();" style="display:flex;align-items:center;gap:10px;padding:7px 4px;${idx?'border-top:1px solid #EEE;':''}background:${low?'#FEF2F2':'transparent'};">
+              <span style="font-size:12.5px;font-weight:600;${low?'color:#991B1B;':''}">${esc(item)}</span>
+              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
                 <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',-1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">−</button>
-                <span onclick="promptSetInvStock('${escAttr(brand)}','${escAttr(item)}')" style="min-width:26px;text-align:center;font-size:13px;font-weight:800;cursor:pointer;${low?'color:#DC2626;':''}" title="눌러서 직접 입력">${data.stock||0}</span>
+                <span onclick="promptSetInvStock('${escAttr(brand)}','${escAttr(item)}')" style="min-width:20px;text-align:center;font-size:13px;font-weight:800;cursor:pointer;${low?'color:#DC2626;':''}" title="눌러서 직접 입력">${data.stock||0}</span>
                 <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">+</button>
-                <span onclick="removeInvItem('${escAttr(brand)}','${escAttr(item)}')" style="cursor:pointer;color:var(--dan);font-weight:700;padding:0 4px;font-size:13px;">×</span>
+                ${pendingQty?`<span style="font-size:11px;font-weight:700;color:#2563EB;background:#EFF6FF;border-radius:8px;padding:1px 6px;white-space:nowrap;" title="입고 대기 중인 신청 수량">/ 신청 ${pendingQty}</span>`:''}
               </div>
+              <span onclick="removeInvItem('${escAttr(brand)}','${escAttr(item)}')" style="cursor:pointer;color:var(--dan);font-weight:700;padding:0 4px;font-size:13px;margin-left:auto;">×</span>
             </div>`;
           }).join(''):`<div style="font-size:11px;color:var(--muted);padding:6px 0;">등록된 교재가 없어요</div>`}
         </div>
@@ -8803,6 +8939,32 @@ function updateNBCurr(){
   const subj=document.getElementById('em-nb-subj')?.value||'';
   const dl=document.getElementById('dl-em-nb-curr');if(!dl)return;
   dl.innerHTML=(CURR_OPTS[subj]||[]).map(o=>`<option value="${esc(o)}">`).join('');
+}
+// ═══ 사고력 "새 책 시작" (수업입력 모달) — 팩토·수학이재밌어·필즈는 진도체크 탭의 체크 현황과
+// 같은 데이터를 공유해서, 여기서 체크해도 진도체크 탭에 그대로 반영되고 재고도 자동 차감된다.
+// 이미 체크돼 있는 단원/단계를 여기서 또 체크해도 중복 차감되지 않는다(멱등).
+function togSpNewBook(){
+  const show=document.getElementById('sp-newbook-chk')?.checked;
+  document.getElementById('sp-newbook-detail').style.display=show?'block':'none';
+  if(show)updateSpNbFields();
+}
+function updateSpNbFields(){
+  const brand=document.getElementById('sp-nb-brand')?.value||'';
+  const lvWrap=document.getElementById('sp-nb-lvunit-wrap'),stWrap=document.getElementById('sp-nb-stage-wrap'),tiWrap=document.getElementById('sp-nb-title-wrap');
+  lvWrap.style.display='none';stWrap.style.display='none';tiWrap.style.display='none';
+  if(brand==='팩토'||brand==='수학이재밌어'){
+    lvWrap.style.display='block';
+    const levelSel=document.getElementById('sp-nb-level'),unitSel=document.getElementById('sp-nb-unit');
+    const levels=getBookLevelConfig()[brand]||[];
+    levelSel.innerHTML=levels.map(lv=>`<option value="${esc(lv)}">${esc(bookLevelLabel(brand,lv))}</option>`).join('');
+    unitSel.innerHTML=Array.from({length:BOOK_UNITS},(_,i)=>i+1).map(u=>`<option value="${u}">${u}번</option>`).join('');
+  } else if(brand==='필즈'){
+    stWrap.style.display='block';
+    const stageSel=document.getElementById('sp-nb-stage');
+    stageSel.innerHTML=FIELDS_STAGES.map(st=>`<option value="${esc(st)}">${esc(st)}</option>`).join('');
+  } else if(brand==='기타교재'){
+    tiWrap.style.display='block';
+  }
 }
 
 // ═══ 학부모 상담 탭 (PCT) ═══════════════════════
