@@ -588,11 +588,13 @@ button,input,textarea,select{font-family:inherit;}
         </div>
         <div>
           <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">책 제목</label>
+          <select class="fsel" id="em-nb-title-sel" onchange="onEmNbTitleSelChange()" style="display:none;border-color:#86EFAC;margin-bottom:5px;"></select>
           <input class="fi" id="em-nb-title" list="dl-em-nb-curr" placeholder="예) 아이비츠4-1" style="border-color:#86EFAC;">
+          <input type="hidden" id="em-nb-exact-key" value="">
         </div>
       </div>
       <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;">
-        💡 한눈에보기의 "새책/월말/단원" 칸과 관리 &gt; 새책 탭에서 확인할 수 있어요
+        💡 재고현황에 등록해둔 교재면 목록에서 골라주세요 — 그래야 재고가 정확히 차감돼요. 목록에 없는 책이면 "+ 목록에 없음"을 선택해서 직접 입력할 수 있어요(이 경우 재고는 자동으로 안 줄어들어요).<br>한눈에보기의 "새책/월말/단원" 칸과 관리 &gt; 새책 탭에서도 확인할 수 있어요
       </div>
       <datalist id="dl-em-nb-curr"></datalist>
     </div>
@@ -770,10 +772,6 @@ button,input,textarea,select{font-family:inherit;}
           <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">브랜드</label>
           <select class="fsel" id="sp-nb-brand" onchange="updateSpNbFields()">
             <option value="">브랜드 선택</option>
-            <option value="팩토">팩토</option>
-            <option value="수학이재밌어">수학이재밌어</option>
-            <option value="필즈">필즈</option>
-            <option value="기타교재">기타교재</option>
           </select>
         </div>
         <div id="sp-nb-lvunit-wrap" style="display:none;">
@@ -787,13 +785,14 @@ button,input,textarea,select{font-family:inherit;}
           <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">단계</label>
           <select class="fsel" id="sp-nb-stage"></select>
         </div>
-        <div id="sp-nb-title-wrap" style="display:none;">
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">책 제목</label>
+        <div id="sp-nb-item-wrap" style="display:none;">
+          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">교재</label>
+          <select class="fsel" id="sp-nb-item-sel" onchange="onSpNbItemSelChange()" style="display:none;border-color:#86EFAC;margin-bottom:5px;"></select>
           <input class="fi" id="sp-nb-title" placeholder="예) 1031 입문A" style="border-color:#86EFAC;">
         </div>
       </div>
       <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;">
-        💡 교재관리에 등록해둔 교재면 재고가 자동으로 1권 줄어들어요. 진도체크 탭 체크 현황에도 함께 반영돼요.
+        💡 브랜드는 교재관리에 등록해둔 것이 그대로 나와요(새 브랜드 추가하면 바로 여기서도 골라 쓸 수 있어요). 목록에서 교재를 고르면 재고가 자동으로 1권 줄어듭니다. 팩토·수학이재밌어·필즈는 진도체크 탭 체크 현황에도 함께 반영돼요.
       </div>
     </div>
   </div>
@@ -1294,7 +1293,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-15-book-order-teacher-field'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-15-newbook-dynamic-brands'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -5697,25 +5696,34 @@ function saveSagoProgress(){
 function saveSpNewBook(date,sid,r,s){
   const nbChk=document.getElementById('sp-newbook-chk')?.checked;
   const nbBrand=nbChk?document.getElementById('sp-nb-brand').value:'';
-  const prevOther=(r.newBook&&r.newBook.subject==='기타교재')?{subject:r.newBook.subject,title:r.newBook.title}:null;
-  if(nbBrand==='기타교재'){
+  // 팩토·수학이재밌어·필즈는 진도체크 탭과 공유하는 체크 현황(bc-map)으로 처리하고, 그 외 모든
+  // 브랜드(기타교재 포함, 원장님이 교재관리에서 새로 추가한 브랜드도 전부)는 재고현황 목록에서
+  // 고른 교재만 정확히 자동 차감한다 — "목록에 없음(직접 입력)"으로 자유롭게 쓴 건 오타로 엉뚱한
+  // 항목이 차감되는 걸 막기 위해 자동 차감하지 않는다(단, 이 방식이 생기기 전의 예전 기록은
+  // 그때 방식대로 비슷한 이름을 찾아 복구를 시도한다 — restoreNewBookStock 참고).
+  const isBcMapBrand=nbBrand==='팩토'||nbBrand==='수학이재밌어'||nbBrand==='필즈';
+  const prevGeneric=(r.newBook&&r.newBook.subject&&r.newBook.subject!=='팩토'&&r.newBook.subject!=='수학이재밌어'&&r.newBook.subject!=='필즈')?{...r.newBook}:null;
+  if(nbChk&&nbBrand&&!isBcMapBrand){
+    const itemSel=document.getElementById('sp-nb-item-sel');
+    const rawSelVal=(itemSel&&itemSel.style.display!=='none')?itemSel.value:'';
+    const exactKey=(rawSelVal&&rawSelVal!=='__custom__')?rawSelVal:'';
     const title=(document.getElementById('sp-nb-title')?.value||'').trim();
     if(title){
-      const changed=!prevOther||prevOther.title!==title;
-      sR(date,sid,'newBook',{subject:'기타교재',title});
+      const changed=!prevGeneric||prevGeneric.subject!==nbBrand||prevGeneric.title!==title;
+      sR(date,sid,'newBook',{subject:nbBrand,title,invBrand:nbBrand,exactKey});
       if(changed){
-        if(prevOther)adjustInvStockFuzzy('기타교재',prevOther.title,1);
-        adjustInvStockFuzzy('기타교재',title,-1);
+        if(prevGeneric)restoreNewBookStock(prevGeneric);
+        deductNewBookStock({subject:nbBrand,title,invBrand:nbBrand,exactKey});
       }
-    } else if(prevOther){
+    } else if(prevGeneric){
       sR(date,sid,'newBook',null);
-      adjustInvStockFuzzy('기타교재',prevOther.title,1);
+      restoreNewBookStock(prevGeneric);
     }
     return;
   }
-  if(prevOther){ // 브랜드를 다른 걸로 바꿨거나 체크를 해제했으면, 이전 "기타교재" 기록은 취소
+  if(prevGeneric){ // 브랜드를 bc-map 방식(팩토 등)으로 바꿨거나 체크를 해제했으면, 이전 일반 브랜드 기록은 취소
     sR(date,sid,'newBook',null);
-    adjustInvStockFuzzy('기타교재',prevOther.title,1);
+    restoreNewBookStock(prevGeneric);
   }
   if(!nbChk||!s)return;
   if(nbBrand==='팩토'||nbBrand==='수학이재밌어'){
@@ -5860,7 +5868,12 @@ function openEdit(sid,slot,date){
     const emSubjSel=document.getElementById('em-sess-subj');
     if(emSubjSel)emSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM);
     const nbSubjSel=document.getElementById('em-nb-subj');
-    if(nbSubjSel)nbSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM);
+    if(nbSubjSel){
+      // "새 책 시작"만 교재관리에 새로 추가된 브랜드를 자동으로 선택지 끝에 붙여준다(오늘 수업
+      // 교재 드롭다운은 기존 교과과정 분류만 유지 — 재고 브랜드와 성격이 다르므로 그대로 둠).
+      const extraBrands=getExtraInvBrandsForEM(subjListForGroup(grpForEM));
+      nbSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM)+extraBrands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    }
   }
   // 📌 더블체크용 스냅샷: 이 모달을 "지금" 여는 시점의 내용을 기억해뒀다가, 저장 직전에
   // 다른 선생님이 그 사이 같은 항목(숙제/특이사항)을 이미 바꿔놓지 않았는지 비교하기 위함
@@ -5966,7 +5979,7 @@ function openEdit(sid,slot,date){
   if(!r.monthlyEval)onSessSubjChange();
   // 새 책 시작 초기화
   const nbChk=document.getElementById('em-newbook-chk');
-  if(nbChk){nbChk.checked=!!(r.newBook);document.getElementById('em-newbook-detail').style.display=r.newBook?'block':'none';if(r.newBook){document.getElementById('em-nb-subj').value=r.newBook.subject||'';document.getElementById('em-nb-title').value=r.newBook.title||'';updateNBCurr();}else{document.getElementById('em-nb-subj').value='';document.getElementById('em-nb-title').value='';}}
+  if(nbChk){nbChk.checked=!!(r.newBook);document.getElementById('em-newbook-detail').style.display=r.newBook?'block':'none';if(r.newBook){document.getElementById('em-nb-subj').value=r.newBook.subject||'';prefillNewBookUI(r.newBook);}else{document.getElementById('em-nb-subj').value='';document.getElementById('em-nb-title').value='';document.getElementById('em-nb-exact-key').value='';const sel=document.getElementById('em-nb-title-sel');if(sel){sel.style.display='none';sel.innerHTML='';}}}
 
   setAtUI(r.attend||'출석');setHwUI(r.hwStatus||'완료');setAttUI(r.attitude||80);
   // classMove: 저장값 우선, 없으면 요일 기본값(dayDefs)에서 불러오기
@@ -6351,17 +6364,22 @@ function saveRec(){
   // 새 책 시작 — 📌 중요내용에는 더 이상 자동으로 등록하지 않음(중복 방지). "새책/월말/단원" 칸에서만 확인.
   // ⚠ 재고관리 자동차감: 이전에 체크돼 있던 새책과 지금 저장하는 값이 다를 때만 차감/복구한다 —
   // 안 그러면 같은 새책 기록을 그대로 다시 저장(수정 없이 재저장)할 때마다 계속 차감되어버린다.
-  const prevNewBook=r.newBook?{subject:r.newBook.subject,title:r.newBook.title}:null;
+  // ⚠ exactKey는 "필드가 아예 없음"과 "값이 빈 문자열"을 구분해서 써야 하므로(전자는 이 기능이
+  // 생기기 전 예전 기록, 후자는 새로 저장된 자유 입력) 얕은 복사(...)로 있는 필드만 그대로 가져온다
+  // — {exactKey:r.newBook.exactKey}처럼 직접 나열하면 없던 필드도 undefined로 항상 생겨버린다.
+  const prevNewBook=r.newBook?{...r.newBook}:null;
   const nbChk=document.getElementById('em-newbook-chk')?.checked;
   if(nbChk){
     const nbSubj=document.getElementById('em-nb-subj').value;
     const nbTitle=document.getElementById('em-nb-title').value.trim();
+    const nbExactKey=document.getElementById('em-nb-exact-key')?.value||'';
+    const nbInvBrand=resolveEmInvBrand(nbSubj);
     if(nbTitle){
       const nbChanged=!prevNewBook||prevNewBook.subject!==nbSubj||prevNewBook.title!==nbTitle;
-      sR(date,sid,'newBook',{subject:nbSubj,title:nbTitle});
+      sR(date,sid,'newBook',{subject:nbSubj,title:nbTitle,invBrand:nbInvBrand,exactKey:nbExactKey});
       if(nbChanged){
-        if(prevNewBook)adjustInvStockFuzzy(prevNewBook.subject,prevNewBook.title,1); // 바뀐 거면 이전 교재는 취소된 셈
-        adjustInvStockFuzzy(nbSubj,nbTitle,-1);
+        if(prevNewBook)restoreNewBookStock(prevNewBook); // 바뀐 거면 이전 교재는 취소된 셈
+        deductNewBookStock({subject:nbSubj,title:nbTitle,invBrand:nbInvBrand,exactKey:nbExactKey});
       }
       // 📌 아리수 새책: 오늘 새 책을 나갔으면, 오늘교재(학생 기본 진도)를 그 새 책 기준으로 즉시 갱신
       // → 다음 시험을 보고 또 새 책을 나가기 전까지는 계속 이 값이 "오늘교재"로 표시됨
@@ -6371,11 +6389,11 @@ function saveRec(){
       }
     } else {
       sR(date,sid,'newBook',null);
-      if(prevNewBook)adjustInvStockFuzzy(prevNewBook.subject,prevNewBook.title,1);
+      if(prevNewBook)restoreNewBookStock(prevNewBook);
     }
   } else {
     sR(date,sid,'newBook',null);
-    if(prevNewBook)adjustInvStockFuzzy(prevNewBook.subject,prevNewBook.title,1);
+    if(prevNewBook)restoreNewBookStock(prevNewBook);
   }
   const utChk=document.getElementById('ut-chk')?.checked;
   const utInProgress=utChk&&(document.getElementById('ut-inprogress-chk')?.checked||false);
@@ -7007,6 +7025,44 @@ function adjustInvStockFuzzy(brand,title,delta){
   b[key]._updatedAt=Date.now();
   SD();
 }
+// 저학년·고학년 "새 책 시작"의 em-nb-subj 값(SUBJLIST_LOW/SUBJLIST_HIGH)은 교재관리(재고현황)의
+// 실제 브랜드명과 이름이 다른 경우가 있어(최상위→최상위수학, 기타→기타교재) 반드시 이 매핑을
+// 거쳐야 정확한 재고 항목을 찾는다. 자체교재·개념원리·개념연산SOS·수학의바이블은 재고관리에 해당
+// 브랜드가 아직 없어서 매핑이 없음(그런 교재는 지금처럼 자유 입력만 가능하고 재고는 연동 안 됨).
+const EM_SUBJ_TO_INV_BRAND={
+  '아이비츠':'아이비츠','아리수':'아리수','최상위':'최상위수학','개념완성':'개념완성','기타':'기타교재',
+  '쎈':'쎈','RPM':'RPM','체크체크':'체크체크','최상위수학':'최상위수학',
+};
+// 원장님이 교재관리에서 새 브랜드를 추가하면, 위 매핑에 없어도 그 브랜드명 그대로 "새 책 시작"
+// 선택지에 자동으로 나타난다(em-nb-subj 렌더링 쪽에서 추가) — 그런 브랜드는 이름 자체가 곧
+// 재고 브랜드명이므로 별도 매핑 없이 자기 자신으로 찾는다.
+function resolveEmInvBrand(subj){
+  return EM_SUBJ_TO_INV_BRAND[subj]||(getBookInv()[subj]?subj:'');
+}
+// 기존 교과과정 분류(baseList)나 위 매핑에 이미 있는 브랜드는 빼고, 재고현황에만 있는(=원장님이
+// 교재관리에서 새로 추가한) 브랜드만 골라낸다 — "새 책 시작" 브랜드 선택지 끝에 자동으로 붙임.
+function getExtraInvBrandsForEM(baseList){
+  const covered=new Set([...baseList,...Object.values(EM_SUBJ_TO_INV_BRAND)]);
+  return sortBookBrands(Object.keys(getBookInv())).filter(b=>!covered.has(b));
+}
+// 새 책 시작에서 재고현황 목록으로 정확히 고른 경우(exactKey 있음)만 자동으로 차감/복구한다.
+// "목록에 없음(직접 입력)"으로 자유롭게 쓴 건 오타·표기 차이로 엉뚱한 항목이 차감되는 걸 막기 위해
+// 자동 차감하지 않는다 — 단, 이 기능을 만들기 전(exactKey 필드 자체가 없는 예전 기록)은 그 당시
+// 자유 입력도 비슷한 이름을 찾아 자동 차감을 시도했었으므로, 그 기록을 되돌릴 때만 예외적으로
+// 같은 방식(유사 이름 찾기)으로 복구를 시도한다.
+function deductNewBookStock(nb){
+  if(!nb||!nb.exactKey)return;
+  const invBrand=nb.invBrand||resolveEmInvBrand(nb.subject);
+  if(!invBrand)return;
+  deductInvStock(invBrand,nb.exactKey);
+}
+function restoreNewBookStock(nb){
+  if(!nb)return;
+  const invBrand=nb.invBrand||resolveEmInvBrand(nb.subject);
+  if(!invBrand)return;
+  if(nb.exactKey){ restoreInvStock(invBrand,nb.exactKey); return; }
+  if(!('exactKey' in nb)) adjustInvStockFuzzy(invBrand,nb.title,1);
+}
 
 // ═══ 교재 신청 ═══════════════════════
 function getBookOrders(){ if(!D.bookOrders)D.bookOrders=[]; return D.bookOrders; }
@@ -7263,7 +7319,7 @@ function clearNewBookRecord(sid,date){
   if(!confirm(`${sid} 학생의 ${date} 새책 시작 기록을 삭제할까요?`))return;
   const r=D.R[date]?.[sid];
   if(r){
-    if(r.newBook)adjustInvStockFuzzy(r.newBook.subject,r.newBook.title,1); // 삭제하는 만큼 재고를 다시 채워줌
+    if(r.newBook)restoreNewBookStock(r.newBook); // 삭제하는 만큼 재고를 다시 채워줌
     r.newBook=null;r._updatedAt=Date.now();
   }
   SD();renderAll();
@@ -9012,10 +9068,68 @@ function togNewBook(){
   const show=document.getElementById('em-newbook-chk')?.checked;
   document.getElementById('em-newbook-detail').style.display=show?'block':'none';
 }
+// 브랜드(em-nb-subj)를 고르면, 교재관리(재고현황)에 등록된 실제 항목으로 골라 쓸 수 있게
+// 드롭다운을 채워준다 — 목록에서 고르면 재고가 정확히 연동되고, 목록에 없는 책이면
+// "+ 목록에 없음(직접 입력)"을 골라서 자유롭게 쓸 수 있다(이 경우 재고는 자동 반영 안 됨).
 function updateNBCurr(){
   const subj=document.getElementById('em-nb-subj')?.value||'';
-  const dl=document.getElementById('dl-em-nb-curr');if(!dl)return;
-  dl.innerHTML=(CURR_OPTS[subj]||[]).map(o=>`<option value="${esc(o)}">`).join('');
+  const dl=document.getElementById('dl-em-nb-curr');if(dl)dl.innerHTML=(CURR_OPTS[subj]||[]).map(o=>`<option value="${esc(o)}">`).join('');
+  const sel=document.getElementById('em-nb-title-sel');
+  const titleInput=document.getElementById('em-nb-title');
+  const exactKeyEl=document.getElementById('em-nb-exact-key');
+  if(!sel||!titleInput||!exactKeyEl)return;
+  const invBrand=resolveEmInvBrand(subj);
+  const items=invBrand?Object.keys(getBookInv()[invBrand]||{}).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true})):[];
+  if(items.length){
+    sel.innerHTML=`<option value="">교재 선택</option>`+items.map(k=>`<option value="${esc(k)}">${esc(subj)}${esc(k)}</option>`).join('')+`<option value="__custom__">+ 목록에 없음(직접 입력)</option>`;
+    sel.style.display='block';
+    titleInput.style.display='none';
+  } else {
+    sel.style.display='none';
+    sel.innerHTML='';
+    titleInput.style.display='block';
+  }
+  titleInput.value='';
+  exactKeyEl.value='';
+}
+// 이미 저장된 새 책 기록을 다시 열었을 때, 목록에서 고른 거였으면 그 항목이 선택된 채로,
+// 직접 입력한 거였으면 자유 입력 칸에 그 글자 그대로 보이게 복원한다.
+function prefillNewBookUI(nb){
+  updateNBCurr(); // 브랜드 기준으로 드롭다운부터 채움(비어있는 상태로 초기화됨)
+  const sel=document.getElementById('em-nb-title-sel');
+  const titleInput=document.getElementById('em-nb-title');
+  const exactKeyEl=document.getElementById('em-nb-exact-key');
+  if(nb.exactKey&&sel&&sel.style.display!=='none'){
+    sel.value=nb.exactKey;
+    titleInput.value=nb.title||'';
+    exactKeyEl.value=nb.exactKey;
+  } else {
+    if(sel&&sel.style.display!=='none')sel.value='__custom__';
+    titleInput.style.display='block';
+    titleInput.value=nb.title||'';
+    exactKeyEl.value='';
+  }
+}
+function onEmNbTitleSelChange(){
+  const subj=document.getElementById('em-nb-subj')?.value||'';
+  const sel=document.getElementById('em-nb-title-sel');
+  const titleInput=document.getElementById('em-nb-title');
+  const exactKeyEl=document.getElementById('em-nb-exact-key');
+  const v=sel.value;
+  if(v==='__custom__'){
+    titleInput.style.display='block';
+    titleInput.value='';
+    titleInput.focus();
+    exactKeyEl.value='';
+  } else if(v){
+    titleInput.style.display='none';
+    titleInput.value=subj+v; // 기존 표시 형식("아이비츠4-1")과 동일하게 저장
+    exactKeyEl.value=v;
+  } else {
+    titleInput.style.display='none';
+    titleInput.value='';
+    exactKeyEl.value='';
+  }
 }
 // ═══ 사고력 "새 책 시작" (수업입력 모달) — 팩토·수학이재밌어·필즈는 진도체크 탭의 체크 현황과
 // 같은 데이터를 공유해서, 여기서 체크해도 진도체크 탭에 그대로 반영되고 재고도 자동 차감된다.
@@ -9023,12 +9137,26 @@ function updateNBCurr(){
 function togSpNewBook(){
   const show=document.getElementById('sp-newbook-chk')?.checked;
   document.getElementById('sp-newbook-detail').style.display=show?'block':'none';
-  if(show)updateSpNbFields();
+  if(show){ populateSpNbBrandSelect(); updateSpNbFields(); }
 }
+// 브랜드 선택지를 교재관리(재고현황)에 지금 등록돼있는 브랜드 그대로 채워준다 — 하드코딩된
+// 4개가 아니라, 원장님이 교재관리에서 브랜드를 추가/삭제하는 즉시 여기도 그대로 따라간다.
+function populateSpNbBrandSelect(){
+  const sel=document.getElementById('sp-nb-brand');if(!sel)return;
+  const cur=sel.value;
+  const brands=sortBookBrands(Object.keys(getBookInv()));
+  sel.innerHTML=`<option value="">브랜드 선택</option>`+brands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  if(brands.includes(cur))sel.value=cur;
+}
+// 팩토·수학이재밌어·필즈는 진도체크 탭과 같은 체크 현황(레벨·단원/단계)을 쓰고, 그 외 브랜드는
+// (기타교재 포함, 새로 추가한 브랜드도 전부) 재고현황에 등록된 교재 중에서 고르는 공용 방식을 쓴다.
 function updateSpNbFields(){
   const brand=document.getElementById('sp-nb-brand')?.value||'';
-  const lvWrap=document.getElementById('sp-nb-lvunit-wrap'),stWrap=document.getElementById('sp-nb-stage-wrap'),tiWrap=document.getElementById('sp-nb-title-wrap');
-  lvWrap.style.display='none';stWrap.style.display='none';tiWrap.style.display='none';
+  const lvWrap=document.getElementById('sp-nb-lvunit-wrap'),stWrap=document.getElementById('sp-nb-stage-wrap'),itWrap=document.getElementById('sp-nb-item-wrap');
+  const itemSel=document.getElementById('sp-nb-item-sel'),titleInput=document.getElementById('sp-nb-title');
+  lvWrap.style.display='none';stWrap.style.display='none';itWrap.style.display='none';
+  if(itemSel){itemSel.style.display='none';itemSel.innerHTML='';}
+  if(titleInput){titleInput.style.display='none';titleInput.value='';}
   if(brand==='팩토'||brand==='수학이재밌어'){
     lvWrap.style.display='block';
     const levelSel=document.getElementById('sp-nb-level'),unitSel=document.getElementById('sp-nb-unit');
@@ -9039,8 +9167,30 @@ function updateSpNbFields(){
     stWrap.style.display='block';
     const stageSel=document.getElementById('sp-nb-stage');
     stageSel.innerHTML=FIELDS_STAGES.map(st=>`<option value="${esc(st)}">${esc(st)}</option>`).join('');
-  } else if(brand==='기타교재'){
-    tiWrap.style.display='block';
+  } else if(brand){
+    itWrap.style.display='block';
+    const items=Object.keys(getBookInv()[brand]||{}).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+    if(items.length&&itemSel){
+      itemSel.innerHTML=`<option value="">교재 선택</option>`+items.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')+`<option value="__custom__">+ 목록에 없음(직접 입력)</option>`;
+      itemSel.style.display='block';
+    } else if(titleInput){
+      titleInput.style.display='block';
+    }
+  }
+}
+function onSpNbItemSelChange(){
+  const sel=document.getElementById('sp-nb-item-sel'),titleInput=document.getElementById('sp-nb-title');
+  const v=sel.value;
+  if(v==='__custom__'){
+    titleInput.style.display='block';
+    titleInput.value='';
+    titleInput.focus();
+  } else if(v){
+    titleInput.style.display='none';
+    titleInput.value=v;
+  } else {
+    titleInput.style.display='none';
+    titleInput.value='';
   }
 }
 
