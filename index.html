@@ -1294,7 +1294,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-15-inv-reorder-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-15-book-order-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7010,7 +7010,8 @@ function collectPendingBookOrders(){ return getBookOrders().filter(o=>!o.receive
 let BookOrderForm={label:'',brand:'',customBrand:'',item:'',qty:'',note:''};
 const BO_CUSTOM_BRAND='__custom__';
 function addBookOrder(label,brand,item,qty,note){
-  getBookOrders().push({id:Date.now()+Math.random(),label,brand,item,qty,note:note||'',date:tdk(),received:false,receivedDate:'',_updatedAt:Date.now()});
+  const requestedBy=getTeacherName()||'이름 미설정';
+  getBookOrders().push({id:Date.now()+Math.random(),label,brand,item,qty,note:note||'',date:tdk(),received:false,receivedDate:'',requestedBy,_updatedAt:Date.now()});
   SD();
 }
 function submitBookOrder(){
@@ -7122,13 +7123,13 @@ function rBookInvSection(){
                 <button onclick="moveInvItem('${escAttr(brand)}','${escAttr(item)}',-1)" ${idx===0?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${idx===0?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${idx===0?'default':'pointer'};padding:0;line-height:1;">▲</button>
                 <button onclick="moveInvItem('${escAttr(brand)}','${escAttr(item)}',1)" ${idx===items.length-1?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${idx===items.length-1?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${idx===items.length-1?'default':'pointer'};padding:0;line-height:1;">▼</button>
               </div>
-              <span style="font-size:12.5px;font-weight:600;${low?'color:#991B1B;':''}">${esc(item)}</span>
-              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+              <span style="font-size:12.5px;font-weight:600;width:108px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${low?'color:#991B1B;':''}" title="${escAttr(item)}">${esc(item)}</span>
+              <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;width:112px;">
                 <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',-1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">−</button>
                 <span onclick="promptSetInvStock('${escAttr(brand)}','${escAttr(item)}')" style="min-width:20px;text-align:center;font-size:13px;font-weight:800;cursor:pointer;${low?'color:#DC2626;':''}" title="눌러서 직접 입력">${data.stock||0}</span>
                 <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">+</button>
-                ${pendingQty?`<span style="font-size:11px;font-weight:700;color:#2563EB;background:#EFF6FF;border-radius:8px;padding:1px 6px;white-space:nowrap;" title="입고 대기 중인 신청 수량">/ 신청 ${pendingQty}</span>`:''}
               </div>
+              ${pendingQty?`<span style="font-size:11px;font-weight:700;color:#2563EB;background:#EFF6FF;border-radius:8px;padding:2px 7px;white-space:nowrap;flex-shrink:0;" title="입고 대기 중인 신청 수량">신청중 ${pendingQty}</span>`:'<span></span>'}
               <span onclick="removeInvItem('${escAttr(brand)}','${escAttr(item)}')" style="cursor:pointer;color:var(--dan);font-weight:700;padding:0 4px;font-size:13px;margin-left:auto;">×</span>
             </div>`;
           }).join(''):`<div style="font-size:11px;color:var(--muted);padding:6px 0;">등록된 교재가 없어요</div>`}
@@ -7140,7 +7141,13 @@ function rBookInvSection(){
   return out;
 }
 function rBookOrderSection(){
-  const pending=collectPendingBookOrders().sort((a,b)=>b._updatedAt-a._updatedAt);
+  // 같은 교재를 여러 선생님이 각자 신청해도 한눈에 모아 보이도록, 브랜드·교재명으로 먼저 묶고
+  // 그 안에서는 최근 신청순으로 정렬한다.
+  const pending=collectPendingBookOrders().sort((a,b)=>{
+    const key=(o)=>`${o.brand}|${o.item}`;
+    const nameCmp=key(a).localeCompare(key(b),'ko',{numeric:true});
+    return nameCmp!==0?nameCmp:b._updatedAt-a._updatedAt;
+  });
   const received=getBookOrders().filter(o=>o.received).sort((a,b)=>(b.receivedDate||'').localeCompare(a.receivedDate||'')).slice(0,10);
   const inv=getBookInv();
   const brands=sortBookBrands(Object.keys(inv));
@@ -7183,6 +7190,7 @@ function rBookOrderSection(){
           <div style="font-size:11px;color:var(--muted);">${esc(o.label||'')}</div>
           <div style="font-size:13px;font-weight:700;">${esc(o.brand)} ${esc(o.item)} <span style="color:var(--pri2);">× ${o.qty}</span></div>
           ${o.note?`<div style="font-size:11px;color:var(--muted);">${esc(o.note)}</div>`:''}
+          <div style="font-size:10.5px;color:#B45309;margin-top:2px;"><i class="ti ti-user" style="font-size:10px;vertical-align:-1px;"></i> ${esc(dispTeacherName(o.requestedBy)||'이름 미설정')} 신청</div>
         </div>
         <button onclick="receiveBookOrder(${o.id})" style="padding:6px 11px;border-radius:16px;background:#10B981;color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">입고 처리</button>
         <button onclick="deleteBookOrder(${o.id})" style="padding:6px 9px;border-radius:16px;background:#fff;color:var(--dan);border:1px solid var(--dan-b);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button>
@@ -7193,7 +7201,7 @@ function rBookOrderSection(){
     out+=`<div style="margin-top:10px;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;">✅ 최근 입고완료 (${received.length}건)</div>
       ${received.map(o=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 9px;background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px;">
-        <div style="flex:1;font-size:11px;color:var(--muted);">${esc(o.label||'')} — ${esc(o.brand)} ${esc(o.item)} × ${o.qty} <span style="color:#10B981;">✓ ${o.receivedDate}</span></div>
+        <div style="flex:1;font-size:11px;color:var(--muted);">${esc(o.label||'')} — ${esc(o.brand)} ${esc(o.item)} × ${o.qty} <span style="color:#10B981;">✓ ${o.receivedDate}</span> · ${esc(dispTeacherName(o.requestedBy)||'이름 미설정')} 신청</div>
         <button onclick="undoReceiveBookOrder(${o.id})" style="padding:4px 9px;border-radius:14px;background:transparent;color:var(--dan);border:1px solid var(--dan-b);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">취소</button>
       </div>`).join('')}
     </div>`;
@@ -12631,7 +12639,13 @@ function startCloudListen() {
     // 교재 재고·신청: 항목/id 단위로 "더 최근에 수정된 쪽"을 신뢰 — makeups와 같은 이유로
     // 통째로 덮어쓰면 한 기기가 방금 조정한 재고가 다른 기기의 예전 값으로 되돌아갈 수 있음
     if (data.bookInv) D.bookInv = mergeBookInv(D.bookInv, data.bookInv, D.tombstones?.bookInvItems, D.tombstones?.bookInvBrands);
-    if (data.bookOrders) D.bookOrders = mergeArrByIdTs(D.bookOrders, data.bookOrders, D.tombstones?.bookOrders);
+    // ⚠ bookOrders는 이제 항목별 경로(bookOrders/<id>)로 쪼개서 올리므로, 클라우드에서 받을 때도
+    // 배열이 아니라 id를 키로 하는 객체로 온다 — mergeArrByIdTs가 쓸 수 있게 배열로 바꿔준다.
+    // (예전에 통째로 올렸던 배열 형태가 아직 남아있는 경우도 그대로 처리되게 둘 다 지원)
+    if (data.bookOrders) {
+      const serverBookOrdersArr = Array.isArray(data.bookOrders) ? data.bookOrders : Object.values(data.bookOrders);
+      D.bookOrders = mergeArrByIdTs(D.bookOrders, serverBookOrdersArr, D.tombstones?.bookOrders);
+    }
     if (data.bookInvLowThreshold != null && !D.bookInvLowThreshold) D.bookInvLowThreshold = data.bookInvLowThreshold;
     if (data.closureDays) D.closureDays = Array.from(new Set([...(D.closureDays||[]), ...(data.closureDays||[])]));
     if (data.dayDefs && Object.keys(data.dayDefs).length > 0) {
@@ -12862,6 +12876,23 @@ function pushCloudNow() {
     delete payload.dayDefs;
     Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=fbSanitizeForWrite(v); });
     Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=fbSanitizeForWrite(v); });
+    // ⚠ bookInv/bookOrders도 scMeta/dayDefs와 같은 이유로 항목별 경로로 쪼개서 올려야 한다.
+    // 통째로 올리면(update()에 "bookInv"/"bookOrders" 키로) 이 기기가 마지막으로 받은 스냅샷 전체로
+    // 클라우드 값을 덮어써버려서, 그 사이에 다른 선생님이 다른 기기에서 재고를 차감했거나 교재를
+    // 신청한 내용이 통째로 사라질 수 있었다(교재 신청이 "시간이 지나면 없어진다"는 신고의 원인).
+    // 브랜드/교재명에 "."이 들어갈 수 있어 경로로 쓸 땐 fbEscapeKey로 한 번 더 이스케이프한다.
+    const bookInvByBrand=payload.bookInv||{};
+    delete payload.bookInv;
+    Object.entries(bookInvByBrand).forEach(([brand,items])=>{
+      Object.entries(items||{}).forEach(([item,data])=>{
+        payload['bookInv/'+fbEscapeKey(brand)+'/'+fbEscapeKey(item)]=fbSanitizeForWrite(data);
+      });
+    });
+    const bookOrdersArr=payload.bookOrders||[];
+    delete payload.bookOrders;
+    bookOrdersArr.forEach(o=>{
+      if(o&&o.id!=null)payload['bookOrders/'+fbEscapeKey(String(o.id))]=fbSanitizeForWrite(o);
+    });
     // ⚠ 레벨명("Lv.1")처럼 "."이 들어간 값이 학생 데이터 어디 한 곳에라도 있으면, update() 호출
     // 전체가 예외도 없이 조용히 거부되어 이 기기의 저장이 통째로 실패한다 (신규/연동 등록이 계속
     // "저장 요청을 보내지 못했습니다"로 실패하던 진짜 원인). 사고력 클라우드(pushSagoNow)는 이미
