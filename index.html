@@ -1253,7 +1253,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-14-book-inv-ui'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-15-book-order-custom-brand'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6847,22 +6847,24 @@ function adjustInvStockFuzzy(brand,title,delta){
 // ═══ 교재 신청 ═══════════════════════
 function getBookOrders(){ if(!D.bookOrders)D.bookOrders=[]; return D.bookOrders; }
 function collectPendingBookOrders(){ return getBookOrders().filter(o=>!o.received); }
-let BookOrderForm={label:'',brand:'',item:'',qty:'',note:''};
+let BookOrderForm={label:'',brand:'',customBrand:'',item:'',qty:'',note:''};
+const BO_CUSTOM_BRAND='__custom__';
 function addBookOrder(label,brand,item,qty,note){
   getBookOrders().push({id:Date.now()+Math.random(),label,brand,item,qty,note:note||'',date:tdk(),received:false,receivedDate:'',_updatedAt:Date.now()});
   SD();
 }
 function submitBookOrder(){
   const label=document.getElementById('bo-label').value.trim();
-  const brand=document.getElementById('bo-brand').value;
+  const brandSel=document.getElementById('bo-brand').value;
+  const brand=brandSel===BO_CUSTOM_BRAND?document.getElementById('bo-brand-custom').value.trim():brandSel;
   const item=document.getElementById('bo-item').value.trim();
   const qty=parseInt(document.getElementById('bo-qty').value,10);
   const note=document.getElementById('bo-note').value.trim();
-  if(!brand){alert('브랜드를 선택해주세요.');return;}
+  if(!brand){alert(brandSel===BO_CUSTOM_BRAND?'브랜드명을 입력해주세요.':'브랜드를 선택해주세요.');return;}
   if(!item){alert('교재를 입력해주세요.');return;}
   if(!qty||qty<1){alert('수량을 입력해주세요.');return;}
   addBookOrder(label,brand,item,qty,note);
-  BookOrderForm={label,brand:'',item:'',qty:'',note:''}; // 세션 라벨은 남겨두고(연속 입력 편하게) 나머지는 초기화
+  BookOrderForm={label,brand:'',customBrand:'',item:'',qty:'',note:''}; // 세션 라벨은 남겨두고(연속 입력 편하게) 나머지는 초기화
   renderAll();
   toast('교재 신청을 등록했습니다');
 }
@@ -6898,10 +6900,18 @@ function deleteBookOrder(id){
 }
 let InvOpenBrands={};
 function toggleInvBrand(brand){InvOpenBrands[brand]=!InvOpenBrands[brand];renderAll();}
+// 사고력 교재 → 초등과정 교재 → 중등과정 교재 → 기타 순으로 눈에 익은 순서로 보여주기 위한 고정 순서.
+// 여기 없는 브랜드(새로 추가한 브랜드 등)는 이 목록 뒤에 가나다순으로 자동으로 붙는다.
+const BOOK_BRAND_ORDER=['수학이재밌어','팩토','필즈','소마셈','브레이닝수학','팩토타임키즈','아리수','아이비츠','최상위수학','개념완성','체크체크','절대강자','RPM','쎈','기타교재'];
+function sortBookBrands(brands){
+  const known=BOOK_BRAND_ORDER.filter(b=>brands.includes(b));
+  const rest=brands.filter(b=>!BOOK_BRAND_ORDER.includes(b)).sort((a,b)=>a.localeCompare(b,'ko'));
+  return [...known,...rest];
+}
 function rBookInvSection(){
   const inv=getBookInv();
   const threshold=getInvLowThreshold();
-  const brands=Object.keys(inv).sort((a,b)=>a.localeCompare(b,'ko'));
+  const brands=sortBookBrands(Object.keys(inv));
   const brandStats=brands.map(brand=>{
     const items=Object.entries(inv[brand]||{}).sort((a,b)=>a[0].localeCompare(b[0],'ko',{numeric:true}));
     const lowCnt=items.filter(([k,v])=>(v.stock||0)<=threshold).length;
@@ -6936,17 +6946,19 @@ function rBookInvSection(){
           <button onclick="event.stopPropagation();addInvItem('${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;">+ 교재 추가</button>
           <button onclick="event.stopPropagation();removeInvBrand('${escAttr(brand)}')" style="padding:4px 8px;border-radius:14px;border:1px solid var(--dan-b);background:var(--dan-l);color:var(--dan);font-size:11px;cursor:pointer;">브랜드 삭제</button>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${items.length?items.map(([item,data])=>{
+        <div style="display:flex;flex-direction:column;border-top:1px solid var(--bdr);">
+          ${items.length?items.map(([item,data],idx)=>{
             const low=(data.stock||0)<=threshold;
-            return `<div onclick="event.stopPropagation();" style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid ${low?'#FCA5A5':'var(--bdr)'};border-radius:10px;padding:5px 7px 5px 10px;">
-              <span style="font-size:11.5px;font-weight:600;${low?'color:#991B1B;':''}">${esc(item)}</span>
-              <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',-1)" style="width:20px;height:20px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;cursor:pointer;line-height:1;padding:0;">−</button>
-              <span onclick="promptSetInvStock('${escAttr(brand)}','${escAttr(item)}')" style="min-width:20px;text-align:center;font-size:12px;font-weight:800;cursor:pointer;${low?'color:#DC2626;':''}" title="눌러서 직접 입력">${data.stock||0}</span>
-              <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',1)" style="width:20px;height:20px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;cursor:pointer;line-height:1;padding:0;">+</button>
-              <span onclick="removeInvItem('${escAttr(brand)}','${escAttr(item)}')" style="cursor:pointer;color:var(--dan);font-weight:700;padding:0 3px;font-size:12px;">×</span>
+            return `<div onclick="event.stopPropagation();" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 4px;${idx?'border-top:1px solid #EEE;':''}background:${low?'#FEF2F2':'transparent'};">
+              <span style="font-size:12.5px;font-weight:600;flex:1;min-width:0;${low?'color:#991B1B;':''}">${esc(item)}</span>
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',-1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">−</button>
+                <span onclick="promptSetInvStock('${escAttr(brand)}','${escAttr(item)}')" style="min-width:26px;text-align:center;font-size:13px;font-weight:800;cursor:pointer;${low?'color:#DC2626;':''}" title="눌러서 직접 입력">${data.stock||0}</span>
+                <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">+</button>
+                <span onclick="removeInvItem('${escAttr(brand)}','${escAttr(item)}')" style="cursor:pointer;color:var(--dan);font-weight:700;padding:0 4px;font-size:13px;">×</span>
+              </div>
             </div>`;
-          }).join(''):`<div style="font-size:11px;color:var(--muted);">등록된 교재가 없어요</div>`}
+          }).join(''):`<div style="font-size:11px;color:var(--muted);padding:6px 0;">등록된 교재가 없어요</div>`}
         </div>
       </div>`:''}
     </div>`;
@@ -6958,7 +6970,7 @@ function rBookOrderSection(){
   const pending=collectPendingBookOrders().sort((a,b)=>b._updatedAt-a._updatedAt);
   const received=getBookOrders().filter(o=>o.received).sort((a,b)=>(b.receivedDate||'').localeCompare(a.receivedDate||'')).slice(0,10);
   const inv=getBookInv();
-  const brands=Object.keys(inv).sort((a,b)=>a.localeCompare(b,'ko'));
+  const brands=sortBookBrands(Object.keys(inv));
   let out=`<div style="margin-top:20px;border-top:2px solid var(--bdr);padding-top:14px;">
     <div style="font-size:14px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:5px;margin-bottom:6px;"><i class="ti ti-truck-delivery"></i> 교재 신청</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">세션이 정해진 날짜 없이 돌아가더라도, 다음 세션 대비 교재를 미리 신청해둔 걸 기록해두세요. 실제로 책이 도착하면 "입고 처리"를 눌러서 재고에 그대로 더해줍니다.</div>
@@ -6971,7 +6983,9 @@ function rBookOrderSection(){
           <select class="fsel" id="bo-brand" style="width:100%;" onchange="BookOrderForm.brand=this.value;renderAll()">
             <option value="">브랜드 선택</option>
             ${brands.map(b=>`<option value="${esc(b)}" ${BookOrderForm.brand===b?'selected':''}>${esc(b)}</option>`).join('')}
+            <option value="${BO_CUSTOM_BRAND}" ${BookOrderForm.brand===BO_CUSTOM_BRAND?'selected':''}>+ 목록에 없는 교재(직접 입력)</option>
           </select>
+          ${BookOrderForm.brand===BO_CUSTOM_BRAND?`<input class="fi" id="bo-brand-custom" placeholder="브랜드명 직접 입력" value="${escAttr(BookOrderForm.customBrand)}" oninput="BookOrderForm.customBrand=this.value;" style="width:100%;margin-top:6px;">`:''}
         </div>
         <div style="flex:2;min-width:110px;">
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px;">교재</div>
