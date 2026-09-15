@@ -372,7 +372,7 @@ button,input,textarea,select{font-family:inherit;}
      눈에 띄게 띄운다 — 매번 "탭을 다시 열어보세요"라고 안내할 필요 없이 스스로 알아채게 함. -->
 <div id="new-version-banner" style="display:none;background:#DC2626;color:#fff;padding:10px 16px;font-size:13px;font-weight:600;align-items:center;gap:10px;cursor:pointer;" onclick="location.reload()">
   <i class="ti ti-refresh" style="font-size:18px;"></i>
-  <span>🔄 새 버전이 있어요 — 다른 선생님이 최신 내용을 올렸어요. 지금 입력 중인 내용이 없을 때 눌러서 새로고침해주세요.</span>
+  <span>🔄 새 버전이 있어요 — 입력 중이 아닐 때 자동으로 새로고침돼요. 지금 바로 하시려면 눌러주세요.</span>
 </div>
 
 <div class="day-bar" id="day-bar">
@@ -1293,7 +1293,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-15-newbook-dynamic-brands'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-15-brand-rename-reorder'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6913,8 +6913,49 @@ function removeInvBrand(brand){
   markDeleted('bookInvItems',items.map(item=>`${brand}|${item}`));
   markDeleted('bookInvBrands',brand);
   delete inv[brand];
+  const order=getBookInvBrandOrder();
+  const idx=order.indexOf(brand);
+  if(idx>-1)order.splice(idx,1);
   SD();renderAll();
   toast(`${brand} 삭제 완료`);
+}
+// 팩토·수학이재밌어·필즈는 진도체크 탭·사고력 새 책 시작 코드에 이름이 그대로 박혀서(특수 연동)
+// 이름을 바꾸면 그 연동이 조용히 끊기므로 이름 변경을 막는다.
+const INV_BRAND_RENAME_LOCKED=['팩토','수학이재밌어','필즈'];
+function renameInvBrand(brand){
+  if(INV_BRAND_RENAME_LOCKED.includes(brand)){
+    alert(`"${brand}"는 진도체크·새 책 시작과 특별히 연동된 브랜드라 이름을 바꿀 수 없어요.\n대신 새 브랜드를 추가해서 교재를 옮기고 이 브랜드를 삭제하는 방법을 써주세요.`);
+    return;
+  }
+  const inv=getBookInv();
+  const newName=(prompt(`"${brand}"의 새 브랜드명을 입력하세요`,brand)||'').trim();
+  if(!newName||newName===brand)return;
+  if(inv[newName]){toast('이미 있는 브랜드명이에요');return;}
+  inv[newName]=inv[brand];
+  delete inv[brand];
+  const order=getBookInvBrandOrder();
+  const idx=order.indexOf(brand);
+  if(idx>-1)order[idx]=newName;
+  markDeleted('bookInvBrands',brand); // 예전 이름은 삭제된 걸로 표시해서 다른 기기와 합쳐질 때 되살아나지 않게 함
+  if(InvOpenBrands[brand]){InvOpenBrands[newName]=true;delete InvOpenBrands[brand];}
+  SD();renderAll();
+  toast(`"${brand}" → "${newName}"로 이름을 바꿨습니다`);
+}
+// 교재 브랜드 순서 — 처음엔(순서를 한 번도 안 바꾼 경우) 지금까지 쓰던 기본 순서(BOOK_BRAND_ORDER +
+// 가나다순)를 그대로 쓰다가, ▲▼로 한 번이라도 바꾸면 그때부터는 이 배열이 순서를 그대로 기억한다.
+function getBookInvBrandOrder(){
+  if(!D.bookInvBrandOrder)D.bookInvBrandOrder=[];
+  return D.bookInvBrandOrder;
+}
+function moveInvBrand(brand,dir){
+  const inv=getBookInv();
+  const brands=sortBookBrands(Object.keys(inv)); // 지금 화면에 보이는 순서를 기준으로 이동
+  const idx=brands.indexOf(brand);
+  const swapIdx=idx+dir;
+  if(idx<0||swapIdx<0||swapIdx>=brands.length)return;
+  const tmp=brands[idx];brands[idx]=brands[swapIdx];brands[swapIdx]=tmp;
+  D.bookInvBrandOrder=brands; // 이동한 결과 전체를 그대로 확정된 순서로 저장
+  SD();renderAll();
 }
 // 교재 목록 순서 — 처음엔(순서값이 없는 예전 데이터) 지금까지 쓰던 가나다순으로 한 번만 순서를
 // 매겨두고, 그 다음부턴 선생님이 ▲▼로 직접 바꾼 순서를 그대로 기억한다.
@@ -7141,6 +7182,15 @@ function toggleInvBrand(brand){InvOpenBrands[brand]=!InvOpenBrands[brand];render
 // 여기 없는 브랜드(새로 추가한 브랜드 등)는 이 목록 뒤에 가나다순으로 자동으로 붙는다.
 const BOOK_BRAND_ORDER=['수학이재밌어','팩토','필즈','소마셈','브레이닝수학','팩토타임키즈','아리수','아이비츠','최상위수학','개념완성','체크체크','절대강자','RPM','쎈','기타교재'];
 function sortBookBrands(brands){
+  const customOrder=(D.bookInvBrandOrder||[]).filter(b=>brands.includes(b));
+  if(customOrder.length){
+    // ▲▼로 한 번이라도 순서를 바꾼 적이 있으면, 그 순서를 우선 쓰고 — 그 뒤로 새로 추가돼서
+    // 아직 순서에 없는 브랜드만 기존 기본 순서(BOOK_BRAND_ORDER+가나다순)로 뒤에 붙인다.
+    const rest=brands.filter(b=>!customOrder.includes(b));
+    const restKnown=BOOK_BRAND_ORDER.filter(b=>rest.includes(b));
+    const restOther=rest.filter(b=>!BOOK_BRAND_ORDER.includes(b)).sort((a,b)=>a.localeCompare(b,'ko'));
+    return [...customOrder,...restKnown,...restOther];
+  }
   const known=BOOK_BRAND_ORDER.filter(b=>brands.includes(b));
   const rest=brands.filter(b=>!BOOK_BRAND_ORDER.includes(b)).sort((a,b)=>a.localeCompare(b,'ko'));
   return [...known,...rest];
@@ -7173,11 +7223,16 @@ function rBookInvSection(){
   if(!brands.length){
     out+=`<div class="empty"><i class="ti ti-books-off"></i>등록된 교재가 없습니다. "브랜드 추가"부터 시작해주세요.</div>`;
   }
-  brandStats.forEach(({brand,items,lowCnt})=>{
+  brandStats.forEach(({brand,items,lowCnt},bIdx)=>{
     const open=!!InvOpenBrands[brand];
+    const bFirst=bIdx===0,bLast=bIdx===brandStats.length-1;
     out+=`<div style="border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:8px;background:#FAFAFA;overflow:hidden;">
       <div onclick="toggleInvBrand('${escAttr(brand)}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;user-select:none;">
         <div style="display:flex;align-items:center;gap:7px;">
+          <div style="display:flex;flex-direction:column;flex-shrink:0;" onclick="event.stopPropagation();">
+            <button onclick="moveInvBrand('${escAttr(brand)}',-1)" ${bFirst?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${bFirst?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${bFirst?'default':'pointer'};padding:0;line-height:1;">▲</button>
+            <button onclick="moveInvBrand('${escAttr(brand)}',1)" ${bLast?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${bLast?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${bLast?'default':'pointer'};padding:0;line-height:1;">▼</button>
+          </div>
           <i class="ti ti-chevron-${open?'down':'right'}" style="font-size:14px;color:var(--muted);"></i>
           <span style="font-size:13px;font-weight:700;">${esc(brand)}</span>
           <span style="font-size:11px;color:var(--muted);">교재 ${items.length}개</span>
@@ -7186,8 +7241,9 @@ function rBookInvSection(){
         <i class="ti ti-chevron-${open?'up':'down'}" style="font-size:13px;color:var(--muted);"></i>
       </div>
       ${open?`<div style="padding:0 12px 12px;border-top:1px solid var(--bdr);">
-        <div style="display:flex;gap:5px;margin:10px 0;">
+        <div style="display:flex;gap:5px;margin:10px 0;flex-wrap:wrap;">
           <button onclick="event.stopPropagation();addInvItem('${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;">+ 교재 추가</button>
+          <button onclick="event.stopPropagation();renameInvBrand('${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px solid var(--bdr);background:#fff;color:var(--pri2);font-size:11px;cursor:pointer;">✎ 이름 수정</button>
           <button onclick="event.stopPropagation();removeInvBrand('${escAttr(brand)}')" style="padding:4px 8px;border-radius:14px;border:1px solid var(--dan-b);background:var(--dan-l);color:var(--dan);font-size:11px;cursor:pointer;">브랜드 삭제</button>
         </div>
         <div style="display:flex;flex-direction:column;border-top:1px solid var(--bdr);">
@@ -12510,15 +12566,42 @@ function switchToDefaultCloud() {
 // 예전 탭을 계속 켜두고 있어서였는데, 그걸 알아챌 방법이 없어 매번 "탭을 닫았다 다시 여세요"라고
 // 안내해야 했다. 이제는 클라우드 데이터가 갱신될 때마다(=누군가 저장할 때마다) 자동으로 버전을
 // 비교해서, 다르면 눈에 띄는 배너로 바로 알려준다.
-// ⚠ 한때 배너와 별개로 "전체화면 알림 + 몇 초 후 자동 새로고침"까지 강제로 했었는데,
-// 한창 뭔가 입력 중일 때도 튀어나와서 화면이 새로고침되며 입력하던 내용이 그대로 날아가는
-// 문제가 있었다("이걸로 인해 입력 중이던 내용이 지워진다"는 신고). 그래서 자동 새로고침은
-// 완전히 없애고, 배너를 눌러서 본인이 원할 때만 새로고침하는 방식으로 되돌렸다.
+// ⚠ 한때 배너와 별개로 "전체화면 알림 + 몇 초 후 자동 새로고침"까지 강제로 했었는데, 한창 뭔가
+// 입력 중일 때도 튀어나와서 화면이 새로고침되며 입력하던 내용이 그대로 날아가는 문제가 있었다
+// ("이걸로 인해 입력 중이던 내용이 지워진다"는 신고). 그래서 자동 새로고침은 완전히 없애고
+// 배너를 눌러서 본인이 원할 때만 새로고침하는 방식으로 되돌렸었다.
+// 🔁 이번엔 "선생님들이 화면을 켜놓은 채로 쓰는 경우가 많아서, 업로드하면 자동으로 다 새로고침
+// 됐으면 좋겠다"는 요청으로 자동 새로고침을 다시 넣되, 예전처럼 무조건 강제로 하지 않고
+// "지금 입력 중이 아닐 때"만 자동으로 하도록 안전장치를 뒀다 — 입력칸에 커서가 있거나(타이핑 중)
+// 팝업창이 열려있으면 건드리지 않고 몇 초 뒤 다시 확인하며 기다리다가, 안전한 타이밍(예: 수업
+// 기록 다 끝내고 목록 화면만 보고 있을 때)이 오면 조용히 새로고침한다.
+let LAST_BUILD_MISMATCHED=false;
+let AUTO_RELOAD_PENDING=false;
 function checkAppBuildMismatch(serverBuild){
   const banner=document.getElementById('new-version-banner');
   if(!banner)return;
   const mismatched=!!serverBuild&&serverBuild!==APP_BUILD;
   banner.style.display=mismatched?'flex':'none';
+  LAST_BUILD_MISMATCHED=mismatched;
+  if(mismatched)scheduleAutoReloadIfSafe();
+}
+// 입력칸에 커서가 가 있거나(타이핑 중) 팝업창(수업입력 등)이 열려있으면 "입력 중"으로 보고
+// 새로고침을 미룬다 — 검색창·메모칸 등 포커스 보호 로직(renderAll의 preserveFocus)과 같은 기준.
+function isSafeToAutoReload(){
+  const active=document.activeElement;
+  const isEditing=!!active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA'||active.tagName==='SELECT'||active.isContentEditable);
+  const modalOpen=!!document.querySelector('.overlay.show');
+  return !isEditing&&!modalOpen;
+}
+function scheduleAutoReloadIfSafe(){
+  if(AUTO_RELOAD_PENDING)return; // 이미 대기 중이면 중복으로 또 예약하지 않음
+  AUTO_RELOAD_PENDING=true;
+  const tryReload=()=>{
+    if(!LAST_BUILD_MISMATCHED){ AUTO_RELOAD_PENDING=false; return; } // 그 사이 버전이 다시 맞춰졌으면 그만둠
+    if(isSafeToAutoReload()){ location.reload(); }
+    else { setTimeout(tryReload,15000); } // 15초 후 다시 확인 — 입력 중이면 방해하지 않고 계속 기다림
+  };
+  setTimeout(tryReload,3000);
 }
 // 이 기기가 클라우드에 연결될 때마다(최초 연결·재연결·"공식 주소로 전환" 포함) 자신이 지금
 // 실행 중인 버전을 클라우드에 알려준다 — 그래야 예전 버전을 켜놓고 있던 다른 기기가 이 값을
@@ -12837,6 +12920,7 @@ function startCloudListen() {
       D.bookOrders = mergeArrByIdTs(D.bookOrders, serverBookOrdersArr, D.tombstones?.bookOrders);
     }
     if (data.bookInvLowThreshold != null && !D.bookInvLowThreshold) D.bookInvLowThreshold = data.bookInvLowThreshold;
+    if (Array.isArray(data.bookInvBrandOrder) && data.bookInvBrandOrder.length && !(D.bookInvBrandOrder&&D.bookInvBrandOrder.length)) D.bookInvBrandOrder = data.bookInvBrandOrder;
     if (data.closureDays) D.closureDays = Array.from(new Set([...(D.closureDays||[]), ...(data.closureDays||[])]));
     if (data.dayDefs && Object.keys(data.dayDefs).length > 0) {
       // sid별로 병합 (요일별 고정설정도 학생별 병합 - S와 동일한 이유)
@@ -13041,6 +13125,7 @@ function buildCoursePayload(){
     bookInv: D.bookInv||{},
     bookOrders: D.bookOrders||[],
     bookInvLowThreshold: D.bookInvLowThreshold||3,
+    bookInvBrandOrder: D.bookInvBrandOrder||[],
   };
 }
 let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실제 오류 — "저장 요청을 보내지 못했습니다"라는
