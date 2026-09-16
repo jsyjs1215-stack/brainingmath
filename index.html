@@ -158,6 +158,9 @@ button,input,textarea,select{font-family:inherit;}
 .fi:focus,.fsel:focus,.fta:focus{border-color:var(--pri2);}
 .fta{resize:vertical;min-height:68px;}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.em-nb-row,.sp-nb-row{position:relative;padding:8px 0;}
+.em-nb-row:not(:first-child),.sp-nb-row:not(:first-child){border-top:1px dashed #86EFAC;margin-top:2px;}
+.em-nb-row-remove,.sp-nb-row-remove{position:absolute;top:6px;right:0;background:none;border:none;color:#EF4444;font-size:15px;cursor:pointer;padding:2px 4px;line-height:1;}
 /* TOGGLES */
 .tog-row{display:flex;gap:6px;flex-wrap:wrap;}
 .tog{padding:6px 12px;border-radius:20px;border:1px solid var(--bdr);background:#fff;font-size:13px;color:var(--muted);cursor:pointer;}
@@ -577,26 +580,11 @@ button,input,textarea,select{font-family:inherit;}
       </label>
     </div>
     <div id="em-newbook-detail" style="display:none;background:#F0FDF4;border:1px solid #86EFAC;border-radius:var(--rs);padding:10px;">
-      <div class="frow" style="margin-bottom:7px;">
-        <div>
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">새 교재</label>
-          <select class="fsel" id="em-nb-subj" onchange="updateNBCurr()">
-            <option value="">교재 선택</option>
-            <option>아이비츠</option><option>아리수</option><option>최상위</option>
-            <option>자체교재</option><option>개념완성</option><option>기타</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">책 제목</label>
-          <select class="fsel" id="em-nb-title-sel" onchange="onEmNbTitleSelChange()" style="display:none;border-color:#86EFAC;margin-bottom:5px;"></select>
-          <input class="fi" id="em-nb-title" list="dl-em-nb-curr" placeholder="예) 아이비츠4-1" style="border-color:#86EFAC;">
-          <input type="hidden" id="em-nb-exact-key" value="">
-        </div>
-      </div>
-      <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;">
+      <div id="em-nb-rows"></div>
+      <button type="button" onclick="addEmNbRow(null)" style="width:100%;margin-top:7px;padding:7px;border:1px dashed #86EFAC;border-radius:6px;background:#fff;color:#14532D;font-size:12px;font-weight:600;cursor:pointer;">+ 교재 추가 (오늘 여러 권 나갔으면)</button>
+      <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;margin-top:7px;">
         💡 재고현황에 등록해둔 교재면 목록에서 골라주세요 — 그래야 재고가 정확히 차감돼요. 목록에 없는 책이면 "+ 목록에 없음"을 선택해서 직접 입력할 수 있어요(이 경우 재고는 자동으로 안 줄어들어요).<br>한눈에보기의 "새책/월말/단원" 칸과 관리 &gt; 새책 탭에서도 확인할 수 있어요
       </div>
-      <datalist id="dl-em-nb-curr"></datalist>
     </div>
   </div>
   <!-- 직전 숙제 확인 -->
@@ -767,31 +755,9 @@ button,input,textarea,select{font-family:inherit;}
       </label>
     </div>
     <div id="sp-newbook-detail" style="display:none;background:#F0FDF4;border:1px solid #86EFAC;border-radius:var(--rs);padding:10px;">
-      <div class="frow" style="margin-bottom:7px;">
-        <div>
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">브랜드</label>
-          <select class="fsel" id="sp-nb-brand" onchange="updateSpNbFields()">
-            <option value="">브랜드 선택</option>
-          </select>
-        </div>
-        <div id="sp-nb-lvunit-wrap" style="display:none;">
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">레벨 · 단원</label>
-          <div style="display:flex;gap:5px;">
-            <select class="fsel" id="sp-nb-level" style="flex:1;"></select>
-            <select class="fsel" id="sp-nb-unit" style="width:64px;"></select>
-          </div>
-        </div>
-        <div id="sp-nb-stage-wrap" style="display:none;">
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">단계</label>
-          <select class="fsel" id="sp-nb-stage"></select>
-        </div>
-        <div id="sp-nb-item-wrap" style="display:none;">
-          <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">교재</label>
-          <select class="fsel" id="sp-nb-item-sel" onchange="onSpNbItemSelChange()" style="display:none;border-color:#86EFAC;margin-bottom:5px;"></select>
-          <input class="fi" id="sp-nb-title" placeholder="예) 1031 입문A" style="border-color:#86EFAC;">
-        </div>
-      </div>
-      <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;">
+      <div id="sp-nb-rows"></div>
+      <button type="button" onclick="addSpNbRow()" style="width:100%;margin-top:7px;padding:7px;border:1px dashed #86EFAC;border-radius:6px;background:#fff;color:#14532D;font-size:12px;font-weight:600;cursor:pointer;">+ 교재 추가 (오늘 여러 권 나갔으면)</button>
+      <div style="font-size:11px;color:#14532D;background:#DCFCE7;border-radius:6px;padding:5px 8px;margin-top:7px;">
         💡 브랜드는 교재관리에 등록해둔 것이 그대로 나와요(새 브랜드 추가하면 바로 여기서도 골라 쓸 수 있어요). 목록에서 교재를 고르면 재고가 자동으로 1권 줄어듭니다. 팩토·수학이재밌어·필즈는 진도체크 탭 체크 현황에도 함께 반영돼요.
       </div>
     </div>
@@ -1293,7 +1259,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-16-empty-brand-persist-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-16-record-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3311,8 +3277,8 @@ function rOvr(){
       const todayAddedNotes=allImpNotes.filter(n=>n.date===date&&n.dismissed);
       const allOvrNotes=[...activeImpNotes];
       todayAddedNotes.forEach(n=>{if(!allOvrNotes.find(x=>x.id===n.id))allOvrNotes.push(n);});
-      // 📚 새책: 오늘 날짜 기록에만 표시 (다음 수업에는 보이지 않음)
-      const newBookRec=recs[sid]?.newBook||null;
+      // 📚 새책: 오늘 날짜 기록에만 표시 (다음 수업에는 보이지 않음) — 하루에 여러 권이면 전부 나열
+      const newBookArrOvr=nbArr(recs[sid]?.newBook);
       // 🏆 월말평가: 오늘 이 슬롯 기록에서 실제로 체크된 경우에만 표시 (성적관리 점수는 학생기록의 별도 요약에서 확인)
       const slotMeOvr=(recs[sid]?.slotData?.[sl.id]?.monthlyEval)||(!recs[sid]?.slotData&&recs[sid]?.monthlyEval)||null;
       const meRec=slotMeOvr?{date,...slotMeOvr}:null;
@@ -3381,11 +3347,11 @@ function rOvr(){
           :'<span style="color:var(--muted);font-size:12px;">-</span>'
         }</td>
         <td>
-          ${newBookRec?`<div style="font-size:11px;color:#14532D;font-weight:600;margin-bottom:2px;line-height:1.4;white-space:nowrap;">📚 ${esc(newBookRec.title||newBookRec.subject||'')}</div>`:''}
+          ${newBookArrOvr.map(nb=>`<div style="font-size:11px;color:#14532D;font-weight:600;margin-bottom:2px;line-height:1.4;white-space:nowrap;">📚 ${esc(nb.title||nb.subject||'')}</div>`).join('')}
           ${meRec?(meRec.notTaken?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🚫 월말평가 미응시${meRec.reason?' · '+esc(meRec.reason):''}</div>`:`<div style="font-size:11px;color:#075985;font-weight:600;line-height:1.4;white-space:nowrap;">🏆 월말평가${meRec.score?' · '+esc(meRec.score):''}${meRec.pass?' · '+esc(meRec.pass):''}</div>`):''}
           ${r.unitTest?`<div style="font-size:11px;color:#6B21A8;font-weight:600;line-height:1.4;white-space:nowrap;">📝 단원평가${r.unitTest.number?' '+esc(r.unitTest.number):''}${r.unitTest.score?' · '+esc(r.unitTest.score)+'점':''}${r.unitTest.pass?' · '+esc(r.unitTest.pass):''}${r.unitTest.inProgress?' <span style="color:#92400E;font-weight:700;">⏳진행중</span>':''}</div>`:(hasUtPendingOvr?`<div style="font-size:11px;color:#92400E;font-weight:700;line-height:1.4;white-space:nowrap;">⏳ 단원평가 진행중${s._utPendingNumber?' · '+esc(s._utPendingNumber):''}</div>`:'')}
           ${hasReinforceNeededOvr?`<div style="font-size:11px;color:#7C3AED;font-weight:700;line-height:1.4;white-space:nowrap;" title="${escAttr(s._reinforceNote||'')}">📌 보충 필요${s._reinforceNote?' · '+esc(s._reinforceNote):''}</div>`:''}
-          ${!newBookRec&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
+          ${!newBookArrOvr.length&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
         </td>
         <td>
           ${hasWrongAnswerOvr?'<span style="background:#DC2626;color:#fff;border:1px solid #B91C1C;border-radius:20px;font-size:10px;padding:2px 7px;font-weight:800;animation:waBadgeBlink 1.4s ease-in-out infinite;display:inline-block;">📝 필요</span>':(r._wrongAnswerCompletedHere?'<span style="background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;border-radius:20px;font-size:10px;padding:2px 7px;font-weight:800;display:inline-block;">✅ 완료</span>':'<span style="color:var(--muted);font-size:11px;font-style:italic;">-</span>')}
@@ -5043,8 +5009,10 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     out+=`</div></div>`;
   }
 
-  // ═══ 📚 새책 시작 이력 ═══
-  const newBookHist=sessions.filter(x=>x.newBook&&x.newBook.title).sort((a,b)=>b.date.localeCompare(a.date));
+  // ═══ 📚 새책 시작 이력 ═══ (하루에 여러 권이면 그 날짜에 여러 줄로 나열)
+  const newBookHist=[];
+  sessions.forEach(x=>{ nbArr(x.newBook).forEach(nb=>{ if(nb.title)newBookHist.push({date:x.date,subject:nb.subject,title:nb.title}); }); });
+  newBookHist.sort((a,b)=>b.date.localeCompare(a.date));
   if(newBookHist.length){
     out+=`<div style="margin:12px 0 6px;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><i class="ti ti-book" style="font-size:13px;"></i> 📚 새책 시작 이력 (${newBookHist.length}건)</div>
@@ -5053,7 +5021,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
       out+=`<div style="background:#DCFCE7;border:1px solid #86EFAC;border-radius:var(--rs);padding:8px 11px;display:flex;align-items:center;gap:8px;">
         <div style="width:28px;height:28px;border-radius:50%;background:#fff;color:#14532D;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;">📚</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:700;color:#14532D;">${esc(nb.newBook.title)}${nb.newBook.subject?` <span style="font-weight:400;color:var(--muted);">(${esc(nb.newBook.subject)})</span>`:''}</div>
+          <div style="font-size:12px;font-weight:700;color:#14532D;">${esc(nb.title)}${nb.subject?` <span style="font-weight:400;color:var(--muted);">(${esc(nb.subject)})</span>`:''}</div>
         </div>
         <div style="font-size:11px;color:var(--muted);white-space:nowrap;">${nb.date}</div>
       </div>`;
@@ -5168,6 +5136,8 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     const prevHwShow=prevHwRec?.todayHw||x.prevHwContent||x._ph||'';
     const prevHwDateHist=prevHwRec?.date||x._pd||'';
     const closed=isClosure(x.date);
+    // 📚 새책: 하루에 여러 권일 수 있어 배열로 정규화(예전 기록은 단일 객체)
+    const xNbArr=nbArr(x.newBook);
     // 보강 여부: _extraSlots에 이 슬롯이 포함된 경우
     const extraEntry=Array.isArray(x._extraSlots)?x._extraSlots.find(e=>e.slot===x.slot):null;
     const isExtra=!!extraEntry;
@@ -5187,7 +5157,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
           ${x.smsSent?'<span class="b-sms">📱발송</span>':''}
           ${x.unitTest?`<span class="b-ut">📝${x.unitTest.type}</span>`:''}
           ${(x.slotData&&x.slot&&x.slotData[x.slot]?.monthlyEval)||(!x.slotData&&x.monthlyEval)?'<span class="b-me">🏆월말</span>':''}
-          ${x.newBook?.title?`<span style="background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700;">📚새책</span>`:''}
+          ${xNbArr.length?`<span style="background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700;">📚새책${xNbArr.length>1?` ${xNbArr.length}권`:''}</span>`:''}
       ${(()=>{const et=x._extraSlots?.find?.(e=>e.slot===x.slot);if(!et)return'';const typeMap={'보충':'<span style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:10px;font-size:10px;padding:1px 5px;font-weight:700;">🔄보충</span>','시간변동':'<span style="background:#EDE9FE;color:#4C1D95;border:1px solid #8B5CF6;border-radius:10px;font-size:10px;padding:1px 5px;font-weight:700;">🔀시간변동</span>','대체수업':'<span style="background:#ECFDF5;color:#065F46;border:1px solid #34D399;border-radius:10px;font-size:10px;padding:1px 5px;font-weight:700;">🔁대체수업</span>'};return typeMap[et.type]||'';})()}
           <span style="font-size:11px;font-weight:600;color:${ac};">●${att}점</span>
           <button onclick="openEditRecord('${escAttr(rSid)}','${x.date}','${x.slot}')" style="font-size:10px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 7px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i> 수정</button>
@@ -5202,7 +5172,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
       </div>
       ${!isSagoEntry&&prevHwShow?`<div class="hsc-row"><i class="ti ti-history" style="font-size:11px;"></i> 직전숙제: <span style="color:${(()=>{const d3=prevHwDateHist?Math.round((new Date(x.date)-new Date(prevHwDateHist))/(1000*60*60*24)):0;return d3>7?'#CBD5E1':'#475569';})()};font-weight:600;">${esc(prevHwShow)}</span>${prevHwDateHist?(()=>{const d2=Math.round((new Date(x.date)-new Date(prevHwDateHist))/(1000*60*60*24));return ` <span style="font-size:10px;color:${d2>7?'#CBD5E1':'var(--muted)'};">${prevHwDateHist}${d2>0?` (${d2}일 전)`:''}${prevHwRec?._hwBy?` · ${esc(dispTeacherName(prevHwRec._hwBy))}`:''}</span>`;})():''}</div>`:''}
       ${!isSagoEntry&&x.todayHw?`<div class="hsc-hw">📋 오늘숙제: ${esc(x.todayHw)}${x._hwBy?` <span style="font-size:10px;font-weight:400;color:var(--muted);">(${esc(dispTeacherName(x._hwBy))})</span>`:''}</div>`:''}
-      ${x.newBook?.title?`<div style="font-size:12px;color:#14532D;margin:3px 0;">📚 새 책 시작: <strong>${esc(x.newBook.title)}</strong>${x.newBook.subject?` <span style="color:var(--muted);">(${esc(x.newBook.subject)})</span>`:''}</div>`:''}
+      ${xNbArr.map(nb=>`<div style="font-size:12px;color:#14532D;margin:3px 0;">📚 새 책 시작: <strong>${esc(nb.title)}</strong>${nb.subject?` <span style="color:var(--muted);">(${esc(nb.subject)})</span>`:''}</div>`).join('')}
       ${x.unitTest?`<div class="hsc-ut">📝 ${esc(x.unitTest.type)} ${x.unitTest.level||''} ${x.unitTest.number||''} · 점수: ${esc(x.unitTest.score)||'-'} · ${esc(x.unitTest.pass)||'-'}${x.unitTest.inProgress?' <span style="color:#92400E;font-weight:700;">⏳ 진행중(다음시간에 이어서)</span>':''}</div>`:''}
       ${(()=>{
         const slotMe=(x.slotData&&x.slot&&x.slotData[x.slot]?.monthlyEval)||(!x.slotData?x.monthlyEval:null);
@@ -5723,82 +5693,64 @@ function saveSagoProgress(){
 // · 팩토·수학이재밌어·필즈는 진도체크 탭과 같은 체크 현황(s.bookCheck)을 그대로 공유해서 체크한다.
 //   이미 체크돼 있는 단원/단계면 아무 것도 하지 않음(멱등) — 두 화면 중 어디서 체크했든 중복 차감되지 않는다.
 // · 기타교재는 진도체크 탭에 구조가 없어서(자유 텍스트) 저학년·고학년의 "새 책 시작"과 같은 방식으로
-//   r.newBook에 기록하고, 그 값이 바뀌거나 취소되면 이전 재고를 복구하고 새 값만큼 차감한다.
+//   r.newBook에 기록한다.
+// · 이 모달은 열 때마다 항상 빈 상태로 시작하는 "1회성 추가" 동작이라(togSpNewBook 참고), 여기서는
+//   기존 r.newBook을 덮어쓰지 않고 그 뒤에 이어 붙인다(append) — 하루에 여러 번 모달을 열어 책을
+//   추가해도 이전 기록이 지워지지 않는다. 행이 여러 개면 전부 순서대로 처리한다.
 function saveSpNewBook(date,sid,r,s){
   const nbChk=document.getElementById('sp-newbook-chk')?.checked;
-  const nbBrand=nbChk?document.getElementById('sp-nb-brand').value:'';
-  // 팩토·수학이재밌어·필즈는 진도체크 탭과 공유하는 체크 현황(bc-map)으로 처리하고, 그 외 모든
-  // 브랜드(기타교재 포함, 원장님이 교재관리에서 새로 추가한 브랜드도 전부)는 재고현황 목록에서
-  // 고른 교재만 정확히 자동 차감한다 — "목록에 없음(직접 입력)"으로 자유롭게 쓴 건 오타로 엉뚱한
-  // 항목이 차감되는 걸 막기 위해 자동 차감하지 않는다(단, 이 방식이 생기기 전의 예전 기록은
-  // 그때 방식대로 비슷한 이름을 찾아 복구를 시도한다 — restoreNewBookStock 참고).
-  const isBcMapBrand=nbBrand==='팩토'||nbBrand==='수학이재밌어'||nbBrand==='필즈';
-  const prevGeneric=(r.newBook&&r.newBook.subject&&r.newBook.subject!=='팩토'&&r.newBook.subject!=='수학이재밌어'&&r.newBook.subject!=='필즈')?{...r.newBook}:null;
-  if(nbChk&&nbBrand&&!isBcMapBrand){
-    const itemSel=document.getElementById('sp-nb-item-sel');
-    const rawSelVal=(itemSel&&itemSel.style.display!=='none')?itemSel.value:'';
-    const exactKey=(rawSelVal&&rawSelVal!=='__custom__')?rawSelVal:'';
-    const title=(document.getElementById('sp-nb-title')?.value||'').trim();
-    if(title){
-      const changed=!prevGeneric||prevGeneric.subject!==nbBrand||prevGeneric.title!==title;
-      sR(date,sid,'newBook',{subject:nbBrand,title,invBrand:nbBrand,exactKey});
-      if(changed){
-        if(prevGeneric)restoreNewBookStock(prevGeneric);
-        deductNewBookStock({subject:nbBrand,title,invBrand:nbBrand,exactKey});
+  if(!nbChk)return; // 체크 안 했으면 기존 기록은 그대로 두고 아무 것도 하지 않음
+  const rows=collectSpNbRows();
+  if(!rows.length)return;
+  const addedEntries=[];
+  let lastBcMap=null; // sagoBook/sagoUnit 등 "오늘의 진행 상태" 단일 필드는 마지막 행 기준으로 갱신
+  rows.forEach(row=>{
+    if(row.type==='bcmap'){
+      if(!s)return;
+      const bc=getBookCheck(s);
+      const map=bookUnitMap(bc,row.brand,row.level);
+      const key=String(row.unit);
+      if(Object.prototype.hasOwnProperty.call(map,key)){
+        toast(`${row.brand} ${bookLevelLabel(row.brand,row.level)} ${row.unit}번은 이미 체크되어 있어요 — 재고는 차감하지 않았어요`);
+        return;
       }
-    } else if(prevGeneric){
-      sR(date,sid,'newBook',null);
-      restoreNewBookStock(prevGeneric);
+      map[key]=date;
+      deductInvStock(row.brand,`${row.level}-${row.unit}`);
+      const unitLabel=`${bookLevelLabel(row.brand,row.level)} ${row.unit}번`;
+      s.progress={series:row.brand,level:'',unit:unitLabel};
+      s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
+      syncDayDefFromBookCheck(sid,row.brand,row.level);
+      addedEntries.push({subject:row.brand,title:unitLabel});
+      lastBcMap={brand:row.brand,unitLabel};
+      toast(`${row.brand} ${unitLabel} 새 책 체크 + 재고 1권 차감`);
+    } else if(row.type==='bcmap-fields'){
+      if(!s)return;
+      const bc=getBookCheck(s);
+      const map=bookFieldsMap(bc);
+      if(Object.prototype.hasOwnProperty.call(map,row.stage)){
+        toast(`필즈 ${row.stage}는 이미 체크되어 있어요 — 재고는 차감하지 않았어요`);
+        return;
+      }
+      map[row.stage]=date;
+      deductInvStock('필즈',row.stage);
+      s.progress={series:'필즈',level:'',unit:row.stage};
+      s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
+      addedEntries.push({subject:'필즈',title:row.stage});
+      lastBcMap={brand:'필즈',unitLabel:row.stage};
+      toast(`필즈 ${row.stage} 새 책 체크 + 재고 1권 차감`);
+    } else if(row.type==='generic'){
+      const nb={subject:row.brand,title:row.title,invBrand:row.brand,exactKey:row.exactKey};
+      deductNewBookStock(nb);
+      addedEntries.push(nb);
     }
-    return;
-  }
-  if(prevGeneric){ // 브랜드를 bc-map 방식(팩토 등)으로 바꿨거나 체크를 해제했으면, 이전 일반 브랜드 기록은 취소
-    sR(date,sid,'newBook',null);
-    restoreNewBookStock(prevGeneric);
-  }
-  if(!nbChk||!s)return;
-  if(nbBrand==='팩토'||nbBrand==='수학이재밌어'){
-    const level=document.getElementById('sp-nb-level').value;
-    const unit=document.getElementById('sp-nb-unit').value;
-    if(!level||!unit)return;
-    const bc=getBookCheck(s);
-    const map=bookUnitMap(bc,nbBrand,level);
-    const key=String(unit);
-    if(Object.prototype.hasOwnProperty.call(map,key)){
-      toast('이미 체크된 단원이에요 — 재고는 차감하지 않았어요');
-      return;
-    }
-    map[key]=date;
-    deductInvStock(nbBrand,`${level}-${unit}`);
-    const unitLabel=`${bookLevelLabel(nbBrand,level)} ${unit}번`;
-    sR(date,sid,'sagoBook',nbBrand);
-    sR(date,sid,'sagoUnit',unitLabel);
-    sR(date,sid,'sessionSubject',nbBrand);
-    sR(date,sid,'curriculum',unitLabel);
-    sR(date,sid,'newBook',{subject:nbBrand,title:unitLabel});
-    s.progress={series:nbBrand,level:'',unit:unitLabel};
-    s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
-    syncDayDefFromBookCheck(sid,nbBrand,level);
-    toast(`${nbBrand} ${unitLabel} 새 책 체크 + 재고 1권 차감`);
-  } else if(nbBrand==='필즈'){
-    const stage=document.getElementById('sp-nb-stage').value;
-    if(!stage)return;
-    const bc=getBookCheck(s);
-    const map=bookFieldsMap(bc);
-    if(Object.prototype.hasOwnProperty.call(map,stage)){
-      toast('이미 체크된 단계예요 — 재고는 차감하지 않았어요');
-      return;
-    }
-    map[stage]=date;
-    deductInvStock('필즈',stage);
-    sR(date,sid,'sagoBook','필즈');
-    sR(date,sid,'sagoUnit',stage);
-    sR(date,sid,'sessionSubject','필즈');
-    sR(date,sid,'curriculum',stage);
-    sR(date,sid,'newBook',{subject:'필즈',title:stage});
-    s.progress={series:'필즈',level:'',unit:stage};
-    s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
-    toast(`필즈 ${stage} 새 책 체크 + 재고 1권 차감`);
+  });
+  if(!addedEntries.length)return; // 전부 이미 체크된 단원이라 실제로 추가된 게 없으면 여기서 끝
+  sR(date,sid,'newBook',[...nbArr(r.newBook),...addedEntries]);
+  if(lastBcMap){
+    sR(date,sid,'sagoBook',lastBcMap.brand);
+    sR(date,sid,'sagoUnit',lastBcMap.unitLabel);
+    sR(date,sid,'sessionSubject',lastBcMap.brand);
+    sR(date,sid,'curriculum',lastBcMap.unitLabel);
   }
 }
 function openSagoProgress(sid,slot,date){
@@ -5850,9 +5802,7 @@ function openSagoProgress(sid,slot,date){
     if(nbChk){
       nbChk.checked=false;
       document.getElementById('sp-newbook-detail').style.display='none';
-      document.getElementById('sp-nb-brand').value='';
-      document.getElementById('sp-nb-title').value='';
-      updateSpNbFields();
+      resetSpNbRows();
     }
   }
   {
@@ -5898,13 +5848,9 @@ function openEdit(sid,slot,date){
     const grpForEM=s?.group||'저학년';
     const emSubjSel=document.getElementById('em-sess-subj');
     if(emSubjSel)emSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM);
-    const nbSubjSel=document.getElementById('em-nb-subj');
-    if(nbSubjSel){
-      // "새 책 시작"만 교재관리에 새로 추가된 브랜드를 자동으로 선택지 끝에 붙여준다(오늘 수업
-      // 교재 드롭다운은 기존 교과과정 분류만 유지 — 재고 브랜드와 성격이 다르므로 그대로 둠).
-      const extraBrands=getExtraInvBrandsForEM(subjListForGroup(grpForEM));
-      nbSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM)+extraBrands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
-    }
+    // "새 책 시작"의 브랜드 선택지(각 행마다)는 행을 그릴 때(resetEmNbRows→addEmNbRow) EmNbGroup
+    // 기준으로 채워지므로, 여기서는 그 기준값만 저장해둔다.
+    EmNbGroup=grpForEM;
   }
   // 📌 더블체크용 스냅샷: 이 모달을 "지금" 여는 시점의 내용을 기억해뒀다가, 저장 직전에
   // 다른 선생님이 그 사이 같은 항목(숙제/특이사항)을 이미 바꿔놓지 않았는지 비교하기 위함
@@ -6008,9 +5954,14 @@ function openEdit(sid,slot,date){
   }
   // 교재 선택 변경 이벤트 (월말평가 섹션 표시 여부 결정, me 없을 때만)
   if(!r.monthlyEval)onSessSubjChange();
-  // 새 책 시작 초기화
+  // 새 책 시작 초기화 — 기존 기록(배열 또는 예전 단일 객체)으로 행 목록을 다시 채움
   const nbChk=document.getElementById('em-newbook-chk');
-  if(nbChk){nbChk.checked=!!(r.newBook);document.getElementById('em-newbook-detail').style.display=r.newBook?'block':'none';if(r.newBook){document.getElementById('em-nb-subj').value=r.newBook.subject||'';prefillNewBookUI(r.newBook);}else{document.getElementById('em-nb-subj').value='';document.getElementById('em-nb-title').value='';document.getElementById('em-nb-exact-key').value='';const sel=document.getElementById('em-nb-title-sel');if(sel){sel.style.display='none';sel.innerHTML='';}}}
+  if(nbChk){
+    const existingNb=nbArr(r.newBook);
+    nbChk.checked=!!existingNb.length;
+    document.getElementById('em-newbook-detail').style.display=existingNb.length?'block':'none';
+    resetEmNbRows(existingNb);
+  }
 
   setAtUI(r.attend||'출석');setHwUI(r.hwStatus||'완료');setAttUI(r.attitude||80);
   // classMove: 저장값 우선, 없으면 요일 기본값(dayDefs)에서 불러오기
@@ -6307,10 +6258,19 @@ function saveRec(){
   // 재시험 상태 저장
   const retestChecked=document.getElementById('em-retest-chk')?.checked||false;
   sR(date,sid,'_retest',retestChecked||r._retest||false);
-  // 오늘 수업 교재/진도: DOM 값 우선, 없으면 daydef 기본값, 없으면 기존저장값, 없으면 학생기본값
+  // 오늘 수업 교재/진도: 새 책을 시작했으면 그 책이 곧 오늘 나간 교재이므로 최우선으로 반영한다
+  // (선생님이 새책과 오늘교재를 매번 따로 두 번 입력하지 않아도 되게 하기 위함 — 월말평가로
+  // 저장하는 경우는 예외로 두고 그 표시를 그대로 존중한다). 여러 권이면 가장 나중에 입력한
+  // 책을 기준으로 한다. 새 책이 없으면 기존처럼 DOM 값 우선, 없으면 daydef 기본값, 없으면
+  // 기존저장값, 없으면 학생기본값 순으로 채운다.
   const isHighSave=(s?.group||'저학년')==='고학년';
-  const subjFromDOM=document.getElementById('em-sess-subj').value;
-  const currFromDOM=document.getElementById('em-curr').value;
+  const nbChk=document.getElementById('em-newbook-chk')?.checked;
+  const newNewBookArr=nbChk?collectEmNbRows():[];
+  const lastNewBook=newNewBookArr.length?newNewBookArr[newNewBookArr.length-1]:null;
+  const rawSubjFromDOM=document.getElementById('em-sess-subj').value;
+  const useNbForToday=lastNewBook&&rawSubjFromDOM!=='월말평가';
+  const subjFromDOM=useNbForToday?lastNewBook.subject:rawSubjFromDOM;
+  const currFromDOM=useNbForToday?lastNewBook.title:document.getElementById('em-curr').value;
   const dt2=new Date(date+'T00:00:00');
   const dayOfWeek2=WD[dt2.getDay()];
   const dayDef2=getDayDef(sid,dayOfWeek2,ET.slot);
@@ -6393,38 +6353,30 @@ function saveRec(){
   if(allSlots.length<=1){sR(date,sid,'sessionSubject',finalSubj);sR(date,sid,'curriculum',finalCurr);}
   sR(date,sid,'_daylock_unlocked',false); // 저장 후 잠금 복원
   // 새 책 시작 — 📌 중요내용에는 더 이상 자동으로 등록하지 않음(중복 방지). "새책/월말/단원" 칸에서만 확인.
-  // ⚠ 재고관리 자동차감: 이전에 체크돼 있던 새책과 지금 저장하는 값이 다를 때만 차감/복구한다 —
-  // 안 그러면 같은 새책 기록을 그대로 다시 저장(수정 없이 재저장)할 때마다 계속 차감되어버린다.
+  // 하루에 여러 권 시작할 수도 있어서 r.newBook은 배열로 저장한다(예전 기록은 단일 객체 — nbArr()로
+  // 어느 쪽이든 배열처럼 읽는다). ⚠ 재고관리 자동차감: 이전 배열과 지금 저장하는 배열의 내용
+  // (브랜드+제목)이 완전히 같으면 차감/복구를 건너뛴다 — 안 그러면 수정 없이 재저장할 때마다
+  // 계속 차감되어버린다. 달라졌으면 이전 배열 전체를 복구하고 새 배열 전체를 다시 차감하는데,
+  // 그대로 남아있는 항목은 복구+차감이 서로 상쇄돼서 재고에는 실질적으로 영향이 없다.
   // ⚠ exactKey는 "필드가 아예 없음"과 "값이 빈 문자열"을 구분해서 써야 하므로(전자는 이 기능이
-  // 생기기 전 예전 기록, 후자는 새로 저장된 자유 입력) 얕은 복사(...)로 있는 필드만 그대로 가져온다
-  // — {exactKey:r.newBook.exactKey}처럼 직접 나열하면 없던 필드도 undefined로 항상 생겨버린다.
-  const prevNewBook=r.newBook?{...r.newBook}:null;
-  const nbChk=document.getElementById('em-newbook-chk')?.checked;
-  if(nbChk){
-    const nbSubj=document.getElementById('em-nb-subj').value;
-    const nbTitle=document.getElementById('em-nb-title').value.trim();
-    const nbExactKey=document.getElementById('em-nb-exact-key')?.value||'';
-    const nbInvBrand=resolveEmInvBrand(nbSubj);
-    if(nbTitle){
-      const nbChanged=!prevNewBook||prevNewBook.subject!==nbSubj||prevNewBook.title!==nbTitle;
-      sR(date,sid,'newBook',{subject:nbSubj,title:nbTitle,invBrand:nbInvBrand,exactKey:nbExactKey});
-      if(nbChanged){
-        if(prevNewBook)restoreNewBookStock(prevNewBook); // 바뀐 거면 이전 교재는 취소된 셈
-        deductNewBookStock({subject:nbSubj,title:nbTitle,invBrand:nbInvBrand,exactKey:nbExactKey});
-      }
-      // 📌 아리수 새책: 오늘 새 책을 나갔으면, 오늘교재(학생 기본 진도)를 그 새 책 기준으로 즉시 갱신
-      // → 다음 시험을 보고 또 새 책을 나가기 전까지는 계속 이 값이 "오늘교재"로 표시됨
-      if(nbSubj==='아리수'&&s){
-        s.curriculum=nbTitle;
-        s._updatedAt=Date.now();
-      }
-    } else {
-      sR(date,sid,'newBook',null);
-      if(prevNewBook)restoreNewBookStock(prevNewBook);
+  // 생기기 전 예전 기록, 후자는 새로 저장된 자유 입력) 얕은 복사(...)로 있는 필드만 그대로 가져온다.
+  const prevNewBookArr=nbArr(r.newBook).map(x=>({...x}));
+  {
+    const cmp=arr=>JSON.stringify(arr.map(x=>({subject:x.subject,title:x.title})));
+    const nbChanged=cmp(prevNewBookArr)!==cmp(newNewBookArr);
+    sR(date,sid,'newBook',newNewBookArr.length?newNewBookArr:null);
+    if(nbChanged){
+      prevNewBookArr.forEach(nb=>restoreNewBookStock(nb)); // 바뀐 거면 이전 교재들은 취소된 셈
+      newNewBookArr.forEach(nb=>deductNewBookStock(nb));
     }
-  } else {
-    sR(date,sid,'newBook',null);
-    if(prevNewBook)restoreNewBookStock(prevNewBook);
+    // 📌 아리수 새책: 오늘 새 책을 나갔으면, 오늘교재(학생 기본 진도)를 그 새 책 기준으로 즉시 갱신
+    // → 다음 시험을 보고 또 새 책을 나가기 전까지는 계속 이 값이 "오늘교재"로 표시됨 (여러 권이면
+    // 가장 나중에 입력한 아리수 새책을 기준으로 함)
+    const arisuNb=[...newNewBookArr].reverse().find(nb=>nb.subject==='아리수');
+    if(arisuNb&&s){
+      s.curriculum=arisuNb.title;
+      s._updatedAt=Date.now();
+    }
   }
   const utChk=document.getElementById('ut-chk')?.checked;
   const utInProgress=utChk&&(document.getElementById('ut-inprogress-chk')?.checked||false);
@@ -6940,6 +6892,7 @@ function addInvBrand(){
   const order=getBookInvBrandOrder();
   if(!order.length)order.push(...sortBookBrands(Object.keys(inv)));
   else if(!order.includes(name))order.push(name);
+  touchBookInvBrandOrder();
   SD();renderAll();
 }
 function removeInvBrand(brand){
@@ -6952,6 +6905,7 @@ function removeInvBrand(brand){
   const order=getBookInvBrandOrder();
   const idx=order.indexOf(brand);
   if(idx>-1)order.splice(idx,1);
+  touchBookInvBrandOrder();
   SD();renderAll();
   toast(`${brand} 삭제 완료`);
 }
@@ -6978,6 +6932,7 @@ function renameInvBrand(brand){
     const idx=order.indexOf(brand);
     if(idx>-1)order[idx]=newName; else order.push(newName);
   }
+  touchBookInvBrandOrder();
   markDeleted('bookInvBrands',brand); // 예전 이름은 삭제된 걸로 표시해서 다른 기기와 합쳐질 때 되살아나지 않게 함
   if(InvOpenBrands[brand]){InvOpenBrands[newName]=true;delete InvOpenBrands[brand];}
   SD();renderAll();
@@ -6989,6 +6944,14 @@ function getBookInvBrandOrder(){
   if(!D.bookInvBrandOrder)D.bookInvBrandOrder=[];
   return D.bookInvBrandOrder;
 }
+// ⚠ 브랜드 순서가 "내가 정렬해놓은 게 자꾸 처음으로 돌아간다"고 신고된 적이 있어(교재재고/신청과
+// 같은 통째-덮어쓰기 문제) 한 번 고쳤었는데, 그 수정은 "순서를 한 번도 안 바꿔본 빈 기기가
+// 덮어쓰지 못하게" 막는 것까지만 했었다. 그런데 순서를 이미 한 번이라도 바꿔본 기기가 여러 대면
+// (예: 원장님 기기와 선생님 기기 둘 다 순서를 바꿔본 적 있음), 그중 아무 기기나 (순서와 무관한
+// 다른 저장을 하다가) 자기가 갖고 있던 예전 순서를 다시 밀어올리면 방금 다른 기기에서 바꾼 최신
+// 순서를 덮어써버렸다 — "비어있는지 여부"만으로는 최신/과거를 구분 못 하기 때문. 그래서 마지막
+// 수정 시각(_updatedAt과 같은 개념)을 따로 기억해뒀다가, 더 최근에 바뀐 쪽만 이기도록 한다.
+function touchBookInvBrandOrder(){ D.bookInvBrandOrderUpdatedAt=Date.now(); }
 function moveInvBrand(brand,dir){
   const inv=getBookInv();
   const brands=sortBookBrands(Object.keys(inv)); // 지금 화면에 보이는 순서를 기준으로 이동
@@ -6997,6 +6960,7 @@ function moveInvBrand(brand,dir){
   if(idx<0||swapIdx<0||swapIdx>=brands.length)return;
   const tmp=brands[idx];brands[idx]=brands[swapIdx];brands[swapIdx]=tmp;
   D.bookInvBrandOrder=brands; // 이동한 결과 전체를 그대로 확정된 순서로 저장
+  touchBookInvBrandOrder();
   SD();renderAll();
 }
 // 교재 목록 순서 — 처음엔(순서값이 없는 예전 데이터) 지금까지 쓰던 가나다순으로 한 번만 순서를
@@ -7128,6 +7092,9 @@ function getExtraInvBrandsForEM(baseList){
   const covered=new Set([...baseList,...Object.values(EM_SUBJ_TO_INV_BRAND)]);
   return sortBookBrands(Object.keys(getBookInv())).filter(b=>!covered.has(b));
 }
+// r.newBook은 하루에 여러 권을 기록할 수 있어 배열로 저장하지만, 이 기능이 생기기 전 예전 기록은
+// 단일 객체({subject,title,...})로 저장돼있다 — 어느 쪽이든 항상 배열처럼 다룰 수 있게 정규화한다.
+function nbArr(nb){ return Array.isArray(nb)?nb:(nb?[nb]:[]); }
 // 새 책 시작에서 재고현황 목록으로 정확히 고른 경우(exactKey 있음)만 자동으로 차감/복구한다.
 // "목록에 없음(직접 입력)"으로 자유롭게 쓴 건 오타·표기 차이로 엉뚱한 항목이 차감되는 걸 막기 위해
 // 자동 차감하지 않는다 — 단, 이 기능을 만들기 전(exactKey 필드 자체가 없는 예전 기록)은 그 당시
@@ -7399,27 +7366,32 @@ function rBookOrderSection(){
 // ═══ 새책 관리 ═══════════════════════
 // "새 책 시작"으로 입력된 기록들을 날짜순으로 모아서 한눈에 확인/관리할 수 있는 화면
 let NEWBOOK_SEARCH='';
+// 하루에 여러 권을 기록할 수 있어(nbArr) 한 날짜 안에서도 항목별로 구분해야 하므로, 배열 안
+// 위치(idx)까지 함께 담아 반환한다 — 삭제 시 그 한 권만 지우고 나머지는 그대로 남겨야 하기 때문.
 function collectNewBookRecords(search){
   const out=[];
   Object.keys(D.R).sort().reverse().forEach(date=>{
     const dr=D.R[date];if(!dr)return;
     Object.entries(dr).forEach(([sid,r])=>{
-      if(r&&r.newBook&&r.newBook.title){
-        const st=gS(sid);if(st&&(st.group||'저학년')!==ActiveGroup)return;
-        if(search&&!korSearch(sid,search))return;
-        out.push({sid,date,subject:r.newBook.subject||'',title:r.newBook.title});
-      }
+      const arr=nbArr(r?.newBook);
+      if(!arr.length)return;
+      const st=gS(sid);if(st&&(st.group||'저학년')!==ActiveGroup)return;
+      if(search&&!korSearch(sid,search))return;
+      arr.forEach((nb,idx)=>{ if(nb.title)out.push({sid,date,idx,subject:nb.subject||'',title:nb.title}); });
     });
   });
   return out;
 }
-function clearNewBookRecord(sid,date){
-  if(!confirm(`${sid} 학생의 ${date} 새책 시작 기록을 삭제할까요?`))return;
+function clearNewBookRecord(sid,date,idx){
   const r=D.R[date]?.[sid];
-  if(r){
-    if(r.newBook)restoreNewBookStock(r.newBook); // 삭제하는 만큼 재고를 다시 채워줌
-    r.newBook=null;r._updatedAt=Date.now();
-  }
+  const arr=nbArr(r?.newBook);
+  const nb=arr[idx];
+  if(!nb)return;
+  if(!confirm(`${sid} 학생의 ${date} 새책 시작 기록("${nb.title}")을 삭제할까요?`))return;
+  restoreNewBookStock(nb); // 삭제하는 만큼 재고를 다시 채워줌
+  const remaining=arr.filter((_,i)=>i!==idx);
+  r.newBook=remaining.length?remaining:null;
+  r._updatedAt=Date.now();
   SD();renderAll();
   toast('새책 기록을 삭제했습니다');
 }
@@ -7442,7 +7414,7 @@ function rNewBookSection(){
         <div style="font-size:12px;color:#14532D;font-weight:600;margin-top:2px;line-height:1.4;">📚 ${esc(x.title)}${x.subject?` <span style="color:var(--muted);font-weight:400;">(${esc(x.subject)})</span>`:''}</div>
       </div>
       <div style="font-size:11px;color:var(--muted);white-space:nowrap;text-align:right;">${x.date}</div>
-      <button onclick="clearNewBookRecord('${esc(x.sid)}','${x.date}')" style="font-size:10px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:14px;padding:5px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">삭제</button>
+      <button onclick="clearNewBookRecord('${esc(x.sid)}','${x.date}',${x.idx})" style="font-size:10px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:14px;padding:5px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">삭제</button>
     </div>`;
   });
   out+=`</div>`;
@@ -9162,19 +9134,46 @@ function updateDDCurr(){}
 function saveDayDef(){closeM('daydef-modal');}
 
 // ═══ NEW BOOK ══════════════════════════════
+// 하루에 새 책을 여러 권 시작할 수도 있어서(예: 두 과목 교재를 동시에 새로 시작), 행(row)을
+// 여러 개 추가할 수 있는 목록형 UI로 되어있다. 각 행은 고유 id(rid)로 구분해서, 행을 추가/삭제해도
+// 다른 행의 DOM은 건드리지 않는다(다시 그리면서 입력값이 날아가는 일이 없게 하기 위함).
+let EmNbRowIds=[], EmNbNextId=1, EmNbGroup='';
+function emNbNewRowId(){ return 'r'+(EmNbNextId++); }
 function togNewBook(){
   const show=document.getElementById('em-newbook-chk')?.checked;
   document.getElementById('em-newbook-detail').style.display=show?'block':'none';
 }
-// 브랜드(em-nb-subj)를 고르면, 교재관리(재고현황)에 등록된 실제 항목으로 골라 쓸 수 있게
+function emNbRowHtml(rid,prefill){
+  const grp=EmNbGroup||ActiveGroup;
+  const subj=(prefill&&prefill.subject)||'';
+  const extraBrands=getExtraInvBrandsForEM(subjListForGroup(grp));
+  const subjOptsHtml='<option value="">교재 선택</option>'+subjOpts(subj,grp)+extraBrands.map(b=>`<option value="${esc(b)}"${b===subj?' selected':''}>${esc(b)}</option>`).join('');
+  return `<div class="em-nb-row" id="em-nb-row-${rid}">
+    <button type="button" class="em-nb-row-remove" onclick="removeEmNbRow('${rid}')" title="이 교재 삭제">✕</button>
+    <div class="frow" style="margin-bottom:7px;">
+      <div>
+        <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">새 교재</label>
+        <select class="fsel" id="em-nb-subj-${rid}" onchange="updateNBCurr('${rid}')">${subjOptsHtml}</select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">책 제목</label>
+        <select class="fsel" id="em-nb-title-sel-${rid}" onchange="onEmNbTitleSelChange('${rid}')" style="display:none;border-color:#86EFAC;margin-bottom:5px;"></select>
+        <input class="fi" id="em-nb-title-${rid}" list="dl-em-nb-curr-${rid}" placeholder="예) 아이비츠4-1" style="border-color:#86EFAC;">
+        <input type="hidden" id="em-nb-exact-key-${rid}" value="">
+      </div>
+    </div>
+    <datalist id="dl-em-nb-curr-${rid}"></datalist>
+  </div>`;
+}
+// 브랜드(em-nb-subj-*)를 고르면, 교재관리(재고현황)에 등록된 실제 항목으로 골라 쓸 수 있게
 // 드롭다운을 채워준다 — 목록에서 고르면 재고가 정확히 연동되고, 목록에 없는 책이면
 // "+ 목록에 없음(직접 입력)"을 골라서 자유롭게 쓸 수 있다(이 경우 재고는 자동 반영 안 됨).
-function updateNBCurr(){
-  const subj=document.getElementById('em-nb-subj')?.value||'';
-  const dl=document.getElementById('dl-em-nb-curr');if(dl)dl.innerHTML=(CURR_OPTS[subj]||[]).map(o=>`<option value="${esc(o)}">`).join('');
-  const sel=document.getElementById('em-nb-title-sel');
-  const titleInput=document.getElementById('em-nb-title');
-  const exactKeyEl=document.getElementById('em-nb-exact-key');
+function updateNBCurr(rid){
+  const subj=document.getElementById(`em-nb-subj-${rid}`)?.value||'';
+  const dl=document.getElementById(`dl-em-nb-curr-${rid}`);if(dl)dl.innerHTML=(CURR_OPTS[subj]||[]).map(o=>`<option value="${esc(o)}">`).join('');
+  const sel=document.getElementById(`em-nb-title-sel-${rid}`);
+  const titleInput=document.getElementById(`em-nb-title-${rid}`);
+  const exactKeyEl=document.getElementById(`em-nb-exact-key-${rid}`);
   if(!sel||!titleInput||!exactKeyEl)return;
   const invBrand=resolveEmInvBrand(subj);
   const items=invBrand?Object.keys(getBookInv()[invBrand]||{}).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true})):[];
@@ -9190,13 +9189,14 @@ function updateNBCurr(){
   titleInput.value='';
   exactKeyEl.value='';
 }
-// 이미 저장된 새 책 기록을 다시 열었을 때, 목록에서 고른 거였으면 그 항목이 선택된 채로,
+// 이미 저장된 새 책 기록(행 하나)을 다시 열었을 때, 목록에서 고른 거였으면 그 항목이 선택된 채로,
 // 직접 입력한 거였으면 자유 입력 칸에 그 글자 그대로 보이게 복원한다.
-function prefillNewBookUI(nb){
-  updateNBCurr(); // 브랜드 기준으로 드롭다운부터 채움(비어있는 상태로 초기화됨)
-  const sel=document.getElementById('em-nb-title-sel');
-  const titleInput=document.getElementById('em-nb-title');
-  const exactKeyEl=document.getElementById('em-nb-exact-key');
+function emNbApplyPrefill(rid,nb){
+  updateNBCurr(rid); // 브랜드 기준으로 드롭다운부터 채움(비어있는 상태로 초기화됨)
+  if(!nb)return;
+  const sel=document.getElementById(`em-nb-title-sel-${rid}`);
+  const titleInput=document.getElementById(`em-nb-title-${rid}`);
+  const exactKeyEl=document.getElementById(`em-nb-exact-key-${rid}`);
   if(nb.exactKey&&sel&&sel.style.display!=='none'){
     sel.value=nb.exactKey;
     titleInput.value=nb.title||'';
@@ -9208,11 +9208,11 @@ function prefillNewBookUI(nb){
     exactKeyEl.value='';
   }
 }
-function onEmNbTitleSelChange(){
-  const subj=document.getElementById('em-nb-subj')?.value||'';
-  const sel=document.getElementById('em-nb-title-sel');
-  const titleInput=document.getElementById('em-nb-title');
-  const exactKeyEl=document.getElementById('em-nb-exact-key');
+function onEmNbTitleSelChange(rid){
+  const subj=document.getElementById(`em-nb-subj-${rid}`)?.value||'';
+  const sel=document.getElementById(`em-nb-title-sel-${rid}`);
+  const titleInput=document.getElementById(`em-nb-title-${rid}`);
+  const exactKeyEl=document.getElementById(`em-nb-exact-key-${rid}`);
   const v=sel.value;
   if(v==='__custom__'){
     titleInput.style.display='block';
@@ -9229,41 +9229,137 @@ function onEmNbTitleSelChange(){
     exactKeyEl.value='';
   }
 }
+function addEmNbRow(prefill){
+  const rid=emNbNewRowId();
+  EmNbRowIds.push(rid);
+  const wrap=document.getElementById('em-nb-rows');
+  if(wrap)wrap.insertAdjacentHTML('beforeend',emNbRowHtml(rid,prefill));
+  emNbApplyPrefill(rid,prefill);
+  emNbUpdateRemoveButtons();
+}
+function removeEmNbRow(rid){
+  EmNbRowIds=EmNbRowIds.filter(x=>x!==rid);
+  const el=document.getElementById(`em-nb-row-${rid}`);
+  if(el)el.remove();
+  if(!EmNbRowIds.length)addEmNbRow(null); // 최소 한 줄은 항상 남겨둠
+  emNbUpdateRemoveButtons();
+}
+// 행이 하나뿐일 땐 ✕(삭제) 버튼을 숨긴다 — 마지막 한 줄은 체크박스를 꺼서 취소하면 되므로
+function emNbUpdateRemoveButtons(){
+  EmNbRowIds.forEach(rid=>{
+    const btn=document.querySelector(`#em-nb-row-${rid} .em-nb-row-remove`);
+    if(btn)btn.style.display=EmNbRowIds.length>1?'block':'none';
+  });
+}
+// 모달을 열 때(신규/수정) 기존 r.newBook 값(배열 또는 예전 단일 객체)으로 행 목록을 다시 채운다.
+function resetEmNbRows(prefillList){
+  EmNbRowIds=[];
+  const wrap=document.getElementById('em-nb-rows');
+  if(wrap)wrap.innerHTML='';
+  const list=(prefillList&&prefillList.length)?prefillList:[null];
+  list.forEach(p=>addEmNbRow(p));
+}
+// 저장 시점에 화면에 떠 있는 모든 행을 읽어서 배열로 만든다 (제목이 빈 행은 제외)
+function collectEmNbRows(){
+  return EmNbRowIds.map(rid=>{
+    const subj=document.getElementById(`em-nb-subj-${rid}`)?.value||'';
+    const title=(document.getElementById(`em-nb-title-${rid}`)?.value||'').trim();
+    const exactKey=document.getElementById(`em-nb-exact-key-${rid}`)?.value||'';
+    if(!title)return null;
+    return {subject:subj,title,invBrand:resolveEmInvBrand(subj),exactKey};
+  }).filter(Boolean);
+}
 // ═══ 사고력 "새 책 시작" (수업입력 모달) — 팩토·수학이재밌어·필즈는 진도체크 탭의 체크 현황과
 // 같은 데이터를 공유해서, 여기서 체크해도 진도체크 탭에 그대로 반영되고 재고도 자동 차감된다.
 // 이미 체크돼 있는 단원/단계를 여기서 또 체크해도 중복 차감되지 않는다(멱등).
+// em 모달과 마찬가지로 하루에 여러 권 시작할 수 있어 행(row)을 여러 개 추가할 수 있다. 다만 이
+// 모달은 열 때마다 항상 빈 상태로 시작하는 "1회성 추가" 동작이라(기존 기록을 다시 보여주지
+// 않음), 저장 시 기존 r.newBook 배열을 지우고 바꾸는 게 아니라 그 뒤에 이어 붙인다(append) —
+// 그래서 오늘 이미 새책을 기록해둔 뒤 이 모달을 다시 열어 또 추가해도 이전 기록이 사라지지 않는다.
+let SpNbRowIds=[], SpNbNextId=1;
+function spNbNewRowId(){ return 's'+(SpNbNextId++); }
 function togSpNewBook(){
   const show=document.getElementById('sp-newbook-chk')?.checked;
   document.getElementById('sp-newbook-detail').style.display=show?'block':'none';
-  if(show){ populateSpNbBrandSelect(); updateSpNbFields(); }
+  if(show)resetSpNbRows();
 }
-// 브랜드 선택지를 교재관리(재고현황)에 지금 등록돼있는 브랜드 그대로 채워준다 — 하드코딩된
+// 브랜드 선택지는 교재관리(재고현황)에 지금 등록돼있는 브랜드 그대로 채워준다 — 하드코딩된
 // 4개가 아니라, 원장님이 교재관리에서 브랜드를 추가/삭제하는 즉시 여기도 그대로 따라간다.
-function populateSpNbBrandSelect(){
-  const sel=document.getElementById('sp-nb-brand');if(!sel)return;
-  const cur=sel.value;
+function spNbRowHtml(rid){
   const brands=sortBookBrands(Object.keys(getBookInv()));
-  sel.innerHTML=`<option value="">브랜드 선택</option>`+brands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
-  if(brands.includes(cur))sel.value=cur;
+  const brandOpts=`<option value="">브랜드 선택</option>`+brands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  return `<div class="sp-nb-row" id="sp-nb-row-${rid}">
+    <button type="button" class="sp-nb-row-remove" onclick="removeSpNbRow('${rid}')" title="이 교재 삭제">✕</button>
+    <div class="frow" style="margin-bottom:7px;">
+      <div>
+        <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">브랜드</label>
+        <select class="fsel" id="sp-nb-brand-${rid}" onchange="updateSpNbFields('${rid}')">${brandOpts}</select>
+      </div>
+      <div id="sp-nb-lvunit-wrap-${rid}" style="display:none;">
+        <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">레벨 · 단원</label>
+        <div style="display:flex;gap:5px;">
+          <select class="fsel" id="sp-nb-level-${rid}" style="flex:1;"></select>
+          <select class="fsel" id="sp-nb-unit-${rid}" style="width:64px;"></select>
+        </div>
+      </div>
+      <div id="sp-nb-stage-wrap-${rid}" style="display:none;">
+        <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">단계</label>
+        <select class="fsel" id="sp-nb-stage-${rid}"></select>
+      </div>
+      <div id="sp-nb-item-wrap-${rid}" style="display:none;">
+        <label style="font-size:11px;color:var(--ok);font-weight:600;display:block;margin-bottom:3px;">교재</label>
+        <select class="fsel" id="sp-nb-item-sel-${rid}" onchange="onSpNbItemSelChange('${rid}')" style="display:none;border-color:#86EFAC;margin-bottom:5px;"></select>
+        <input class="fi" id="sp-nb-title-${rid}" placeholder="예) 1031 입문A" style="border-color:#86EFAC;">
+      </div>
+    </div>
+  </div>`;
+}
+function addSpNbRow(){
+  const rid=spNbNewRowId();
+  SpNbRowIds.push(rid);
+  const wrap=document.getElementById('sp-nb-rows');
+  if(wrap)wrap.insertAdjacentHTML('beforeend',spNbRowHtml(rid));
+  updateSpNbFields(rid);
+  spNbUpdateRemoveButtons();
+}
+function removeSpNbRow(rid){
+  SpNbRowIds=SpNbRowIds.filter(x=>x!==rid);
+  const el=document.getElementById(`sp-nb-row-${rid}`);
+  if(el)el.remove();
+  if(!SpNbRowIds.length)addSpNbRow(); // 최소 한 줄은 항상 남겨둠
+  spNbUpdateRemoveButtons();
+}
+function spNbUpdateRemoveButtons(){
+  SpNbRowIds.forEach(rid=>{
+    const btn=document.querySelector(`#sp-nb-row-${rid} .sp-nb-row-remove`);
+    if(btn)btn.style.display=SpNbRowIds.length>1?'block':'none';
+  });
+}
+function resetSpNbRows(){
+  SpNbRowIds=[];
+  const wrap=document.getElementById('sp-nb-rows');
+  if(wrap)wrap.innerHTML='';
+  addSpNbRow();
 }
 // 팩토·수학이재밌어·필즈는 진도체크 탭과 같은 체크 현황(레벨·단원/단계)을 쓰고, 그 외 브랜드는
 // (기타교재 포함, 새로 추가한 브랜드도 전부) 재고현황에 등록된 교재 중에서 고르는 공용 방식을 쓴다.
-function updateSpNbFields(){
-  const brand=document.getElementById('sp-nb-brand')?.value||'';
-  const lvWrap=document.getElementById('sp-nb-lvunit-wrap'),stWrap=document.getElementById('sp-nb-stage-wrap'),itWrap=document.getElementById('sp-nb-item-wrap');
-  const itemSel=document.getElementById('sp-nb-item-sel'),titleInput=document.getElementById('sp-nb-title');
+function updateSpNbFields(rid){
+  const brand=document.getElementById(`sp-nb-brand-${rid}`)?.value||'';
+  const lvWrap=document.getElementById(`sp-nb-lvunit-wrap-${rid}`),stWrap=document.getElementById(`sp-nb-stage-wrap-${rid}`),itWrap=document.getElementById(`sp-nb-item-wrap-${rid}`);
+  const itemSel=document.getElementById(`sp-nb-item-sel-${rid}`),titleInput=document.getElementById(`sp-nb-title-${rid}`);
+  if(!lvWrap||!stWrap||!itWrap)return;
   lvWrap.style.display='none';stWrap.style.display='none';itWrap.style.display='none';
   if(itemSel){itemSel.style.display='none';itemSel.innerHTML='';}
   if(titleInput){titleInput.style.display='none';titleInput.value='';}
   if(brand==='팩토'||brand==='수학이재밌어'){
     lvWrap.style.display='block';
-    const levelSel=document.getElementById('sp-nb-level'),unitSel=document.getElementById('sp-nb-unit');
+    const levelSel=document.getElementById(`sp-nb-level-${rid}`),unitSel=document.getElementById(`sp-nb-unit-${rid}`);
     const levels=getBookLevelConfig()[brand]||[];
     levelSel.innerHTML=levels.map(lv=>`<option value="${esc(lv)}">${esc(bookLevelLabel(brand,lv))}</option>`).join('');
     unitSel.innerHTML=Array.from({length:BOOK_UNITS},(_,i)=>i+1).map(u=>`<option value="${u}">${u}번</option>`).join('');
   } else if(brand==='필즈'){
     stWrap.style.display='block';
-    const stageSel=document.getElementById('sp-nb-stage');
+    const stageSel=document.getElementById(`sp-nb-stage-${rid}`);
     stageSel.innerHTML=FIELDS_STAGES.map(st=>`<option value="${esc(st)}">${esc(st)}</option>`).join('');
   } else if(brand){
     itWrap.style.display='block';
@@ -9276,8 +9372,8 @@ function updateSpNbFields(){
     }
   }
 }
-function onSpNbItemSelChange(){
-  const sel=document.getElementById('sp-nb-item-sel'),titleInput=document.getElementById('sp-nb-title');
+function onSpNbItemSelChange(rid){
+  const sel=document.getElementById(`sp-nb-item-sel-${rid}`),titleInput=document.getElementById(`sp-nb-title-${rid}`);
   const v=sel.value;
   if(v==='__custom__'){
     titleInput.style.display='block';
@@ -9290,6 +9386,31 @@ function onSpNbItemSelChange(){
     titleInput.style.display='none';
     titleInput.value='';
   }
+}
+// 저장 시점에 화면에 떠 있는 모든 행을 읽어서, 어떤 방식(bc-map 공유형/일반 재고형)인지 태그를
+// 붙여 반환한다. 값이 덜 채워진 행(브랜드만 고르고 단원을 안 고른 등)은 조용히 제외한다.
+function collectSpNbRows(){
+  return SpNbRowIds.map(rid=>{
+    const brand=document.getElementById(`sp-nb-brand-${rid}`)?.value||'';
+    if(!brand)return null;
+    if(brand==='팩토'||brand==='수학이재밌어'){
+      const level=document.getElementById(`sp-nb-level-${rid}`)?.value||'';
+      const unit=document.getElementById(`sp-nb-unit-${rid}`)?.value||'';
+      if(!level||!unit)return null;
+      return {type:'bcmap',brand,level,unit};
+    }
+    if(brand==='필즈'){
+      const stage=document.getElementById(`sp-nb-stage-${rid}`)?.value||'';
+      if(!stage)return null;
+      return {type:'bcmap-fields',brand,stage};
+    }
+    const itemSel=document.getElementById(`sp-nb-item-sel-${rid}`);
+    const rawSelVal=(itemSel&&itemSel.style.display!=='none')?itemSel.value:'';
+    const exactKey=(rawSelVal&&rawSelVal!=='__custom__')?rawSelVal:'';
+    const title=(document.getElementById(`sp-nb-title-${rid}`)?.value||'').trim();
+    if(!title)return null;
+    return {type:'generic',brand,title,exactKey};
+  }).filter(Boolean);
 }
 
 // ═══ 학부모 상담 탭 (PCT) ═══════════════════════
@@ -11773,7 +11894,7 @@ function buildHovHTML(sid){
   sessions.forEach(({r})=>{
     if(r.curriculum)books.add(r.curriculum);
     if(r.sessionSubject&&r.curriculum)books.add(r.curriculum);
-    if(r.newBook?.title)books.add(`📚${r.newBook.title}`);
+    nbArr(r.newBook).forEach(nb=>{ if(nb.title)books.add(`📚${nb.title}`); });
   });
   if(s.curriculum)books.add(s.curriculum);
   // 요일별 설정
@@ -11878,7 +11999,7 @@ function buildHovHTML(sid){
         ${r.curriculum?`<div style="font-size:11px;color:var(--muted);">진도: ${esc(r.curriculum)}</div>`:''}
         ${r.todayHw?`<div style="font-size:11px;color:var(--pri2);">숙제: ${esc(r.todayHw)}</div>`:''}
         ${r.note?`<div style="font-size:11px;color:var(--dan);margin-top:3px;">⚠ ${esc(r.note)}</div>`:''}
-        ${r.newBook?`<div style="font-size:11px;color:var(--ok);margin-top:3px;">📚 새 책: ${esc(r.newBook.title||'')}</div>`:''}
+        ${nbArr(r.newBook).map(nb=>`<div style="font-size:11px;color:var(--ok);margin-top:3px;">📚 새 책: ${esc(nb.title||'')}</div>`).join('')}
       </div>`;
     });
     html+='</div>';
@@ -12970,7 +13091,19 @@ function startCloudListen() {
       D.bookOrders = mergeArrByIdTs(D.bookOrders, serverBookOrdersArr, D.tombstones?.bookOrders);
     }
     if (data.bookInvLowThreshold != null && !D.bookInvLowThreshold) D.bookInvLowThreshold = data.bookInvLowThreshold;
-    if (Array.isArray(data.bookInvBrandOrder) && data.bookInvBrandOrder.length && !(D.bookInvBrandOrder&&D.bookInvBrandOrder.length)) D.bookInvBrandOrder = data.bookInvBrandOrder;
+    // ⚠ "로컬이 비어있을 때만 서버 값을 받는다"는 예전 기준은, 순서를 이미 한 번이라도 바꿔본
+    // 기기가 여러 대일 때 그중 더 예전 값을 가진 기기가 최신 순서를 덮어쓰는 문제가 있었다 —
+    // 수정 시각(bookInvBrandOrderUpdatedAt)을 비교해서 진짜 더 최근에 바뀐 쪽만 받아들인다.
+    // (이 필드가 아직 없던 예전 서버 데이터를 위한 예외: 이 기기도 순서를 정해본 적이 없고
+    // 지금 로컬 순서도 비어있으면, 시각 비교 없이도 서버 값을 그대로 받아들여 처음 한 번은
+    // 정상적으로 채워지게 한다.)
+    if (Array.isArray(data.bookInvBrandOrder) && data.bookInvBrandOrder.length && (
+      (data.bookInvBrandOrderUpdatedAt||0) > (D.bookInvBrandOrderUpdatedAt||0) ||
+      (!D.bookInvBrandOrderUpdatedAt && !(D.bookInvBrandOrder&&D.bookInvBrandOrder.length))
+    )) {
+      D.bookInvBrandOrder = data.bookInvBrandOrder;
+      D.bookInvBrandOrderUpdatedAt = data.bookInvBrandOrderUpdatedAt||0;
+    }
     if (data.closureDays) D.closureDays = Array.from(new Set([...(D.closureDays||[]), ...(data.closureDays||[])]));
     if (data.dayDefs && Object.keys(data.dayDefs).length > 0) {
       // sid별로 병합 (요일별 고정설정도 학생별 병합 - S와 동일한 이유)
@@ -13176,6 +13309,7 @@ function buildCoursePayload(){
     bookOrders: D.bookOrders||[],
     bookInvLowThreshold: D.bookInvLowThreshold||3,
     bookInvBrandOrder: D.bookInvBrandOrder||[],
+    bookInvBrandOrderUpdatedAt: D.bookInvBrandOrderUpdatedAt||0,
   };
 }
 let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실제 오류 — "저장 요청을 보내지 못했습니다"라는
@@ -13201,6 +13335,32 @@ function pushCloudNow() {
     delete payload.dayDefs;
     Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=fbSanitizeForWrite(v); });
     Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=fbSanitizeForWrite(v); });
+    // ⚠ R(수업 기록)도 scMeta/dayDefs와 똑같은 이유로 날짜+학생 id별 경로로 쪼개서 올려야 한다.
+    // 통째로 "R" 키 하나로 올리면, 이 기기가 아직 못 받은(다른 기기가 방금 새로 만든) 다른 학생의
+    // 그날 기록이 이 기기의 스냅샷으로 통째로 덮여 사라질 수 있다 — 읽을 때는 이미 날짜+학생별로
+    // 안전하게 병합하고 있었지만(mergeLessonRecord, recordDeletes 무덤), 쓸 때는 여전히 통째로
+    // 나갔던 것이 남은 구멍이었다. 학생 이름에 "."이 들어갈 수 있어 fbEscapeKey로 이스케이프한다.
+    const rByDate=payload.R||{};
+    delete payload.R;
+    Object.entries(rByDate).forEach(([date,dayRecs])=>{
+      Object.entries(dayRecs||{}).forEach(([sid,rec])=>{
+        payload['R/'+date+'/'+fbEscapeKey(sid)]=fbSanitizeForWrite(rec);
+      });
+    });
+    // ⚠ 삭제(deleteRecord/전체기록삭제)는 recordDeletes 무덤을 남기고 로컬에서만 지우는데, 경로별로
+    // 쪼개 올리면 "그 경로를 아예 안 보냄"이 "그대로 둠"으로 해석돼서 서버에 예전 기록이 계속
+    // 남는다 — 그래서 이 기기가 알고 있는 삭제 중 아직 로컬에 없는 것만 명시적으로 null을 써서
+    // 실제로 지워지게 한다(이미 다른 이유로 로컬에 다시 생겼으면 건드리지 않음).
+    Object.keys(D.tombstones?.recordDeletes||{}).forEach(key=>{
+      const sep=key.indexOf('|');
+      if(sep<0)return;
+      const date=key.slice(0,sep), sid=key.slice(sep+1);
+      const s=gS(sid);
+      if(s&&(s.group||'저학년')==='사고력')return; // 사고력 학생 기록은 사고력 클라우드(pushSagoNow) 쪽에서 처리
+      if(!D.R[date]||!D.R[date][sid]){
+        payload['R/'+date+'/'+fbEscapeKey(sid)]=null;
+      }
+    });
     // ⚠ bookInv/bookOrders도 scMeta/dayDefs와 같은 이유로 항목별 경로로 쪼개서 올려야 한다.
     // 통째로 올리면(update()에 "bookInv"/"bookOrders" 키로) 이 기기가 마지막으로 받은 스냅샷 전체로
     // 클라우드 값을 덮어써버려서, 그 사이에 다른 선생님이 다른 기기에서 재고를 차감했거나 교재를
@@ -13218,12 +13378,18 @@ function pushCloudNow() {
     bookOrdersArr.forEach(o=>{
       if(o&&o.id!=null)payload['bookOrders/'+fbEscapeKey(String(o.id))]=fbSanitizeForWrite(o);
     });
-    // ⚠ bookInvBrandOrder(브랜드 순서)도 통째로 하나의 값이라 위와 같은 문제가 있었다 — 아직 순서를
-    // 한 번도 안 바꿔본 기기(로컬엔 빈 배열)가 아무 저장이나 하면 그 순서를 [](빈 값)으로 그대로
-    // 덮어써서, 다른 선생님이 애써 바꿔둔 순서가 조용히 초기화됐다("브랜드 순서가 자꾸 처음으로
-    // 돌아간다"는 신고의 원인). 이 기기가 실제로 순서를 정해본 적이 없으면(빈 배열) 아예 이 필드를
-    // 요청에 넣지 않아서, 서버에 이미 저장된 다른 선생님의 순서를 절대 건드리지 않는다.
-    if(!payload.bookInvBrandOrder||!payload.bookInvBrandOrder.length)delete payload.bookInvBrandOrder;
+    // ⚠ bookInvBrandOrder(브랜드 순서)도 통째로 하나의 값이라 위와 같은 문제가 있었다.
+    // 1차 수정: 순서를 한 번도 안 바꿔본 기기(로컬엔 빈 배열)는 이 필드를 아예 요청에 넣지 않아서
+    // 빈 값으로 남의 순서를 지우는 것만 막았었다. 그런데 순서를 이미 한 번이라도 바꿔본 기기가
+    // 여럿이면(예: 원장님 기기, 선생님 기기 모두 순서를 바꿔본 적 있음), 그중 아무 기기나 순서와
+    // 무관한 저장을 하면서 자기가 갖고 있던 "더 예전" 순서를 다시 밀어올려 방금 다른 기기에서
+    // 바꾼 최신 순서를 덮어써버렸다("순서가 자꾸 처음으로 돌아간다"는 신고의 실제 원인) — 이 기기가
+    // 순서를 정해본 적이 없으면(bookInvBrandOrderUpdatedAt 없음) 아예 필드를 안 보내고, 정해본
+    // 적이 있으면 수정 시각도 함께 보내서 받는 쪽이 "진짜 최신"만 받아들이게 한다.
+    if(!D.bookInvBrandOrderUpdatedAt){
+      delete payload.bookInvBrandOrder;
+      delete payload.bookInvBrandOrderUpdatedAt;
+    }
     // ⚠ 레벨명("Lv.1")처럼 "."이 들어간 값이 학생 데이터 어디 한 곳에라도 있으면, update() 호출
     // 전체가 예외도 없이 조용히 거부되어 이 기기의 저장이 통째로 실패한다 (신규/연동 등록이 계속
     // "저장 요청을 보내지 못했습니다"로 실패하던 진짜 원인). 사고력 클라우드(pushSagoNow)는 이미
@@ -13555,6 +13721,18 @@ function startSagoListen(){
       toast('⚠ 사고력 클라우드에서 학생 수가 크게 줄어든 데이터가 감지되어, 안전을 위해 자동 반영을 건너뛰었습니다.');
       return;
     }
+    // ⚠ tombstones(삭제 무덤)는 다른 모든 병합보다 먼저 합쳐둬야 함 — 코스 클라우드 병합과 동일한
+    // 이유(아래 R 병합의 recordDeletes 체크가 여기서 합친 값을 그대로 씀). 예전엔 사고력 클라우드로
+    // tombstones 자체를 아예 보내지도 받지도 않아서, 이 리스너가 코스 클라우드 리스너보다 먼저
+    // 뜨면(두 클라우드는 서로 독립된 연결이라 순서를 보장할 수 없음) recordDeletes 체크가 아직
+    // 텅 빈 D.tombstones를 보게 되어 방금 지운 기록이 되살아날 수 있었다 — 사고력 클라우드도
+    // 자체적으로 tombstones를 갖고 있도록 별도로 보내고 받는다.
+    if (data.tombstones) {
+      const mergedTs = {};
+      const fields = new Set([...Object.keys(D.tombstones||{}), ...Object.keys(data.tombstones||{})]);
+      fields.forEach(f => { mergedTs[f] = Object.assign({}, data.tombstones[f]||{}, D.tombstones?.[f]||{}); });
+      D.tombstones = mergedTs;
+    }
     rebuildSagoAlias(serverS);
     cleanupDuplicateSagoRecords();
     // ⚠ 예전엔 여기서 "sagoIds=서버(사고력 클라우드)에 있는 id 목록" 집합을 만들어서 아래
@@ -13713,6 +13891,10 @@ function startSagoListen(){
           if(!rec||typeof rec!=='object')return;
           const sid=sagoIn(rawSid);
           if(!isSagoSid(sid))return;
+          // ⚠ 코스 클라우드 병합과 동일하게, 이 기록을 방금 삭제했으면(recordDeletes 무덤) 다른
+          // 기기의 예전 사본으로 되살아나지 않게 막는다 — 빠져있던 보호를 여기도 맞춰서 추가함.
+          const recDelKey=date+'|'+sid;
+          if(D.tombstones?.recordDeletes?.[recDelKey]!=null)return;
           const localRec=D.R[date][sid];
           D.R[date][sid]=localRec?mergeLessonRecord(localRec,rec):rec;
         });
@@ -13806,6 +13988,11 @@ function buildSagoPayload(){
     pendingMoves:pick(D.pendingMoves,'sid'),
     dayDefs, scMeta,
     bookLevelConfig:D.bookLevelConfig||null,
+    // ⚠ 삭제 무덤(tombstones)도 이 클라우드 자체적으로 갖고 있어야 한다 — 코스 클라우드에서만
+    // 오는 값에 의존하면, 두 클라우드 연결 순서가 보장되지 않아 이 리스너가 먼저 뜰 때 방금
+    // 지운 기록이 되살아날 수 있다(R 병합의 recordDeletes 체크 참고). 그대로 다 보내도 무방한
+    // 작은 값이라 필터링하지 않는다.
+    tombstones: D.tombstones||{},
   };
 }
 // pushCloudNow()와 동일하게, 실제로 저장 요청을 보냈으면 그 Promise를 반환한다(아니면 null).
@@ -13814,9 +14001,36 @@ function pushSagoNow(){
   sagoLastPush=Date.now();
   try{
     const payload=JSON.parse(JSON.stringify(buildSagoPayload()));
-    // ⚠ 반드시 fbSanitizeForWrite로 키를 이스케이프한 뒤 보내야 함 — 레벨명 "Lv.1"처럼 "."이 들어간
-    // 키가 하나라도 있으면 update() 호출 전체가 조용히 거부되기 때문.
-    const p=sagoDb.ref(SAGO_ROOT).update(fbSanitizeForWrite(payload));
+    // ⚠ R(수업 기록)도 코스 클라우드(pushCloudNow)와 같은 이유로 날짜+학생 id별 경로로 쪼개서
+    // 올려야 한다 — 통째로 "R" 키 하나로 올리면 이 기기가 아직 못 받은 다른 사고력 학생의 그날
+    // 기록이 이 기기의 스냅샷으로 통째로 덮여 사라질 수 있다.
+    const rByDate=payload.R||{};
+    delete payload.R;
+    Object.entries(rByDate).forEach(([date,dayRecs])=>{
+      Object.entries(dayRecs||{}).forEach(([sagoSid,rec])=>{
+        payload['R/'+date+'/'+fbEscapeKey(sagoSid)]=fbSanitizeForWrite(rec);
+      });
+    });
+    // ⚠ 삭제(deleteRecord 등)로 생긴 recordDeletes 무덤 중 사고력 학생 것만, 로컬에 아직 없으면
+    // 그 경로에 명시적으로 null을 써서 실제로 지워지게 한다(경로별로 쪼개면 "안 보냄"이 "그대로
+    // 둠"이 되어버리기 때문 — pushCloudNow와 동일한 이유).
+    Object.keys(D.tombstones?.recordDeletes||{}).forEach(key=>{
+      const sep=key.indexOf('|');
+      if(sep<0)return;
+      const date=key.slice(0,sep), sid=key.slice(sep+1);
+      const s=gS(sid);
+      if(!s||(s.group||'저학년')!=='사고력')return;
+      if(!D.R[date]||!D.R[date][sid]){
+        payload['R/'+date+'/'+fbEscapeKey(sagoOut(sid))]=null;
+      }
+    });
+    // ⚠ 반드시 fbSanitizeForWrite로 값을 이스케이프한 뒤 보내야 함 — 레벨명 "Lv.1"처럼 "."이 들어간
+    // 키가 하나라도 있으면 update() 호출 전체가 조용히 거부되기 때문. 단, 위에서 만든 "R/날짜/이름"
+    // 같은 경로 키 자체는 그대로 둬야 한다 — 여기에도 fbSanitizeForWrite를 걸면 "/"까지 이스케이프
+    // 되어(전각 슬래시로 바뀜) 경로가 아니라 그냥 이상한 이름의 필드가 되어버려 쪼개 올리는 의미가
+    // 없어진다(pushCloudNow가 값만 선택적으로 이스케이프하는 것과 동일한 이유).
+    Object.keys(payload).forEach(k=>{ if(!k.includes('/'))payload[k]=fbSanitizeForWrite(payload[k]); });
+    const p=sagoDb.ref(SAGO_ROOT).update(payload);
     try{ p.catch(err=>console.warn('[사고력 동기화] 저장 실패 — 이 기기에는 정상 저장되었습니다:',err)); }catch(e2){}
     return p;
   }catch(e){ console.warn('[사고력 동기화] 저장 준비 중 오류:',e); return null; }
