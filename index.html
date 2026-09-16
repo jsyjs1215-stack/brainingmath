@@ -10929,8 +10929,13 @@ function saveToma(){
   if(!retest&&!score){alert('점수를 입력하거나 재시험 대상을 체크해주세요.');return;}
   if(!D.tomaScores)D.tomaScores=[];
   const year=new Date().getFullYear();
-  const testName=round?`제${round}회 TOMA 수학경시대회`:`${month}월 TOMA 수학경시대회`;
-  const entry={id:TOMA_EDIT_ID||Date.now()+'',sid,month:Number(month),year,round:round?Number(round):null,score:retest?'':score,retest,memo,testName};
+  const existing=TOMA_EDIT_ID?D.tomaScores.find(x=>x.id===TOMA_EDIT_ID):null;
+  // ⚠ 팩토 시험처럼 이 입력칸엔 없는 값(report 상세 분석, tplId/tplName 등)이 이미 저장돼있는
+  // 기록도 있다 — 여기서 저장할 때 그 기록을 통째로 새 객체로 바꿔치기하면 그 값들이 전부
+  // 사라진다("팩토 결과지가 없어졌다"는 신고의 실제 원인). 그래서 새 기록일 때만 만들고,
+  // 기존 기록을 고치는 거면 이 입력칸이 다루는 필드만 덮어써서 나머지는 그대로 둔다.
+  const testName=existing?.testName||(round?`제${round}회 TOMA 수학경시대회`:`${month}월 TOMA 수학경시대회`);
+  const entry=Object.assign({},existing,{id:TOMA_EDIT_ID||Date.now()+'',sid,month:Number(month),year,round:round?Number(round):null,score:retest?'':score,retest,memo,testName});
   // 마지막 사용 월/회차 기억
   D._tomaLastMonth=Number(month);
   D._tomaLastRound=round?Number(round):null;
