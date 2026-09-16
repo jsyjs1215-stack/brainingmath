@@ -370,7 +370,7 @@ button,input,textarea,select{font-family:inherit;}
      저절로 반영되지 않아서, "내 화면엔 안 보이는데 다른 컴퓨터엔 보인다"는 것처럼 느껴지는
      문제가 있었다. 클라우드에 다른(더 최신) 버전 표시가 감지되면 새로고침을 유도하는 배너를
      눈에 띄게 띄운다 — 매번 "탭을 다시 열어보세요"라고 안내할 필요 없이 스스로 알아채게 함. -->
-<div id="new-version-banner" style="display:none;background:#DC2626;color:#fff;padding:10px 16px;font-size:13px;font-weight:600;align-items:center;gap:10px;cursor:pointer;" onclick="location.reload()">
+<div id="new-version-banner" style="display:none;background:#DC2626;color:#fff;padding:10px 16px;font-size:13px;font-weight:600;align-items:center;gap:10px;cursor:pointer;" onclick="manualReloadWithStateSave()">
   <i class="ti ti-refresh" style="font-size:18px;"></i>
   <span>🔄 새 버전이 있어요 — 입력 중이 아닐 때 자동으로 새로고침돼요. 지금 바로 하시려면 눌러주세요.</span>
 </div>
@@ -1293,7 +1293,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-15-progress-count-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-16-reload-preserve-tab'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1681,6 +1681,20 @@ const DCON=[
 // ═══ STATE ════════════════════════════════
 let TAB='sch', DAY='화', WS;
 let ADMIN_TAB='students'; // 관리 탭 내부 서브탭: 'students' | 'closure' | 'removal' | 'wa' | 'hw'
+// ⚠ 자동 새로고침(scheduleAutoReloadIfSafe)이 location.reload()를 부르면 TAB/ADMIN_TAB이 항상
+// 기본값(수업입력/학생관리)으로 되돌아가서, 교재관리처럼 다른 화면을 보던 중이어도 저장한 직후
+// 화면이 수업입력으로 튀어버리는 문제가 있었다("교재관리 만지고 있는데 자꾸 화면이 바뀐다"는 신고).
+// 새로고침 직전에 지금 보던 화면을 기억해뒀다가, 새로고침 직후 그대로 복원한다.
+(function restoreViewStateAfterReload(){
+  try{
+    const raw=sessionStorage.getItem('br5_reload_view');
+    if(!raw)return;
+    sessionStorage.removeItem('br5_reload_view');
+    const st=JSON.parse(raw);
+    if(st&&st.tab)TAB=st.tab;
+    if(st&&st.adminTab)ADMIN_TAB=st.adminTab;
+  }catch(e){}
+})();
 let ET=null, AST=null, RT=null, MKT=null;
 let HSid=null, HSearch='', StuGrade='전체', StuSearch='', ConSearch='', MkuFilter='pending', MkuSearch='';
 // 통합검색 탭 — 사고력/저학년/고학년 구분 없이 이름으로 찾아서 한 화면에서 다 보는 용도
@@ -12602,12 +12616,20 @@ function isSafeToAutoReload(){
   const modalOpen=!!document.querySelector('.overlay.show');
   return !isEditing&&!modalOpen;
 }
+// 배너를 직접 눌러서 새로고침할 때도 자동 새로고침과 동일하게 지금 보던 화면을 기억해둔다.
+function manualReloadWithStateSave(){
+  try{ sessionStorage.setItem('br5_reload_view', JSON.stringify({tab:TAB, adminTab:ADMIN_TAB})); }catch(e){}
+  location.reload();
+}
 function scheduleAutoReloadIfSafe(){
   if(AUTO_RELOAD_PENDING)return; // 이미 대기 중이면 중복으로 또 예약하지 않음
   AUTO_RELOAD_PENDING=true;
   const tryReload=()=>{
     if(!LAST_BUILD_MISMATCHED){ AUTO_RELOAD_PENDING=false; return; } // 그 사이 버전이 다시 맞춰졌으면 그만둠
-    if(isSafeToAutoReload()){ location.reload(); }
+    if(isSafeToAutoReload()){
+      try{ sessionStorage.setItem('br5_reload_view', JSON.stringify({tab:TAB, adminTab:ADMIN_TAB})); }catch(e){}
+      location.reload();
+    }
     else { setTimeout(tryReload,15000); } // 15초 후 다시 확인 — 입력 중이면 방해하지 않고 계속 기다림
   };
   setTimeout(tryReload,3000);
