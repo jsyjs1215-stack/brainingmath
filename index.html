@@ -1293,7 +1293,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-16-brandorder-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-16-reload-preserve-tab-v2'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1681,18 +1681,20 @@ const DCON=[
 // ═══ STATE ════════════════════════════════
 let TAB='sch', DAY='화', WS;
 let ADMIN_TAB='students'; // 관리 탭 내부 서브탭: 'students' | 'closure' | 'removal' | 'wa' | 'hw'
-// ⚠ 자동 새로고침(scheduleAutoReloadIfSafe)이 location.reload()를 부르면 TAB/ADMIN_TAB이 항상
-// 기본값(수업입력/학생관리)으로 되돌아가서, 교재관리처럼 다른 화면을 보던 중이어도 저장한 직후
-// 화면이 수업입력으로 튀어버리는 문제가 있었다("교재관리 만지고 있는데 자꾸 화면이 바뀐다"는 신고).
-// 새로고침 직전에 지금 보던 화면을 기억해뒀다가, 새로고침 직후 그대로 복원한다.
-(function restoreViewStateAfterReload(){
+// ⚠ 자동 새로고침(scheduleAutoReloadIfSafe)이 location.reload()를 부르면, 아래 init()이 끝에서
+// 항상 setTab('sch')를 그대로 불러서 TAB/ADMIN_TAB을 기본값(수업입력/학생관리)으로 덮어써버렸다
+// — 여기서만 먼저 복원해봐야 소용없었던 이유. 그래서 새로고침 직전에 기억해둔 값을 여기 전역
+// 변수에만 담아두고, 실제 적용은 init()이 setTab('sch')를 부르는 바로 그 지점에서 한다
+// ("교재관리 만지고 있는데 자꾸 화면이 바뀐다"는 신고의 진짜 원인).
+let RELOAD_RESTORE_TAB=null, RELOAD_RESTORE_ADMIN_TAB=null;
+(function readReloadRestoreState(){
   try{
     const raw=sessionStorage.getItem('br5_reload_view');
     if(!raw)return;
     sessionStorage.removeItem('br5_reload_view');
     const st=JSON.parse(raw);
-    if(st&&st.tab)TAB=st.tab;
-    if(st&&st.adminTab)ADMIN_TAB=st.adminTab;
+    if(st&&st.tab)RELOAD_RESTORE_TAB=st.tab;
+    if(st&&st.adminTab)RELOAD_RESTORE_ADMIN_TAB=st.adminTab;
   }catch(e){}
 })();
 let ET=null, AST=null, RT=null, MKT=null;
@@ -14061,7 +14063,19 @@ function init(){
   WS=mon(new Date());
   document.getElementById('cm-date').value=tdk();
   const td=new Date().getDay();DAY={1:'월',2:'화',3:'수',4:'목',5:'금'}[td]||'화';
-  setTab('sch');
+  // 새로고침 직전에 기억해둔 화면(RELOAD_RESTORE_TAB)이 있으면 그 화면으로, 없으면(평소 앱을
+  // 새로 열 때) 지금까지처럼 수업입력으로 시작한다.
+  if(RELOAD_RESTORE_ADMIN_TAB){
+    ADMIN_TAB=RELOAD_RESTORE_ADMIN_TAB;
+    // setAdminTab()이 하는 검색창 표시 여부도 그대로 맞춰줌(학생관리/레벨 관리로 복원된 경우만 필요)
+    const sb=document.getElementById('search-bar'), si=document.getElementById('global-search-input');
+    if(sb&&si){
+      const showS=ADMIN_TAB==='students'||ADMIN_TAB==='level';
+      sb.style.display=showS?'block':'none';
+      if(showS){si.value=StuSearch;si.placeholder='이름 검색 (예: 이준우, ㅇㅈ, 준우)';}
+    }
+  }
+  setTab(RELOAD_RESTORE_TAB||'sch');
   updateTeacherNameBadge();
   // 이 기기에서 이름을 아직 설정한 적 없으면(처음 쓰는 기기), 부드럽게 한 번 알려줌
   // (강제 팝업은 아니고, 우측 상단 아이콘을 주황색으로 표시 + 안내 토스트 한 번)
