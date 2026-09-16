@@ -158,9 +158,10 @@ button,input,textarea,select{font-family:inherit;}
 .fi:focus,.fsel:focus,.fta:focus{border-color:var(--pri2);}
 .fta{resize:vertical;min-height:68px;}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
-.em-nb-row,.sp-nb-row{position:relative;padding:8px 0;}
+.em-nb-row,.sp-nb-row,.rm-subj-row{position:relative;padding:8px 0;}
 .em-nb-row:not(:first-child),.sp-nb-row:not(:first-child){border-top:1px dashed #86EFAC;margin-top:2px;}
-.em-nb-row-remove,.sp-nb-row-remove{position:absolute;top:6px;right:0;background:none;border:none;color:#EF4444;font-size:15px;cursor:pointer;padding:2px 4px;line-height:1;}
+.rm-subj-row:not(:first-child){border-top:1px dashed var(--bdr);margin-top:2px;}
+.em-nb-row-remove,.sp-nb-row-remove,.rm-subj-row-remove{position:absolute;top:6px;right:0;background:none;border:none;color:#EF4444;font-size:15px;cursor:pointer;padding:2px 4px;line-height:1;}
 /* TOGGLES */
 .tog-row{display:flex;gap:6px;flex-wrap:wrap;}
 .tog{padding:6px 12px;border-radius:20px;border:1px solid var(--bdr);background:#fff;font-size:13px;color:var(--muted);cursor:pointer;}
@@ -400,7 +401,6 @@ button,input,textarea,select{font-family:inherit;}
 <button class="fab" id="fab" onclick="fabAct()"><i class="ti ti-plus"></i></button>
 
 <datalist id="dl-em-curr"></datalist>
-<datalist id="dl-rm-curr"></datalist>
 
 <!-- EDIT MODAL -->
 <div class="overlay" id="em">
@@ -960,15 +960,10 @@ button,input,textarea,select{font-family:inherit;}
       <input class="fi" id="rm-school" placeholder="예) 서울초등학교">
     </div>
   </div>
-  <div class="frow">
-    <div class="fg"><label class="flbl">기본 교재 *</label>
-      <select class="fsel" id="rm-subj" onchange="updateDL('dl-rm-curr',this.value)">
-        <option>아이비츠</option><option>아리수</option><option>최상위</option><option>자체교재</option><option>개념완성</option><option>기타</option>
-      </select>
-    </div>
-    <div class="fg"><label class="flbl">교과 진행</label>
-      <input class="fi" id="rm-curr" list="dl-rm-curr" placeholder="선택 또는 직접 입력">
-    </div>
+  <div class="fg">
+    <label class="flbl">기본 교재 * <small style="font-weight:400;color:var(--muted);">여러 권을 동시에 진행 중이면 추가해주세요</small></label>
+    <div id="rm-subj-rows"></div>
+    <button type="button" onclick="addRmSubjRow()" style="width:100%;margin-top:2px;padding:7px;border:1px dashed var(--bdr);border-radius:6px;background:#fff;color:var(--pri2);font-size:12px;font-weight:600;cursor:pointer;">+ 교재 추가</button>
   </div>
   <div id="rm-daydef-override-notice" style="display:none;font-size:11px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:6px 9px;margin:-6px 0 10px;">
     ⚠ 아래 "요일별 수업 교재 고정 설정"에 값이 있어서, 위 기본 교재/교과 진행 칸에 직접 입력해도 저장하면 고정 설정 값으로 자동 반영됩니다. 이 학생의 기본값을 바꾸려면 요일별 고정 설정을 수정해주세요.
@@ -1259,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-16-record-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-16-newbook-syncs-basesubj'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2211,6 +2206,55 @@ function isActiveStu(s){return !!s&&!INACTIVE_STATUSES.includes(s.status);}
 const KNOWN_SUBJECTS=['아이비츠','아리수','최상위','자체교재','개념완성','쎈','개념원리','RPM','체크체크','개념연산SOS','수학의바이블','최상위수학','팩토','수학이재밌어','필즈','기타교재'];
 function sC(s){return KNOWN_SUBJECTS.includes(s)?`b-${s}`:'b-기타';}
 function stC(s){return KNOWN_SUBJECTS.includes(s)?`strip-${s}`:'strip-기타';}
+// 기본교재는 한 학생이 여러 권을 동시에 진행할 수도 있어 배열(subjects)로 저장한다. 이 기능이
+// 생기기 전 예전 기록은 단일 subject/curriculum 필드로 저장돼있으므로, 어느 쪽이든 항상 배열처럼
+// 다룰 수 있게 정규화한다 — r.newBook의 nbArr()과 같은 패턴.
+function stuSubjects(s){
+  if(!s)return [];
+  if(Array.isArray(s.subjects)&&s.subjects.length)return s.subjects;
+  return s.subject?[{subject:s.subject,curriculum:s.curriculum||''}]:[];
+}
+// subjects[] 배열을 바꾼 뒤에는 항상 이 함수를 호출해서 단일 s.subject/s.curriculum도 함께 맞춰준다
+// — 이 배열이 생기기 전부터 있던 수십 곳의 기존 코드(오늘교재 기본값, 아리수 진도 표시, 인쇄물 등)가
+// 전부 이 두 필드를 직접 읽고 있어서, 그 코드들을 하나하나 고치지 않아도 첫 번째(대표) 교재를
+// 계속 정확히 보여주게 하기 위함.
+function syncPrimarySubj(s){
+  if(!s)return;
+  const list=stuSubjects(s);
+  s.subjects=list;
+  s.subject=list[0]?.subject||'';
+  s.curriculum=list[0]?.curriculum||'';
+}
+// 여러 교재를 배지로 나열해서 보여줄 때 쓰는 공용 HTML (sz: 배지 폰트 크기 px)
+function stuSubjBadgesHtml(s,sz){
+  const list=stuSubjects(s);
+  if(!list.length)return '';
+  const fs=sz||11;
+  return list.map(x=>`<span class="badge ${sC(x.subject)}" style="font-size:${fs}px;">${esc(x.subject)}</span>`).join(' ');
+}
+// 여러 교재+진도를 한 줄 텍스트로 합쳐서 보여줄 때 — "아이비츠 4-1, 최상위 3-2"
+function stuSubjLabel(s){
+  const list=stuSubjects(s);
+  if(!list.length)return '';
+  return list.map(x=>x.curriculum?`${x.subject} ${x.curriculum}`:x.subject).join(', ');
+}
+// 진도(커리큘럼)만 쉼표로 합쳐서 보여줄 때 — "4-1, 3-2"
+function stuCurrLabel(s){
+  const list=stuSubjects(s);
+  return list.map(x=>x.curriculum).filter(Boolean).join(', ');
+}
+// 아리수처럼 "진도가 그날 기록이 아니라 지금 어디까지 나갔는지를 계속 보여주는" 브랜드는, 학생의
+// subjects[] 중 그 브랜드 항목의 진도를 여기서 찾아 갱신한다(없으면 새로 추가). 그 브랜드가 대표
+// 교재(subjects[0])면 syncPrimarySubj를 통해 s.curriculum에도 자동으로 반영된다.
+function updateStuSubjCurriculum(s,subject,curriculum){
+  if(!s||!subject)return;
+  const list=stuSubjects(s).map(x=>({...x}));
+  const idx=list.findIndex(x=>x.subject===subject);
+  if(idx>-1)list[idx]={...list[idx],curriculum};
+  else list.push({subject,curriculum});
+  s.subjects=list;
+  syncPrimarySubj(s);
+}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 // 작성자 이름 표시용: "조소연"처럼 이름만 저장돼 있으면 "조소연선생님"으로 보여주고,
 // 이미 "조소연T"·"조소연쌤"·"부원장님"처럼 호칭이 붙어있으면 그대로 존중해서 중복으로 안 붙임.
@@ -3936,14 +3980,14 @@ function rMgr(){
         <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
           ${esc(dispStuName(s.id))}
           <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);">${GL[s.grade]||s.grade}</span>
-          <span class="badge ${sC(s.subject)}">${s.subject}</span>
+          ${stuSubjBadgesHtml(s)}
           ${hasImp?'<span style="color:#F59E0B;font-size:14px;" title="중요내용 있음">📌</span>':''}
           ${isWithdrawn?`<span class="wd-badge">퇴원 ${s.withdrawDate||''}</span><button onclick="event.stopPropagation();openWithdrawDateModal('${esc(s.id)}')" style="border:1px solid var(--bdr);background:#fff;color:var(--pri2);cursor:pointer;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">✏️ 날짜수정</button>`:''}
           ${isLeave?`<span class="lo-badge">🟡 휴원 ${s.leaveDate||''}</span>`:''}
           ${isClassMove?`<span class="badge" style="background:#E0E7FF;color:#3730A3;border-color:#C7D2FE;">🔀 반이동 ${s.classMoveDate||''}</span>`:''}
           ${isSpecial?`<span class="badge" style="background:#DCFCE7;color:#166534;border-color:#BBF7D0;">⭐ 특강 ${s.specialDate||''}</span>`:''}
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${s.curriculum||'-'}${s.memo?` · <span style="color:var(--warn);">${esc(s.memo.substring(0,16))}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(stuCurrLabel(s))||'-'}${s.memo?` · <span style="color:var(--warn);">${esc(s.memo.substring(0,16))}</span>`:''}</div>
         ${pStr?`<div style="font-size:11px;color:#075985;margin-top:2px;">📖 현재진도: ${esc(pStr)}</div>`:''}
         ${(()=>{
           // 사고력: 진도체크·진도입력에서 가장 최근 실제로 입력된 교재/단원을 날짜와 함께 보여줌
@@ -4825,7 +4869,7 @@ function rHisSrch(){
           </div>
           ${targetS?`<div style="background:#F1F5F9;border-radius:99px;height:4px;margin-top:3px;overflow:hidden;"><div style="height:100%;width:${sessPct}%;background:${sessDone?'#10B981':'#3B82F6'};border-radius:99px;"></div></div>`:''}
         </div>
-        <span class="badge ${sC(s.subject)}" style="font-size:9px;padding:1px 4px;flex-shrink:0;">${s.subject.substring(0,3)}</span>
+        <span style="display:flex;gap:2px;flex-shrink:0;">${stuSubjects(s).map(x=>`<span class="badge ${sC(x.subject)}" style="font-size:9px;padding:1px 4px;">${esc(x.subject.substring(0,3))}</span>`).join('')}</span>
       </div>`;
     });
     out+=`</div>`;
@@ -4896,7 +4940,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
         <div style="font-size:19px;font-weight:700;">${esc(dispStuName(sid))}</div>
         <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;align-items:center;">
           <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);">${GL[s.grade]||s.grade}</span>
-          <span class="badge ${sC(s.subject)}">${s.subject}</span>
+          ${stuSubjBadgesHtml(s)}
           ${(()=>{
             // 🧮 대표 담임(자동계산) — 고학년만: 실제 이번 주 시간표 기준 주간 총 수업시간이 가장 많은 선생님
             if((s.group||'저학년')!=='고학년')return'';
@@ -4925,10 +4969,10 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
         </div>
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
           <div style="font-size:12.5px;color:var(--txt);background:var(--bg);border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;">
-            <span style="flex-shrink:0;">📘</span><span>${esc(s.curriculum||'교재 미설정')}</span>
+            <span style="flex-shrink:0;">📘</span><span>${esc(stuSubjLabel(s)||'교재 미설정')}</span>
           </div>
           ${sagoPartner?`<div style="font-size:12.5px;color:#4C1D95;background:#F5F3FF;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;">
-            <span style="flex-shrink:0;">🧠</span><span>사고력 · ${esc(sagoPartner.curriculum||'교재 미설정')}</span>
+            <span style="flex-shrink:0;">🧠</span><span>사고력 · ${esc(stuSubjLabel(sagoPartner)||'교재 미설정')}</span>
           </div>`:''}
           ${s.memo?`<div style="font-size:12px;color:var(--warn);padding:0 2px;">⚠️ ${esc(s.memo)}</div>`:''}
         </div>
@@ -5482,7 +5526,7 @@ function rMku(){
     out+=`<div class="mk-card ${mk.status}">
       <div class="stu-av" style="background:${bg};color:${c};width:34px;height:34px;font-size:13px;flex-shrink:0;">${mk.studentId[0]}</div>
       <div class="mk-info">
-        <div class="mk-name">${esc(dispStuName(mk.studentId))} <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);font-size:10px;">${s?GL[s.grade]:''}</span>${s?`<span class="badge ${sC(s.subject)}" style="font-size:10px;">${s.subject}</span>`:''}</div>
+        <div class="mk-name">${esc(dispStuName(mk.studentId))} <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);font-size:10px;">${s?GL[s.grade]:''}</span>${s?stuSubjBadgesHtml(s,10):''}</div>
         <div class="mk-date">결석일: ${mk.absDate} ${mk.absSlot?`(${slotLabel(mk.absSlot)})`:''}
         ${effSession?` <span style="font-size:10px;background:${isOverridden?'#FEF3C7':'#EFF6FF'};color:${isOverridden?'#92400E':'#1E40AF'};border-radius:8px;padding:1px 6px;font-weight:600;" title="${isOverridden?'수동으로 지정한 적용 세션':'결석일 기준 자동 판단'}">${isOverridden?'📌 ':''}${esc(effSession.name)} 보강${isOverridden?' (지정)':''}</span>`:''}
         ${mk.mkDate?`<br>보충예약: <strong>${mk.mkDate} ${mk.mkTimeStart&&mk.mkTimeEnd?`${mk.mkTimeStart}~${mk.mkTimeEnd}`:mk.mkSlot?slotLabel(mk.mkSlot):''}</strong>${mismatch?` <span style="font-size:10px;color:var(--dan);">⚠ 실제 진행은 ${esc(mkSession.name)} 기간</span>`:''}`:''}</div>
@@ -5703,7 +5747,10 @@ function saveSpNewBook(date,sid,r,s){
   const rows=collectSpNbRows();
   if(!rows.length)return;
   const addedEntries=[];
-  let lastBcMap=null; // sagoBook/sagoUnit 등 "오늘의 진행 상태" 단일 필드는 마지막 행 기준으로 갱신
+  // sagoBook/sagoUnit/sessionSubject/curriculum("오늘 진행 교재/진도") 같은 단일 필드는, 선생님이
+  // 새 책을 시작했으면 그 책이 곧 오늘 나간 교재이므로 굳이 "오늘 진행 교재"를 따로 또 입력하지
+  // 않아도 되게 행 종류와 상관없이 가장 나중에 처리된 행 기준으로 자동 갱신한다.
+  let lastProgress=null;
   rows.forEach(row=>{
     if(row.type==='bcmap'){
       if(!s)return;
@@ -5721,7 +5768,7 @@ function saveSpNewBook(date,sid,r,s){
       s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
       syncDayDefFromBookCheck(sid,row.brand,row.level);
       addedEntries.push({subject:row.brand,title:unitLabel});
-      lastBcMap={brand:row.brand,unitLabel};
+      lastProgress={brand:row.brand,unitLabel};
       toast(`${row.brand} ${unitLabel} 새 책 체크 + 재고 1권 차감`);
     } else if(row.type==='bcmap-fields'){
       if(!s)return;
@@ -5736,21 +5783,27 @@ function saveSpNewBook(date,sid,r,s){
       s.progress={series:'필즈',level:'',unit:row.stage};
       s._updatedAt=Date.now();s._bookUpdatedAt=Date.now();
       addedEntries.push({subject:'필즈',title:row.stage});
-      lastBcMap={brand:'필즈',unitLabel:row.stage};
+      lastProgress={brand:'필즈',unitLabel:row.stage};
       toast(`필즈 ${row.stage} 새 책 체크 + 재고 1권 차감`);
     } else if(row.type==='generic'){
       const nb={subject:row.brand,title:row.title,invBrand:row.brand,exactKey:row.exactKey};
       deductNewBookStock(nb);
       addedEntries.push(nb);
+      lastProgress={brand:row.brand,unitLabel:row.title};
     }
   });
   if(!addedEntries.length)return; // 전부 이미 체크된 단원이라 실제로 추가된 게 없으면 여기서 끝
   sR(date,sid,'newBook',[...nbArr(r.newBook),...addedEntries]);
-  if(lastBcMap){
-    sR(date,sid,'sagoBook',lastBcMap.brand);
-    sR(date,sid,'sagoUnit',lastBcMap.unitLabel);
-    sR(date,sid,'sessionSubject',lastBcMap.brand);
-    sR(date,sid,'curriculum',lastBcMap.unitLabel);
+  // 📌 새 책 시작 → 학생관리의 "기본 교재" 목록에도 자동 반영 (저학년·고학년의 em 모달과 동일한
+  // 이유 — 학생을 검색했을 때 지금 무슨 교재를 하고 있는지 기본 교재 칸만 봐도 알 수 있게 함)
+  if(s){
+    addedEntries.forEach(nb=>{ if(nb.subject)updateStuSubjCurriculum(s,nb.subject,nb.title); });
+  }
+  if(lastProgress){
+    sR(date,sid,'sagoBook',lastProgress.brand);
+    sR(date,sid,'sagoUnit',lastProgress.unitLabel);
+    sR(date,sid,'sessionSubject',lastProgress.brand);
+    sR(date,sid,'curriculum',lastProgress.unitLabel);
   }
 }
 function openSagoProgress(sid,slot,date){
@@ -5859,7 +5912,7 @@ function openEdit(sid,slot,date){
   ET._loadNote=r.note||'';
   const dt=new Date(date+'T00:00:00');
   document.getElementById('em-title').textContent=`${sid} — ${slotLabel(slot)}`;
-  document.getElementById('em-sub').textContent=`${GL[s?.grade]||''} · ${s?.subject||''} · ${date} (${WD[dt.getDay()]})`;
+  document.getElementById('em-sub').textContent=`${GL[s?.grade]||''} · ${s?stuSubjLabel(s):''} · ${date} (${WD[dt.getDay()]})`;
   // prev info boxes — 항상 표시 (자동표시, 수정 불가)
   const ph=document.getElementById('em-ph'),pn=document.getElementById('em-pn'),phEmpty=document.getElementById('em-ph-empty');
   // 직전숙제: 실시간 탐색(latestHwR)이 항상 최신 기준 — 저장된 캐시는 그게 비어있을 때만 보조로 사용
@@ -6290,7 +6343,7 @@ function saveRec(){
     :(subjFromDOM==='월말평가'?'':(currFromDOM||(dayDef2&&dayDef2.curriculum)||getSlotCurr(r,ET.slot)||s?.curriculum||''));
   // 📌 아리수 학생: 오늘 진도 값을 학생의 기본 진도로 계속 저장 → 다음에 값을 또 바꾸기 전까지 그 값이 기본값으로 유지됨
   if(finalSubj==='아리수'&&finalCurr&&s){
-    s.curriculum=finalCurr;
+    updateStuSubjCurriculum(s,'아리수',finalCurr);
     s._updatedAt=Date.now();
   }
   // 📌 숙제/특이사항: 내가 이 항목을 직접 건드리지 않았는데(모달을 열었을 때와 똑같은 상태)
@@ -6369,12 +6422,13 @@ function saveRec(){
       prevNewBookArr.forEach(nb=>restoreNewBookStock(nb)); // 바뀐 거면 이전 교재들은 취소된 셈
       newNewBookArr.forEach(nb=>deductNewBookStock(nb));
     }
-    // 📌 아리수 새책: 오늘 새 책을 나갔으면, 오늘교재(학생 기본 진도)를 그 새 책 기준으로 즉시 갱신
-    // → 다음 시험을 보고 또 새 책을 나가기 전까지는 계속 이 값이 "오늘교재"로 표시됨 (여러 권이면
-    // 가장 나중에 입력한 아리수 새책을 기준으로 함)
-    const arisuNb=[...newNewBookArr].reverse().find(nb=>nb.subject==='아리수');
-    if(arisuNb&&s){
-      s.curriculum=arisuNb.title;
+    // 📌 새 책 시작 → 학생관리의 "기본 교재" 목록에도 자동 반영한다. 지금 나간 새 책이 이미
+    // 등록해둔 교재 중 하나면 그 진도만 갱신하고, 처음 나가는 교재면 기본 교재 목록에 새로
+    // 추가한다(updateStuSubjCurriculum 참고) — 학생을 검색했을 때 "지금 이 아이가 무슨 교재를
+    // 하고 있는지" 기본 교재 칸만 봐도 바로 알 수 있게 하기 위함. 여러 권을 동시에 나갔으면
+    // 전부 반영된다.
+    if(s&&newNewBookArr.length){
+      newNewBookArr.forEach(nb=>{ if(nb.subject)updateStuSubjCurriculum(s,nb.subject,nb.title); });
       s._updatedAt=Date.now();
     }
   }
@@ -7782,6 +7836,84 @@ function applyRMGroupFieldVisibility(grp){
   if(typeof isRMLoHiAnyLinkMode==='function'&&isRMLoHiAnyLinkMode())refreshRMLoHiLabels();
   if(typeof updateRMSchGridPill==='function')updateRMSchGridPill(grp);
 }
+// ═══ 학생관리 "기본 교재" — 한 학생이 여러 권을 동시에 진행할 수도 있어(새 책 시작·교재신청과
+// 같은 이유) 행(row)을 여러 개 추가할 수 있는 목록형 UI로 되어있다. 저장 시 D.S의 각 학생 레코드에
+// subjects=[{subject,curriculum},...] 배열로 저장하고, 그 배열의 첫 번째(대표) 항목을 기존
+// s.subject/s.curriculum에도 그대로 맞춰서(syncPrimarySubj) 이 필드를 직접 읽는 수십 곳의 기존
+// 코드(오늘교재 기본값, 아리수 진도 표시, 인쇄물 등)가 계속 정상 동작하게 한다.
+let RmSubjRowIds=[], RmSubjNextId=1, RmSubjGroup='';
+function rmSubjNewRowId(){ return 'm'+(RmSubjNextId++); }
+function rmSubjRowHtml(rid,prefill){
+  const grp=RmSubjGroup||ActiveGroup;
+  const subj=(prefill&&prefill.subject)||'';
+  const curr=(prefill&&prefill.curriculum)||'';
+  const subjOptsHtml='<option value="">교재 선택 안 함</option>'+subjOpts(subj,grp);
+  return `<div class="rm-subj-row" id="rm-subj-row-${rid}">
+    <button type="button" class="rm-subj-row-remove" onclick="removeRmSubjRow('${rid}')" title="이 교재 삭제">✕</button>
+    <div class="frow" style="margin-bottom:7px;">
+      <div>
+        <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:3px;">교재</label>
+        <select class="fsel" id="rm-subj-${rid}" onchange="updateDL('dl-rm-curr-${rid}',this.value)">${subjOptsHtml}</select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:3px;">교과 진행</label>
+        <input class="fi" id="rm-curr-${rid}" list="dl-rm-curr-${rid}" placeholder="선택 또는 직접 입력" value="${escAttr(curr)}">
+        <datalist id="dl-rm-curr-${rid}"></datalist>
+      </div>
+    </div>
+  </div>`;
+}
+function addRmSubjRow(prefill){
+  const rid=rmSubjNewRowId();
+  RmSubjRowIds.push(rid);
+  const wrap=document.getElementById('rm-subj-rows');
+  if(wrap)wrap.insertAdjacentHTML('beforeend',rmSubjRowHtml(rid,prefill));
+  updateDL(`dl-rm-curr-${rid}`,(prefill&&prefill.subject)||'');
+  rmSubjUpdateRemoveButtons();
+}
+function removeRmSubjRow(rid){
+  RmSubjRowIds=RmSubjRowIds.filter(x=>x!==rid);
+  const el=document.getElementById(`rm-subj-row-${rid}`);
+  if(el)el.remove();
+  if(!RmSubjRowIds.length)addRmSubjRow(null); // 최소 한 줄은 항상 남겨둠
+  rmSubjUpdateRemoveButtons();
+}
+function rmSubjUpdateRemoveButtons(){
+  RmSubjRowIds.forEach(rid=>{
+    const btn=document.querySelector(`#rm-subj-row-${rid} .rm-subj-row-remove`);
+    if(btn)btn.style.display=RmSubjRowIds.length>1?'block':'none';
+  });
+}
+// 모달을 열 때(신규/수정) 기존 학생의 subjects 배열로 행 목록을 다시 채운다.
+function resetRmSubjRows(prefillList){
+  RmSubjRowIds=[];
+  const wrap=document.getElementById('rm-subj-rows');
+  if(wrap)wrap.innerHTML='';
+  const list=(prefillList&&prefillList.length)?prefillList:[null];
+  list.forEach(p=>addRmSubjRow(p));
+}
+// 저장 시점에 화면에 떠 있는 모든 행을 읽어서 배열로 만든다 (교재를 안 고른 행은 제외)
+function collectRmSubjRows(){
+  return RmSubjRowIds.map(rid=>{
+    const subject=document.getElementById(`rm-subj-${rid}`)?.value||'';
+    const curriculum=(document.getElementById(`rm-curr-${rid}`)?.value||'').trim();
+    if(!subject)return null;
+    return {subject,curriculum};
+  }).filter(Boolean);
+}
+// 그룹을 바꾸면 각 행의 교재 선택지도 그 그룹 기준으로 다시 채운다 (이미 고른 값이 새 그룹
+// 목록에도 있으면 유지, 없으면 초기화)
+function refreshRmSubjRowOptions(grp){
+  RmSubjGroup=grp;
+  RmSubjRowIds.forEach(rid=>{
+    const sel=document.getElementById(`rm-subj-${rid}`);
+    if(!sel)return;
+    const curSubj=subjListForGroup(grp).includes(sel.value)?sel.value:'';
+    sel.innerHTML='<option value="">교재 선택 안 함</option>'+subjOpts(curSubj,grp);
+    sel.value=curSubj;
+    updateDL(`dl-rm-curr-${rid}`,curSubj);
+  });
+}
 // 신규 등록/수정 폼에서 그룹을 바꾸면, 그 그룹 전용 교재 목록으로 "기본 교재"·"현재 진도" 드롭다운을
 // 다시 채워줌 — 안 그러면 저학년 교재 목록이 그대로 남아 고학년 학생에게 엉뚱한 교재가 저장될 수 있음.
 // (신규 등록 중에는 "기본 교재"를 비워두는 게 기본값 — 아래 openRM의 안내 참고)
@@ -7803,11 +7935,7 @@ function setRMGroup(grp){
   // 담임 선생님/반 이름은 고학년, 반(레벨)/담당 선생님은 사고력 학생에게만 의미가 있는 항목이라
   // 각각 그 그룹일 때만 입력칸을 보여줌
   applyRMGroupFieldVisibility(grp);
-  const subjSel=document.getElementById('rm-subj');
-  const curSubj=subjListForGroup(grp).includes(subjSel.value)?subjSel.value:'';
-  subjSel.innerHTML='<option value="">교재 선택 안 함</option>'+subjOpts(curSubj,grp);
-  subjSel.value=curSubj;
-  updateDL('dl-rm-curr',curSubj);
+  refreshRmSubjRowOptions(grp);
   document.getElementById('rm-prog-series').innerHTML=progSeriesOptsFor(grp);
   // 신규 등록 중 그룹을 바꾸면 학년도 그 그룹에 맞는 기본값으로 같이 조정
   if(!isE){
@@ -7976,7 +8104,7 @@ function mintLoHiId(baseName,otherGroupLabel){
 // 그대로 배정한다. 같은 클라우드('braining')라 사고력 연동과 달리 저장 확인을 따로 추적할 필요는
 // 없지만, 실패 시 배너로 바로 보이도록 trackLinkedWrite를 그대로 재사용한다(사고력 쪽은 자동으로
 // 아무 일도 안 함 — 이 두 학생 다 사고력이 아니므로 pushSagoNow가 스스로 걸러냄).
-function saveLoHiLinkedStu({name,grade,school,grp,memo,subj,curr}){
+function saveLoHiLinkedStu({name,grade,school,grp,memo,subjectsArr}){
   const otherGrp=rmLoHiOtherGroup(grp);
   const primaryId=name;
   if(D.S.some(s=>s&&s.id===primaryId)){alert('동일한 이름의 학생이 있습니다.');return;}
@@ -7993,12 +8121,12 @@ function saveLoHiLinkedStu({name,grade,school,grp,memo,subj,curr}){
   // ⚠ saveStu와 동일한 이유 — 예전에 같은 이름을 완전삭제한 적이 있으면 삭제 기록(tombstone)이
   // 남아있어서, 그 상태로 두면 동기화 병합 때 방금 만든 두 반 레코드가 조용히 사라진다.
   if(D.tombstones?.students){ delete D.tombstones.students[primaryId]; delete D.tombstones.students[secondaryId]; }
-  const primaryStu=Object.assign({},common,{id:primaryId,group:grp,teacher,className,level,
-    subject:subj,curriculum:curr});
+  const primaryStu=Object.assign({},common,{id:primaryId,group:grp,teacher,className,level});
+  syncPrimarySubj(Object.assign(primaryStu,{subjects:subjectsArr}));
   // 반대쪽 반은 이 등록에서 입력한 교재/담임 정보를 그대로 쓸 수 없으므로(그 반 전용 값이라)
   // 비워두고, 등록 후 그 학생을 그 반에서 열어 따로 지정하게 한다 — 사고력 연동과 동일한 방식.
   const secondaryStu=Object.assign({},common,{id:secondaryId,group:otherGrp,teacher:'',className:'',
-    level:'',subject:'',curriculum:''});
+    level:'',subjects:[],subject:'',curriculum:''});
   D.S.push(primaryStu);D.S.push(secondaryStu);
   readSchGrid(primaryId);
   if(grp==='고학년')readSatGrid(primaryId);
@@ -8102,13 +8230,13 @@ function openRM(sid){
   document.getElementById('rm-rename-btn').style.display=isE?'block':'none';
   document.getElementById('rm-grade').value=s?.grade||(grp==='고학년'?'m1':grp==='사고력'?'1':'2');
   document.getElementById('rm-school').value=s?.school||'';
-  // 📌 "기본 교재"는 비워둔 채 시작 — 아래 "요일별 수업 교재 고정 설정"에서 교재를 정하면
-  // saveStu()에서 그 값을 기본 교재로 자동 채워줌. 등록 즉시 아이비츠/쎈 같은 값이
+  // 📌 신규 등록은 "기본 교재"를 비워둔 채 시작 — 아래 "요일별 수업 교재 고정 설정"에서 교재를
+  // 정하면 saveStu()에서 그 값을 기본 교재로 자동 채워줌. 등록 즉시 아이비츠/쎈 같은 값이
   // 강제로 채워져 있던 예전 방식 대신, 고정 설정이 있으면 그게 기준이 되도록 함.
-  document.getElementById('rm-subj').innerHTML='<option value="">교재 선택 안 함</option>'+subjOpts(s?.subject||'',grp);
-  document.getElementById('rm-curr').value=s?.curriculum||'';
+  // 기존 학생 수정은 저장돼있던 교재들(여러 권이면 그만큼) 그대로 행으로 복원한다.
+  RmSubjGroup=grp;
+  resetRmSubjRows(isE?stuSubjects(s):[]);
   document.getElementById('rm-memo').value=s?.memo||'';
-  updateDL('dl-rm-curr',s?.subject||'');
   document.getElementById('rm-prog-series').innerHTML=progSeriesOptsFor(grp);
   populateSchGrid(isE?sid:'__NONE__');
   populateSatGrid(isE?sid:'__NONE__');
@@ -8142,14 +8270,13 @@ function saveStu(){
   const className=grp==='고학년'?(document.getElementById('rm-classname')?.value.trim()||''):'';
   // 반(레벨)은 사고력 학생에게만 저장
   const level=grp==='사고력'?(document.getElementById('rm-level')?.value||''):'';
-  const subj=document.getElementById('rm-subj').value;
-  const curr=document.getElementById('rm-curr').value.trim();
+  const subjectsArr=collectRmSubjRows();
   const memo=document.getElementById('rm-memo').value.trim();
   const isE=!!RT;
   // 🔗 연동 수강(사고력 + 저학년 교과) — 한 번의 등록으로 두 반 레코드를 함께 만든다
-  if(!isE&&isRMLinkMode()){ saveLinkedStu({name,grade,school,grp,memo,subj,curr}); return; }
+  if(!isE&&isRMLinkMode()){ saveLinkedStu({name,grade,school,grp,memo,subjectsArr}); return; }
   // 🔗 저학년+고학년 동시 등록 — 한 번의 등록으로 두 반 레코드를 함께 만든다
-  if(!isE&&isRMLoHiLinkMode()){ saveLoHiLinkedStu({name,grade,school,grp,memo,subj,curr}); return; }
+  if(!isE&&isRMLoHiLinkMode()){ saveLoHiLinkedStu({name,grade,school,grp,memo,subjectsArr}); return; }
   if(!isE){
     if(D.S.find(s=>s.id===name)){alert('동일한 이름의 학생이 있습니다.');return;}
     // ⚠ 예전에 같은 이름의 학생을 완전삭제한 적이 있으면 그 이름이 삭제 기록(tombstone)에 남아있는데,
@@ -8157,7 +8284,9 @@ function saveStu(){
     // 잠깐 보였다가 다음 클라우드 갱신 때 조용히 사라져버린다(동명이인 재등록·이름 재사용이 막힘).
     // 새로 등록하는 건 이 이름을 다시 쓰겠다는 명확한 의도이므로, 그 이름의 예전 삭제 기록은 지운다.
     if(D.tombstones?.students&&D.tombstones.students[name]!=null)delete D.tombstones.students[name];
-    D.S.push({id:name,grade,school,group:grp,teacher,className,level,subject:subj,curriculum:curr,memo,_updatedAt:Date.now()});
+    const ns={id:name,grade,school,group:grp,teacher,className,level,memo,_updatedAt:Date.now()};
+    syncPrimarySubj(Object.assign(ns,{subjects:subjectsArr}));
+    D.S.push(ns);
   }
   else{
     const s=gS(RT);
@@ -8177,7 +8306,9 @@ function saveStu(){
       // "원래부터 비어있던 것"을 구분 못 했음). 그래서 unitTest/오답풀이 등과 동일하게, 이 두 필드가
       // 실제로 바뀔 때만 전용 타임스탬프를 찍어서 병합 시 "진짜 최신 값"을 정확히 판단하게 함.
       if(s.school!==school||s.memo!==memo)s._memoUpdatedAt=Date.now();
-      s.grade=grade;s.school=school;s.group=grp;s.teacher=teacher;s.className=className;s.level=level;s.subject=subj;s.curriculum=curr;s.memo=memo;s._updatedAt=Date.now();
+      s.grade=grade;s.school=school;s.group=grp;s.teacher=teacher;s.className=className;s.level=level;s.memo=memo;s._updatedAt=Date.now();
+      s.subjects=subjectsArr;
+      syncPrimarySubj(s);
     }
   }
   const prog = getProgDropdowns('rm');
@@ -8232,7 +8363,7 @@ function applyRMLoHiLinkToExisting(primaryId,grp){
 // 🔗 연동 수강 등록 — 한 번의 "등록"으로 사고력 레코드 + 저학년 교과 레코드를 함께 만들고,
 // 고른 요일의 "고른 시간(사고력)" + "바로 다음 시간(저학년 교과)"에 각각 시간표를 배정한다.
 // 두 레코드는 같은 linkId를 공유하고, 이름(id)은 기존 "(사고력)" 접미사 규칙으로 구분한다.
-function saveLinkedStu({name,grade,school,grp,memo,subj,curr}){
+function saveLinkedStu({name,grade,school,grp,memo,subjectsArr}){
   const days=getRMLinkDays();
   const startSlot=document.getElementById('rm-link-slot')?.value||'';
   const nextSl=startSlot?nextSlotAfter(startSlot,regSlots()):null;
@@ -8258,10 +8389,10 @@ function saveLinkedStu({name,grade,school,grp,memo,subj,curr}){
   const common={grade,school,memo,group:'',linkId,status:'active',impNotes:[],
     progress:JSON.parse(JSON.stringify(prog||{series:'',level:'',unit:''})),
     _updatedAt:now,_linkUpdatedAt:now};
-  const sagoStu=Object.assign({},common,{id:sagoId,group:'사고력',level,teacher:sagoTeacher,className:'',
-    subject:grp==='사고력'?subj:'',curriculum:grp==='사고력'?curr:''});
-  const loStu=Object.assign({},common,{id:loId,group:'저학년',level:'',teacher:'',className:'',
-    subject:grp==='저학년'?subj:'',curriculum:grp==='저학년'?curr:''});
+  const sagoStu=Object.assign({},common,{id:sagoId,group:'사고력',level,teacher:sagoTeacher,className:''});
+  syncPrimarySubj(Object.assign(sagoStu,{subjects:grp==='사고력'?subjectsArr:[]}));
+  const loStu=Object.assign({},common,{id:loId,group:'저학년',level:'',teacher:'',className:''});
+  syncPrimarySubj(Object.assign(loStu,{subjects:grp==='저학년'?subjectsArr:[]}));
   D.S.push(sagoStu);D.S.push(loStu);
   registerSagoAlias(name,sagoId);
   // 🔀 요일별 수강 순서 — 주 2회 이상 다니는 아이는 요일마다 순서가 다를 수 있어서(예: 월은
@@ -11010,7 +11141,7 @@ function buildMonthlyReport(sid,session){
     <div style="text-align:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--pri2);">
       <div style="font-size:18px;font-weight:800;color:var(--pri2);">${esc(session.name)} 학습 리포트</div>
       <div style="font-size:12px;color:var(--muted);margin-top:2px;">${start} ~ ${end}</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:4px;">${isSago?`${esc(dispStuName(sid))}(사고력) (${GL[s.grade]||s.grade}) · ${esc(s.level?s.level+'반':'')}`:`${esc(isCombined?dispStuName(sid):sid)} (${GL[s.grade]||s.grade}) · ${esc(s.curriculum||s.subject||'')}${isCombined?` <span style="color:#1E40AF;font-weight:700;">🔗 ${esc(sidList.map(m=>gS(m)?.group||'저학년').join('+'))} 통합</span>`:''}`}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">${isSago?`${esc(dispStuName(sid))}(사고력) (${GL[s.grade]||s.grade}) · ${esc(s.level?s.level+'반':'')}`:`${esc(isCombined?dispStuName(sid):sid)} (${GL[s.grade]||s.grade}) · ${esc(stuSubjLabel(s)||'')}${isCombined?` <span style="color:#1E40AF;font-weight:700;">🔗 ${esc(sidList.map(m=>gS(m)?.group||'저학년').join('+'))} 통합</span>`:''}`}</div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:9px;margin-bottom:20px;">
@@ -11863,8 +11994,8 @@ function rHov(){
       out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:10px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;">
         <div style="width:38px;height:38px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:700;">${esc(dispStuName(s.id))} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span> <span class="badge ${sC(s.subject)}" style="font-size:10px;">${s.subject}</span>${hasImp?'<span style="color:#F59E0B;margin-left:4px;">📌</span>':''}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${s.curriculum||'-'} ${dys.length?'· '+dys.join('·')+'요일':''}</div>
+          <div style="font-size:13px;font-weight:700;">${esc(dispStuName(s.id))} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span> ${stuSubjBadgesHtml(s,10)}${hasImp?'<span style="color:#F59E0B;margin-left:4px;">📌</span>':''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(stuCurrLabel(s))||'-'} ${dys.length?'· '+dys.join('·')+'요일':''}</div>
         </div>
         <button onclick="openHovModal('${s.id}')" style="background:var(--pri);color:#fff;border:none;border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;flex-shrink:0;"><i class="ti ti-file-text"></i> 자료 생성</button>
       </div>`;
@@ -11875,7 +12006,7 @@ function rHov(){
 function openHovModal(sid){
   const s=gS(sid);if(!s)return;
   document.getElementById('hov-print-title').textContent=`${sid} 인수인계 자료`;
-  document.getElementById('hov-print-sub').textContent=`${GL[s.grade]||s.grade} · ${s.subject} · 생성일 ${tdk()}`;
+  document.getElementById('hov-print-sub').textContent=`${GL[s.grade]||s.grade} · ${stuSubjLabel(s)} · 생성일 ${tdk()}`;
   document.getElementById('hov-print-body').innerHTML=buildHovHTML(sid);
   openM('hov-print-modal');
 }
@@ -11896,7 +12027,7 @@ function buildHovHTML(sid){
     if(r.sessionSubject&&r.curriculum)books.add(r.curriculum);
     nbArr(r.newBook).forEach(nb=>{ if(nb.title)books.add(`📚${nb.title}`); });
   });
-  if(s.curriculum)books.add(s.curriculum);
+  stuSubjects(s).forEach(x=>{ if(x.curriculum)books.add(x.curriculum); });
   // 요일별 설정
   const defs=getAllDayDefs(sid);
   // 중요내용
@@ -11918,14 +12049,14 @@ function buildHovHTML(sid){
       <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;">${sid[0]}</div>
       <div>
         <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
-        <div style="font-size:12px;opacity:.85;">${GL[s.grade]||s.grade} · ${s.subject} · ${tdk()} 기준</div>
+        <div style="font-size:12px;opacity:.85;">${GL[s.grade]||s.grade} · ${stuSubjLabel(s)} · ${tdk()} 기준</div>
       </div>
     </div>
     <div style="padding:12px 14px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div style="background:var(--bg);border-radius:var(--rs);padding:8px 10px;">
           <div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:2px;">현재 교재</div>
-          <div style="font-size:13px;font-weight:700;">${s.curriculum||'-'}</div>
+          <div style="font-size:13px;font-weight:700;">${esc(stuSubjLabel(s))||'-'}</div>
         </div>
         <div style="background:var(--bg);border-radius:var(--rs);padding:8px 10px;">
           <div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:2px;">수업 요일</div>
@@ -12848,6 +12979,19 @@ function startCloudListen() {
       fields.forEach(f => { mergedTs[f] = Object.assign({}, data.tombstones[f]||{}, D.tombstones?.[f]||{}); });
       D.tombstones = mergedTs;
     }
+    // ⚠ 위 R 병합(아래쪽)은 "서버에서 새로 받은 값"만 걸러준다 — 삭제하기 전부터 이 기기가 이미
+    // 메모리/로컬저장소에 캐시해둔 기록은, 그 뒤로 서버 쪽 payload에 그 날짜+학생이 아예 안 들어있게
+    // 되면(예전 코드를 쓰는 다른 기기가 그 사이 한 번도 안 건드려서) 아래 R 병합 루프 자체가 그
+    // 레코드를 쳐다보지도 않아 계속 남아있을 수 있다 — 그래서 무덤이 있는 항목은 로컬에 이미
+    // 남아있어도 여기서 한 번 더 확실히 정리한다.
+    if (D.tombstones?.recordDeletes) {
+      Object.keys(D.tombstones.recordDeletes).forEach(key => {
+        const sep = key.indexOf('|');
+        if (sep < 0) return;
+        const rDate = key.slice(0, sep), rSid = key.slice(sep + 1);
+        if (D.R[rDate] && D.R[rDate][rSid]) delete D.R[rDate][rSid];
+      });
+    }
 
     // S, SC, SCH는 배열/구조 전체 교체 (단, 서버값이 없으면 로컬 유지)
     // S(학생 목록)는 학생별로 병합 — 한 선생님이 A학생을 편집하는 동안 다른 선생님이 B학생을 편집해도
@@ -13732,6 +13876,16 @@ function startSagoListen(){
       const fields = new Set([...Object.keys(D.tombstones||{}), ...Object.keys(data.tombstones||{})]);
       fields.forEach(f => { mergedTs[f] = Object.assign({}, data.tombstones[f]||{}, D.tombstones?.[f]||{}); });
       D.tombstones = mergedTs;
+    }
+    // ⚠ 코스 클라우드 리스너와 동일한 이유 — 아래 R 병합은 "서버 payload에 실제로 들어있는 값"만
+    // 걸러주므로, 삭제 전부터 이미 로컬에 캐시돼있던 기록은 무덤이 있어도 그냥 남아있을 수 있다.
+    if (D.tombstones?.recordDeletes) {
+      Object.keys(D.tombstones.recordDeletes).forEach(key => {
+        const sep = key.indexOf('|');
+        if (sep < 0) return;
+        const rDate = key.slice(0, sep), rSid = key.slice(sep + 1);
+        if (D.R[rDate] && D.R[rDate][rSid]) delete D.R[rDate][rSid];
+      });
     }
     rebuildSagoAlias(serverS);
     cleanupDuplicateSagoRecords();
