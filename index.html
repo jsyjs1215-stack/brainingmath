@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-facto-separate-tab'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-sago-course-field-guard'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -15161,8 +15161,12 @@ function startSagoListen(){
           if(D.tombstones?.newBookDeletes?.[nbDelKey]!=null&&rec&&rec.newBook!=null){
             rec.newBook=null;
           }
+          // ⚠ 아직 옛날 버전을 쓰는 다른 기기가 저학년(교과) 전용 필드를 사고력 클라우드에 실수로
+          // 올려도, 이 기기(새 버전)는 그 필드들을 받아들이는 시점에 걸러내서 로컬에 절대 섞이지
+          // 않게 한다(buildSagoPayload의 sanitizeSagoRec와 같은 목록을 씀).
+          const cleanRec=sanitizeSagoRec(rec);
           const localRec=D.R[date][sid];
-          D.R[date][sid]=localRec?mergeLessonRecord(localRec,rec):rec;
+          D.R[date][sid]=localRec?mergeLessonRecord(localRec,cleanRec):cleanRec;
         });
       });
     }
@@ -15228,6 +15232,18 @@ function startSagoListen(){
 }
 
 // 사고력 그룹 데이터만 뽑아서, 기존 사고력 관리앱이 기대하는 모양 그대로(그룹 표시 제거, 이름 원복) 내보냄
+// ⚠ 사고력 학생 기록인데 저학년(교과) 전용 필드(단원평가·숙제상태·슬롯별교재·월말평가 등)가
+// 실려있는 채로 이 기기가 알고 있는 경우가 실제로 있었다("여러 선생님이 저학년에 입력한 내용이
+// 사고력 화면에 보인다"는 신고의 실제 원인 — 정확히 어느 경로로 이 기기의 로컬 D.R에 그렇게
+// 섞여 들어갔는지는 찾지 못했지만, 사고력 진도 입력(saveSagoProgress)은 이 필드들을 전혀 쓰지
+// 않으므로 사고력 클라우드로 나가는 마지막 관문에서 원천적으로 걸러낸다 — 어느 기기에서 왜
+// 섞였든 여기만 지키면 사고력 클라우드 자체는 항상 깨끗하게 유지된다.
+const COURSE_ONLY_R_FIELDS=['unitTest','hwStatus','slotData','todayHw','_af','_afDate','_afText','_ph','_pd','_pn','prevHwContent','monthlyEval','_daylock_unlocked','_hwBy','books'];
+function sanitizeSagoRec(rec){
+  const out={};
+  Object.keys(rec||{}).forEach(k=>{ if(!COURSE_ONLY_R_FIELDS.includes(k))out[k]=rec[k]; });
+  return out;
+}
 function buildSagoPayload(){
   const sagoStus=(D.S||[]).filter(s=>s&&(s.group||'저학년')==='사고력');
   const sagoSet=new Set(sagoStus.map(s=>s.id));
@@ -15242,7 +15258,7 @@ function buildSagoPayload(){
   const R={};
   Object.entries(D.R||{}).forEach(([date,dayRec])=>{
     const out={};
-    Object.entries(dayRec||{}).forEach(([sid,rec])=>{ if(sagoSet.has(sid))out[sagoOut(sid)]=rec; });
+    Object.entries(dayRec||{}).forEach(([sid,rec])=>{ if(sagoSet.has(sid))out[sagoOut(sid)]=sanitizeSagoRec(rec); });
     if(Object.keys(out).length)R[date]=out;
   });
   const dayDefs={},scMeta={};
