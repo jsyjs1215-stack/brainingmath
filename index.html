@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-16-toma-report-preserve'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-student-sc-makeups-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13001,17 +13001,21 @@ function startCloudListen() {
     // S, SC, SCH는 배열/구조 전체 교체 (단, 서버값이 없으면 로컬 유지)
     // S(학생 목록)는 학생별로 병합 — 한 선생님이 A학생을 편집하는 동안 다른 선생님이 B학생을 편집해도
     // 서로의 변경사항이 통째로 날아가지 않도록 (R 기록과 동일한 방식)
+    // ⚠ 이제 쓸 때(pushCloudNow) 학생별 경로(S/<id>)로 쪼개서 올리므로, 읽을 때 서버에서 오는
+    // data.S는 배열이 아니라 id를 키로 하는 객체로 온다 — bookOrders와 동일하게 배열로 바꿔준다
+    // (예전에 통째로 배열로 올렸던 형태가 아직 남아있는 경우도 그대로 지원됨).
+    const serverSArr = Array.isArray(data.S) ? data.S : (data.S ? Object.values(data.S) : []);
     const localCountS = (D.S||[]).length;
-    const serverCountS = (data.S||[]).length;
+    const serverCountS = serverSArr.length;
     // 안전장치: 서버 학생 수가 로컬보다 갑자기 훨씬 적으면(다른 기기가 오래된/빈 데이터를 실수로 올린 경우 등)
     // 자동으로 반영하지 않고 알려서, 학생 정보가 통째로 사라지는 사고를 예방
     const looksLikeDangerousReset = localCountS >= 5 && serverCountS >= 0 && serverCountS < localCountS * 0.5;
     if (looksLikeDangerousReset) {
       console.warn('[동기화 경고] 서버 학생 수가 비정상적으로 적어 자동 병합을 건너뜀', {localCountS, serverCountS});
       toast('⚠ 다른 기기에서 학생 수가 크게 줄어든 데이터가 감지되어, 안전을 위해 자동 반영을 건너뛰었습니다.');
-    } else if (data.S && data.S.length > 0) {
+    } else if (serverSArr.length > 0) {
       const localById = {}; (D.S||[]).forEach(st => { if (st && st.id) localById[st.id] = st; });
-      const serverById = {}; data.S.forEach(st => { if (st && st.id) serverById[st.id] = st; });
+      const serverById = {}; serverSArr.forEach(st => { if (st && st.id) serverById[st.id] = st; });
       // ⚠ 완전삭제(hardDelStu)된 학생도 위 tombstones와 동일한 문제 — 합집합 병합만으로는
       // "삭제"를 표현할 수 없어서, 다른 기기에 아직 남아있는 예전 데이터가 계속 되살아났음.
       // students tombstone에 있는 id는 로컬/서버 어느 쪽에서 왔든 병합 결과에서 제외.
@@ -13220,7 +13224,12 @@ function startCloudListen() {
     if (data.C) D.C = mergeArrById(D.C, data.C);
     // notices/makeups/pendingMoves: id 기준 합집합 병합 (통째 교체 시 한쪽 선생님이 방금 추가한 항목이 사라지는 것 방지)
     if (data.notices) D.notices = mergeArrById(D.notices, data.notices, 'dismissed');
-    if (data.makeups) D.makeups = mergeArrByIdTs(D.makeups, data.makeups, D.tombstones?.makeups);
+    // ⚠ makeups도 이제 id별 경로(makeups/<id>)로 쪼개서 올리므로, 서버에서 오는 data.makeups는
+    // 배열이 아니라 id를 키로 하는 객체로 온다 — bookOrders/S와 동일하게 배열로 바꿔준다.
+    if (data.makeups) {
+      const serverMakeupsArr = Array.isArray(data.makeups) ? data.makeups : Object.values(data.makeups);
+      D.makeups = mergeArrByIdTs(D.makeups, serverMakeupsArr, D.tombstones?.makeups);
+    }
     // dismissedMakeups: 삭제된 개별 id가 아니라 "이 날짜+학생 조합은 자동으로 다시 만들지 마라"는
     // 표시 목록이라 tombstone이 아니라 date+sid 기준 합집합으로 병합 (한쪽에서 삭제한 게 없어지면 안 됨)
     if (data.dismissedMakeups) {
@@ -13510,6 +13519,50 @@ function pushCloudNow() {
         payload['R/'+date+'/'+fbEscapeKey(sid)]=null;
       }
     });
+    // ⚠ S(학생 목록)도 R과 완전히 같은 이유로 학생별 경로로 쪼개서 올려야 한다. 실제로 겪은 사고:
+    // 어떤 기기가 자기 데이터를 제대로 못 불러온 채(예: 저장된 캐시가 없거나 깨져서 앱 내장 예시
+    // 데이터로 시작된 상태) 저장을 누르면, 그 기기가 아는 몇 명 말고 학원 전체 학생 명단이 통째로
+    // 그 기기의 (텅 빈) 스냅샷으로 덮어써졌다 — 실제로 고학년 학생 전원이 이렇게 사라진 사고가
+    // 있었다. 학생별 경로로 쪼개면 이 기기가 실제로 아는 학생들만 갱신되고, 모르는 학생은 전혀
+    // 건드리지 않는다.
+    const sArr=payload.S||[];
+    delete payload.S;
+    sArr.forEach(s=>{ if(s&&s.id)payload['S/'+fbEscapeKey(s.id)]=fbSanitizeForWrite(s); });
+    // 완전삭제(hardDelStu)로 생긴 tombstone 중 로컬에 이미 없는(=진짜 삭제된) 학생은 그 경로에
+    // 명시적으로 null을 써서 실제로 지워지게 한다(경로별로 쪼개면 "안 보냄"이 "그대로 둠"이 되므로).
+    {
+      const courseIds=new Set(sArr.filter(s=>s&&s.id).map(s=>s.id));
+      Object.keys(D.tombstones?.students||{}).forEach(sid=>{
+        const st=gS(sid);
+        if(st&&(st.group||'저학년')==='사고력')return; // 사고력 학생은 사고력 클라우드 쪽에서 처리
+        if(!courseIds.has(sid))payload['S/'+fbEscapeKey(sid)]=null;
+      });
+    }
+    // ⚠ SC(반배정/시간표)도 같은 이유로 요일+시간대별 경로로 쪼개서 올려야 한다. 이 시간표를
+    // "누가 마지막으로 수정했는지"(scMeta)는 이미 학생별 경로로 쪼개서 안전했지만, 실제 배정
+    // 내용(SC) 자체는 여전히 통째로 나가고 있어서 이 기기가 모르는 다른 요일·시간대 배정이
+    // 통째로 지워질 위험이 남아있었다.
+    const scByDay=payload.SC||{};
+    delete payload.SC;
+    Object.entries(scByDay).forEach(([day,slots])=>{
+      Object.entries(slots||{}).forEach(([slotId,sids])=>{
+        payload['SC/'+day+'/'+fbEscapeKey(slotId)]=fbSanitizeForWrite(sids||[]);
+      });
+    });
+    // ⚠ makeups(보강)도 같은 이유로 id별 경로로 쪼개서 올려야 한다 — 읽을 때는 이미 id+수정시각
+    // 기준으로 안전하게 병합하고 있었지만(mergeArrByIdTs), 쓸 때는 여전히 통째로 나가고 있었다.
+    const makeupsArr=payload.makeups||[];
+    delete payload.makeups;
+    makeupsArr.forEach(m=>{ if(m&&m.id!=null)payload['makeups/'+fbEscapeKey(String(m.id))]=fbSanitizeForWrite(m); });
+    // 완전히 지워진(취소/삭제) 보강 중 로컬에 이미 없는 것은 명시적으로 null을 써서 지운다.
+    // 이 보강이 원래 교과 학생 것이었는지 사고력 학생 것이었는지는 지워진 뒤엔 알 수 없으므로,
+    // 굳이 가려내지 않고 양쪽 클라우드 모두에서 시도한다 — 없는 경로에 null을 쓰는 건 무해하다.
+    {
+      const localMkIds=new Set((D.makeups||[]).filter(m=>m&&m.id!=null).map(m=>String(m.id)));
+      Object.keys(D.tombstones?.makeups||{}).forEach(id=>{
+        if(!localMkIds.has(String(id)))payload['makeups/'+fbEscapeKey(String(id))]=null;
+      });
+    }
     // ⚠ bookInv/bookOrders도 scMeta/dayDefs와 같은 이유로 항목별 경로로 쪼개서 올려야 한다.
     // 통째로 올리면(update()에 "bookInv"/"bookOrders" 키로) 이 기기가 마지막으로 받은 스냅샷 전체로
     // 클라우드 값을 덮어써버려서, 그 사이에 다른 선생님이 다른 기기에서 재고를 차감했거나 교재를
@@ -13862,7 +13915,7 @@ function startSagoListen(){
       return;
     }
     const prev=JSON.stringify(D);
-    const serverS=Array.isArray(data.S)?data.S:[];
+    const serverS=Array.isArray(data.S)?data.S:(data.S?Object.values(data.S):[]);
     // 안전장치: 서버 사고력 학생 수가 로컬보다 갑자기 훨씬 적으면 자동 반영하지 않음
     const localSagoCount=(D.S||[]).filter(s=>(s.group||'저학년')==='사고력').length;
     if(localSagoCount>=5&&serverS.length<localSagoCount*0.5){
@@ -14082,7 +14135,9 @@ function startSagoListen(){
       return Object.assign({},x,{[sidField]:sid});
     }).filter(Boolean);
     // 보충: 이 세션에서 이미 고쳐둔 "수정시각(_updatedAt) 기준 병합"을 그대로 사용
-    D.makeups=mergeArrByIdTs(D.makeups,remapList(data.makeups,'studentId'),D.tombstones?.makeups);
+    // ⚠ makeups도 이제 id별 경로로 쪼개서 올리므로 data.makeups가 배열이 아니라 객체로 올 수 있다.
+    const serverMakeupsRaw = Array.isArray(data.makeups) ? data.makeups : (data.makeups ? Object.values(data.makeups) : []);
+    D.makeups=mergeArrByIdTs(D.makeups,remapList(serverMakeupsRaw,'studentId'),D.tombstones?.makeups);
     D.parentConsult=mergeArrById(D.parentConsult,remapList(data.parentConsult,'sid'),null,D.tombstones?.parentConsult);
     D.tomaScores=mergeArrById(D.tomaScores,remapList(data.tomaScores,'sid'),null,D.tombstones?.tomaScores);
     D.meScores=mergeArrById(D.meScores,remapList(data.meScores,'sid'),null,D.tombstones?.meScores);
@@ -14183,6 +14238,38 @@ function pushSagoNow(){
         payload['R/'+date+'/'+fbEscapeKey(sagoOut(sid))]=null;
       }
     });
+    // ⚠ S(학생 목록)도 코스 클라우드와 같은 이유로 학생별 경로로 쪼개서 올려야 한다 — 오늘 실제로
+    // 겪은 사고(고학년 전체 학생 소실)와 같은 클래스의 위험이 사고력 쪽에도 그대로 있었다.
+    const sArr=payload.S||[];
+    delete payload.S;
+    sArr.forEach(s=>{ if(s&&s.id)payload['S/'+fbEscapeKey(s.id)]=fbSanitizeForWrite(s); });
+    {
+      const sagoIds=new Set(sArr.filter(s=>s&&s.id).map(s=>s.id));
+      Object.keys(D.tombstones?.students||{}).forEach(sid=>{
+        const st=gS(sid);
+        if(st&&(st.group||'저학년')!=='사고력')return; // 교과 학생은 코스 클라우드 쪽에서 처리
+        const sagoSid=sagoOut(sid);
+        if(!sagoIds.has(sagoSid))payload['S/'+fbEscapeKey(sagoSid)]=null;
+      });
+    }
+    // ⚠ SC(반배정/시간표)도 같은 이유로 요일+시간대별 경로로 쪼개서 올려야 한다.
+    const scByDay=payload.SC||{};
+    delete payload.SC;
+    Object.entries(scByDay).forEach(([day,slots])=>{
+      Object.entries(slots||{}).forEach(([slotId,sids])=>{
+        payload['SC/'+day+'/'+fbEscapeKey(slotId)]=fbSanitizeForWrite(sids||[]);
+      });
+    });
+    // ⚠ makeups(보강)도 같은 이유로 id별 경로로 쪼개서 올려야 한다.
+    const makeupsArr=payload.makeups||[];
+    delete payload.makeups;
+    makeupsArr.forEach(m=>{ if(m&&m.id!=null)payload['makeups/'+fbEscapeKey(String(m.id))]=fbSanitizeForWrite(m); });
+    {
+      const localMkIds=new Set((D.makeups||[]).filter(m=>m&&m.id!=null).map(m=>String(m.id)));
+      Object.keys(D.tombstones?.makeups||{}).forEach(id=>{
+        if(!localMkIds.has(String(id)))payload['makeups/'+fbEscapeKey(String(id))]=null;
+      });
+    }
     // ⚠ 반드시 fbSanitizeForWrite로 값을 이스케이프한 뒤 보내야 함 — 레벨명 "Lv.1"처럼 "."이 들어간
     // 키가 하나라도 있으면 update() 호출 전체가 조용히 거부되기 때문. 단, 위에서 만든 "R/날짜/이름"
     // 같은 경로 키 자체는 그대로 둬야 한다 — 여기에도 fbSanitizeForWrite를 걸면 "/"까지 이스케이프
