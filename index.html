@@ -1717,7 +1717,10 @@ function LD(){
     // SD()/SD_local()/클라우드 저장·병합에 넣는 걸 깜빡해서, 입력해도 저장이 전혀 안 되고
     // (로컬 저장소·클라우드 어디에도 안 남아서) 새로고침하면 사라지는 문제가 있었음.
     highClassNames:JSON.parse(localStorage.getItem('br5_high_classnames')||'{}'),
-  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{}};}
+    // 팩토 시험 템플릿(사고력 전용, 공용) — 레벨·회차별로 문제 구성(영역·난이도·배점)과
+    // 학습 목표(units)를 한 번 만들어두면 재사용. bookLevelConfig와 동일한 패턴.
+    factoTemplates:JSON.parse(localStorage.getItem('br5_facto_tpl')||'[]'),
+  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},factoTemplates:[]};}
 }
 let D=LD();
 
@@ -2971,7 +2974,7 @@ function renderAll(){
 
   try{
     document.getElementById('main').innerHTML=
-      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='gtsm'?rGtsm():rHov();
+      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='factoreport'?rFactoReport():TAB==='gtsm'?rGtsm():rHov();
   }catch(renderErr){
     // ⚠ 화면 렌더링 중 하나라도 오류가 나면(예: 예상 못한 데이터 모양) 그냥 조용히 이전 화면이
     // 그대로 남아있게 되어("학생이 분명 등록됐는데 시간표엔 안 보인다"처럼) 사용자가 원인을 알 수 없는
@@ -10170,7 +10173,11 @@ function rGradeList(){
   let out=`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
-    ${GRADE_TEST==='TOMA'?`<button onclick="openTomaModal(null)" style="padding:7px 14px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> TOMA 입력</button>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
+    ${GRADE_TEST==='TOMA'?`<div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button onclick="openTomaModal(null)" style="padding:7px 14px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> TOMA 입력</button>
+      <button onclick="openFactoModal(null)" style="padding:7px 14px;background:#7C3AED;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 팩토 결과 입력</button>
+      <button onclick="openFactoTplModal(null)" style="padding:7px 14px;background:#fff;color:#7C3AED;border:1px solid #C4B5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-settings"></i> 팩토 템플릿</button>
+    </div>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
   </div>
   <div style="display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;">
     <button style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--bdr);background:${GradeStatusFilter==='active'?'var(--pri)':'#fff'};color:${GradeStatusFilter==='active'?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onclick="window.GradeStatusFilter='active';renderAll()">재원생 (${curS().filter(isActiveStu).length})</button>
@@ -10478,7 +10485,8 @@ function rGradeDet(sid){
           ${t.retest&&t.retestScore?`<span style="font-size:11px;background:var(--ok-l);color:var(--ok);border:1px solid var(--ok-b);border-radius:10px;padding:1px 7px;font-weight:600;">✓ 재시험 ${t.retestScore}점</span>`:''}
         </div>
         <div style="display:flex;gap:5px;">
-          <button onclick="openTomaModal('${esc(sid)}','${t.id}')" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i></button>
+          ${isFactoEntry(t)?`<button onclick="printFactoReport('${t.id}')" style="font-size:11px;color:#7C3AED;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-file-text" style="font-size:10px;"></i> 결과지</button>`:''}
+          <button onclick="${isFactoEntry(t)?`openFactoModal('${esc(sid)}','${t.id}')`:`openTomaModal('${esc(sid)}','${t.id}')`}" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i></button>
           <button onclick="deleteToma('${t.id}')" style="font-size:11px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-trash" style="font-size:10px;"></i></button>
         </div>
       </div>
@@ -10949,6 +10957,316 @@ function deleteToma(tid){
   markDeleted('tomaScores',tid);
   D.tomaScores=(D.tomaScores||[]).filter(t=>t.id!==tid);
   SD();renderAll();toast('삭제되었습니다');
+}
+
+// ═══ 팩토 결과지 (사고력 전용) ══════════════════════════════
+// 📌 이 기능은 화면 코드가 통째로 삭제됐다가 데이터(D.tomaScores 안의 report 필드)만 남아있던
+// 것을 "예전과 같은 틀"로 다시 만든 것 — 남아있던 예전 기록 13건의 실제 구조(문제별 영역·난이도·
+// 배점, 학습목표 목록, 학급평균, 코멘트)를 그대로 본떠서 설계함.
+// · 시험 템플릿(레벨+회차별 문제 구성)을 한 번 만들어두면, 학생마다 문제별 점수만 입력하면
+//   영역별/난이도별 합계가 자동 계산됨.
+// · 점수 기록 자체는 예전과 동일하게 D.tomaScores에 testName="제N회 팩토시험"으로 저장되고,
+//   사고력 학생 id만 담기므로 기존 pushSagoNow/buildSagoPayload의 tomaScores 필터링을 그대로 탄다.
+const FACTO_AREAS=['추론능력','의사소통능력','문제해결력','창의성'];
+const FACTO_DIFFS=['상','중','하'];
+function isFactoEntry(t){ return !!(t&&t.report); }
+// 예전(화면이 삭제되기 전) 기록 13건에는 템플릿 관리 기능이 없던 시절이라 D.factoTemplates에
+// 저장된 적이 없다 — 그 기록들 안에 이미 들어있는 tplId/tplName/questions/units를 그대로
+// 읽어서, 템플릿 목록에 없는 것만 자동으로 복원해준다(저장은 하지 않고 화면에 보여줄 때만
+// 즉석에서 합쳐서 만듦 — D.factoTemplates 자체를 건드리지 않아 안전함).
+function getFactoTemplates(){
+  const saved=D.factoTemplates||[];
+  const savedIds=new Set(saved.map(t=>t.id));
+  const recovered=[];
+  const seen=new Set();
+  (D.tomaScores||[]).forEach(t=>{
+    const r=t.report;
+    if(!r||!r.tplId||savedIds.has(r.tplId)||seen.has(r.tplId))return;
+    seen.add(r.tplId);
+    recovered.push({id:r.tplId,name:r.tplName||'(이름 없는 예전 템플릿)',level:'',round:'',units:r.units||[],questions:(r.questions||[]).map(q=>({area:q.area,diff:q.diff,total:q.total}))});
+  });
+  return recovered.length?[...saved,...recovered]:saved;
+}
+
+// ── 템플릿 관리 (문제 구성 만들기) ──────────────
+let FACTO_TPL_EDIT_ID=null, FACTO_TPL_UNITS=[], FACTO_TPL_QS=[];
+function openFactoTplModal(tplId){
+  FACTO_TPL_EDIT_ID=tplId||null;
+  const tpl=tplId?getFactoTemplates().find(x=>x.id===tplId):null;
+  document.getElementById('factotpl-modal-title').textContent=tpl?'팩토 템플릿 수정':'팩토 템플릿 만들기';
+  const delBtn=document.getElementById('factotpl-del-btn');
+  if(delBtn)delBtn.style.display=tpl?'block':'none';
+  document.getElementById('factotpl-name').value=tpl?.name||'';
+  document.getElementById('factotpl-level').value=tpl?.level||'';
+  document.getElementById('factotpl-round').value=tpl?.round||'';
+  FACTO_TPL_UNITS=tpl?JSON.parse(JSON.stringify(tpl.units||[])):[];
+  FACTO_TPL_QS=tpl?JSON.parse(JSON.stringify(tpl.questions||[])):[];
+  if(!FACTO_TPL_UNITS.length)FACTO_TPL_UNITS.push({area:FACTO_AREAS[0],title:'',goal:''});
+  if(!FACTO_TPL_QS.length)FACTO_TPL_QS.push({area:FACTO_AREAS[0],diff:'중',total:8});
+  renderFactoTplUnitRows();
+  renderFactoTplQRows();
+  openM('factotpl-modal');
+}
+function renderFactoTplUnitRows(){
+  const wrap=document.getElementById('factotpl-units');
+  if(!wrap)return;
+  wrap.innerHTML=FACTO_TPL_UNITS.map((u,i)=>`
+    <div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+      <select onchange="FACTO_TPL_UNITS[${i}].area=this.value" style="flex:0 0 100px;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
+        ${FACTO_AREAS.map(a=>`<option value="${a}" ${u.area===a?'selected':''}>${a}</option>`).join('')}
+      </select>
+      <input value="${escAttr(u.title||'')}" oninput="FACTO_TPL_UNITS[${i}].title=this.value" placeholder="단원명 (예: 공통점 찾기)" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
+      <input value="${escAttr(u.goal||'')}" oninput="FACTO_TPL_UNITS[${i}].goal=this.value" placeholder="학습 목표" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
+      <button onclick="FACTO_TPL_UNITS.splice(${i},1);renderFactoTplUnitRows()" style="border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;padding:6px 8px;cursor:pointer;flex-shrink:0;"><i class="ti ti-trash" style="font-size:11px;"></i></button>
+    </div>`).join('')
+    +`<button onclick="FACTO_TPL_UNITS.push({area:FACTO_AREAS[0],title:'',goal:''});renderFactoTplUnitRows()" style="width:100%;padding:6px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);border-radius:6px;font-size:11px;cursor:pointer;">+ 학습 목표 추가</button>`;
+}
+function renderFactoTplQRows(){
+  const wrap=document.getElementById('factotpl-qs');
+  if(!wrap)return;
+  const sumTotal=FACTO_TPL_QS.reduce((a,q)=>a+(Number(q.total)||0),0);
+  wrap.innerHTML=FACTO_TPL_QS.map((q,i)=>`
+    <div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+      <div style="width:22px;font-size:10px;color:var(--muted);flex-shrink:0;">${i+1}.</div>
+      <select onchange="FACTO_TPL_QS[${i}].area=this.value" style="flex:1;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
+        ${FACTO_AREAS.map(a=>`<option value="${a}" ${q.area===a?'selected':''}>${a}</option>`).join('')}
+      </select>
+      <select onchange="FACTO_TPL_QS[${i}].diff=this.value" style="flex:0 0 60px;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
+        ${FACTO_DIFFS.map(d=>`<option value="${d}" ${q.diff===d?'selected':''}>${d}</option>`).join('')}
+      </select>
+      <input type="number" min="0" value="${q.total??''}" oninput="FACTO_TPL_QS[${i}].total=this.value;renderFactoTplQRows()" placeholder="배점" style="flex:0 0 56px;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;text-align:center;">
+      <button onclick="FACTO_TPL_QS.splice(${i},1);renderFactoTplQRows()" style="border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;padding:6px 8px;cursor:pointer;flex-shrink:0;"><i class="ti ti-trash" style="font-size:11px;"></i></button>
+    </div>`).join('')
+    +`<button onclick="FACTO_TPL_QS.push({area:FACTO_AREAS[0],diff:'중',total:8});renderFactoTplQRows()" style="width:100%;padding:6px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:4px;">+ 문제 추가</button>
+    <div style="font-size:11px;color:${sumTotal===100?'var(--ok)':'var(--warn)'};font-weight:600;">배점 합계: ${sumTotal}점${sumTotal!==100?' (보통 100점이 되도록 맞춰주세요)':''}</div>`;
+}
+function saveFactoTpl(){
+  const name=document.getElementById('factotpl-name').value.trim();
+  if(!name){alert('템플릿 이름을 입력해주세요. (예: 팩토 Lv.1 - 1호)');return;}
+  if(!FACTO_TPL_QS.length){alert('문제를 1개 이상 추가해주세요.');return;}
+  const tpl={
+    id:FACTO_TPL_EDIT_ID||(Date.now()+''),
+    name,
+    level:document.getElementById('factotpl-level').value.trim(),
+    round:document.getElementById('factotpl-round').value.trim(),
+    units:FACTO_TPL_UNITS.filter(u=>u.title||u.goal),
+    questions:FACTO_TPL_QS.map(q=>({area:q.area,diff:q.diff,total:Number(q.total)||0})),
+  };
+  if(!D.factoTemplates)D.factoTemplates=[];
+  const idx=D.factoTemplates.findIndex(x=>x.id===tpl.id);
+  if(idx>=0)D.factoTemplates[idx]=tpl;else D.factoTemplates.push(tpl);
+  SD();closeM('factotpl-modal');
+  toast('템플릿이 저장되었습니다');
+  // 방금 만든/수정한 템플릿을 성적 입력 모달이 열려있으면 바로 반영
+  const sel=document.getElementById('facto-tpl');
+  if(sel){ renderFactoTplOptions(tpl.id); onFactoTplSelectChange(); }
+}
+function deleteFactoTpl(){
+  if(!FACTO_TPL_EDIT_ID)return;
+  if(!confirm('이 템플릿을 삭제할까요? (이미 입력된 학생 성적 기록은 남아있습니다)'))return;
+  D.factoTemplates=(D.factoTemplates||[]).filter(x=>x.id!==FACTO_TPL_EDIT_ID);
+  SD();closeM('factotpl-modal');
+  toast('템플릿이 삭제되었습니다');
+}
+
+// ── 성적 입력 ──────────────
+let FACTO_EDIT_ID=null;
+function renderFactoStudentList(q){
+  const sel=document.getElementById('facto-sid');if(!sel)return;
+  // ⚠ curS()는 지금 보고 있는 ActiveGroup(저학년/고학년/사고력) 기준으로 걸러져서, 팩토는
+  // 사고력 전용 기능이라 D.S 전체에서 직접 사고력 그룹만 골라야 한다 — 안 그러면 저학년/고학년
+  // 화면에서 이 모달을 열었을 때 학생 목록이 텅 비어 보인다.
+  const list=D.S.filter(s=>s&&isActiveStu(s)&&(s.group||'저학년')==='사고력'&&(!q||korSearch(s.id,q)));
+  sel.innerHTML=list.map(s=>`<option value="${esc(s.id)}">${esc(dispStuName(s.id))}${s.school?' · '+esc(s.school):''}</option>`).join('');
+}
+function renderFactoTplOptions(selectedId){
+  const sel=document.getElementById('facto-tpl');if(!sel)return;
+  const tpls=getFactoTemplates();
+  sel.innerHTML=`<option value="">템플릿 선택</option>`+tpls.map(t=>`<option value="${t.id}" ${t.id===selectedId?'selected':''}>${esc(t.name)}</option>`).join('');
+}
+function openFactoModal(sid,tid){
+  FACTO_EDIT_ID=tid||null;
+  const t=tid?(D.tomaScores||[]).find(x=>x.id===tid):null;
+  document.getElementById('facto-modal-title').textContent=t?'팩토 결과 수정':'팩토 결과 입력';
+  document.getElementById('facto-stu-search').value='';
+  renderFactoStudentList('');
+  if(t?.sid||sid){
+    const sel=document.getElementById('facto-sid');
+    for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===(t?.sid||sid)){sel.options[i].selected=true;break;}}
+  }
+  renderFactoTplOptions(t?.report?.tplId||'');
+  document.getElementById('facto-round').value=t?.round||'';
+  document.getElementById('facto-date').value=t?.report?.testDate||tdk();
+  document.getElementById('facto-comment').value=t?.report?.comment||'';
+  document.getElementById('facto-classavg').value=t?.report?.classAvg||'';
+  // 수정 중이면 그 기록의 문제별 점수를 그대로 불러와야 하므로, 렌더링 시 참조할 수 있게 임시 보관
+  window._factoEditQuestions=t?.report?.questions||null;
+  onFactoTplSelectChange();
+  openM('facto-modal');
+}
+function onFactoTplSelectChange(){
+  const tplId=document.getElementById('facto-tpl')?.value;
+  const tpl=getFactoTemplates().find(x=>x.id===tplId);
+  const wrap=document.getElementById('facto-questions');
+  if(!wrap)return;
+  if(!tpl){
+    wrap.innerHTML=`<div style="font-size:11px;color:var(--muted);padding:8px;text-align:center;">템플릿을 먼저 선택하거나, 아래에서 새 템플릿을 만들어주세요.</div>`;
+    return;
+  }
+  const prevQ=window._factoEditQuestions;
+  wrap.innerHTML=tpl.questions.map((q,i)=>{
+    const prevScore=(prevQ&&prevQ[i]&&prevQ[i].area===q.area&&prevQ[i].diff===q.diff)?prevQ[i].score:'';
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;">
+      <div style="width:18px;color:var(--muted);flex-shrink:0;">${i+1}.</div>
+      <div style="flex:1;color:var(--muted);">${q.area} · ${q.diff}</div>
+      <input type="number" min="0" max="${q.total}" value="${esc(prevScore)}" data-q="${i}" oninput="updateFactoPreview()" placeholder="/${q.total}" style="width:56px;padding:5px;border:1px solid var(--bdr);border-radius:6px;text-align:center;font-size:11px;">
+    </div>`;
+  }).join('');
+  window._factoEditQuestions=null; // 한 번만 채우고 이후엔 입력칸의 실제 값을 기준으로 함
+  updateFactoPreview();
+}
+function collectFactoQScores(){
+  const tplId=document.getElementById('facto-tpl')?.value;
+  const tpl=getFactoTemplates().find(x=>x.id===tplId);
+  if(!tpl)return null;
+  const inputs=document.querySelectorAll('#facto-questions input[data-q]');
+  const questions=tpl.questions.map((q,i)=>{
+    const el=document.querySelector(`#facto-questions input[data-q="${i}"]`);
+    return {area:q.area,diff:q.diff,total:q.total,score:el?el.value:''};
+  });
+  return {tpl,questions};
+}
+function updateFactoPreview(){
+  const box=document.getElementById('facto-preview');
+  if(!box)return;
+  const c=collectFactoQScores();
+  if(!c){box.innerHTML='';return;}
+  const{questions}=c;
+  const scored=questions.filter(q=>q.score!==''&&!isNaN(Number(q.score)));
+  const totalScore=scored.reduce((a,q)=>a+Number(q.score),0);
+  const byArea={};
+  questions.forEach(q=>{ if(!byArea[q.area])byArea[q.area]={score:0,total:0}; byArea[q.area].total+=Number(q.total)||0; if(q.score!=='')byArea[q.area].score+=Number(q.score)||0; });
+  box.innerHTML=`<div style="font-size:22px;font-weight:700;color:var(--pri2);text-align:center;margin-bottom:6px;">${totalScore}점</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;">
+      ${Object.entries(byArea).map(([a,v])=>`<span style="font-size:10px;background:#F1F5F9;border-radius:10px;padding:2px 8px;">${a} ${v.score}/${v.total}</span>`).join('')}
+    </div>`;
+}
+function saveFacto(){
+  const sid=document.getElementById('facto-sid')?.value;
+  const tplId=document.getElementById('facto-tpl')?.value;
+  const tpl=getFactoTemplates().find(x=>x.id===tplId);
+  const date=document.getElementById('facto-date').value;
+  const round=document.getElementById('facto-round').value;
+  const comment=document.getElementById('facto-comment').value.trim();
+  const classAvgInput=document.getElementById('facto-classavg').value.trim();
+  if(!sid){alert('학생을 선택해주세요.');return;}
+  if(!tpl){alert('템플릿을 선택해주세요.');return;}
+  if(!date){alert('시험 날짜를 선택해주세요.');return;}
+  const c=collectFactoQScores();
+  const questions=c.questions.map(q=>({...q,score:q.score===''?'':String(Number(q.score)||0)}));
+  if(questions.some(q=>q.score==='')){ if(!confirm('점수를 입력하지 않은 문제가 있습니다. 0점으로 처리하고 저장할까요?'))return; }
+  const totalScore=questions.reduce((a,q)=>a+(Number(q.score)||0),0);
+  const areas=FACTO_AREAS.map(name=>{
+    const qs=questions.filter(q=>q.area===name);
+    if(!qs.length)return null;
+    return {name,score:qs.reduce((a,q)=>a+(Number(q.score)||0),0),total:qs.reduce((a,q)=>a+(Number(q.total)||0),0)};
+  }).filter(Boolean);
+  const diffs=FACTO_DIFFS.map(level=>{
+    const qs=questions.filter(q=>q.diff===level);
+    if(!qs.length)return null;
+    return {level,score:qs.reduce((a,q)=>a+(Number(q.score)||0),0),total:qs.reduce((a,q)=>a+(Number(q.total)||0),0)};
+  }).filter(Boolean);
+  const year=new Date().getFullYear();
+  const month=Number(date.slice(5,7));
+  const existing=FACTO_EDIT_ID?D.tomaScores.find(x=>x.id===FACTO_EDIT_ID):null;
+  const testName=round?`제${round}회 팩토시험`:(existing?.testName||'팩토시험');
+  const report={
+    testDate:date,tplId:tpl.id,tplName:tpl.name,units:tpl.units||[],questions,areas,diffs,
+    classAvg:classAvgInput, comment, locked:false,
+  };
+  const entry=Object.assign({},existing,{
+    id:FACTO_EDIT_ID||(Date.now()+''),sid,month,year,round:round?Number(round):null,
+    score:String(totalScore),retest:false,testName,report,_updatedAt:Date.now(),
+  });
+  if(!D.tomaScores)D.tomaScores=[];
+  if(FACTO_EDIT_ID){
+    const idx=D.tomaScores.findIndex(x=>x.id===FACTO_EDIT_ID);
+    if(idx>=0)D.tomaScores[idx]=entry;
+  } else {
+    D.tomaScores.push(entry);
+  }
+  // 같은 템플릿(같은 시험)을 본 다른 학생들의 학급평균도 함께 최신화 — 학급평균은 "그 시험을
+  // 같이 본 학생 전체"의 총점 평균이라 한 명이 더 입력될 때마다 값이 바뀌어야 정확함. 직접
+  // 학급평균을 입력칸에 써넣은 경우(수기 조정)는 존중해서 자동 재계산으로 덮지 않는다.
+  if(!classAvgInput){
+    const siblings=D.tomaScores.filter(x=>x.report&&x.report.tplId===tpl.id&&x.month===month&&x.year===year);
+    const avgScores=siblings.map(x=>Number(x.score)||0);
+    const avg=avgScores.length?Math.round((avgScores.reduce((a,b)=>a+b,0)/avgScores.length)*100)/100:0;
+    siblings.forEach(x=>{ x.report.classAvg=String(avg); });
+  }
+  SD();closeM('facto-modal');GRADE_SID=sid;renderAll();
+  toast(FACTO_EDIT_ID?'수정되었습니다':'팩토 결과가 저장되었습니다 ✓');
+}
+
+// ── 결과지 인쇄 ──────────────
+let FACTO_REPORT_TID=null, FACTO_REPORT_RETURN_TAB=null;
+function printFactoReport(tid){
+  FACTO_REPORT_TID=tid;
+  FACTO_REPORT_RETURN_TAB=(TAB==='factoreport')?FACTO_REPORT_RETURN_TAB:TAB;
+  setTab('factoreport');
+}
+function rFactoReport(){
+  const t=(D.tomaScores||[]).find(x=>x.id===FACTO_REPORT_TID);
+  if(!t||!t.report){
+    return `<div class="no-print" style="margin-bottom:12px;"><button onclick="setTab(FACTO_REPORT_RETURN_TAB||'grade')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button></div><div class="empty"><i class="ti ti-file-off"></i>결과지를 찾을 수 없습니다.</div>`;
+  }
+  const s=gS(t.sid);
+  const r=t.report;
+  const total=Number(t.score)||0;
+  const classAvg=r.classAvg?Number(r.classAvg):null;
+  const tier=meScoreStyle(String(total));
+  let out=`<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <button onclick="setTab(FACTO_REPORT_RETURN_TAB||'grade')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
+    <button onclick="window.print()" style="padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
+  </div>
+  <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:24px;">
+    <div style="text-align:center;margin-bottom:18px;">
+      <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;">FACTO TEST REPORT</div>
+      <div style="font-size:19px;font-weight:700;margin-top:4px;">${esc(r.tplName||t.testName||'팩토시험')} 결과지</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#F8FAFC;border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;">${esc(dispStuName(t.sid))}${s?.school?` <span style="font-size:11px;font-weight:400;color:var(--muted);">· ${esc(s.school)}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">응시일 ${esc(r.testDate||'')}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:28px;font-weight:700;color:${tier.color||'var(--pri2)'};">${total}<span style="font-size:14px;">점</span></div>
+        ${classAvg!=null?`<div style="font-size:11px;color:var(--muted);">학급평균 ${classAvg}점</div>`:''}
+      </div>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">📊 영역별 점수</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+      ${(r.areas||[]).map(a=>{const pct=a.total?Math.round(a.score/a.total*100):0;return`
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>${esc(a.name)}</span><span style="font-weight:600;">${a.score}/${a.total}</span></div>
+        <div style="background:#F1F5F9;border-radius:99px;height:7px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:var(--pri2);border-radius:99px;"></div></div>
+      </div>`;}).join('')}
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">🎯 난이도별 점수</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      ${(r.diffs||[]).map(d=>`<div style="flex:1;text-align:center;background:#F8FAFC;border-radius:var(--rs);padding:8px;">
+        <div style="font-size:10px;color:var(--muted);">${esc(d.level)}</div>
+        <div style="font-size:15px;font-weight:700;">${d.score}/${d.total}</div>
+      </div>`).join('')}
+    </div>
+    ${(r.units||[]).length?`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">📘 학습 단원</div>
+    <div style="font-size:11px;color:var(--txt);line-height:1.8;margin-bottom:16px;">
+      ${r.units.map((u,i)=>`${i+1}. <b>${esc(u.title||'')}</b>${u.goal?` — ${esc(u.goal)}`:''}`).join('<br>')}
+    </div>`:''}
+    ${r.comment?`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">✏️ 선생님 코멘트</div>
+    <div style="font-size:12.5px;line-height:1.7;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:10px 12px;">${esc(r.comment)}</div>`:''}
+  </div>`;
+  return out;
 }
 
 // ═══ 인수인계 탭 ══════════════════════════════
@@ -13368,7 +13686,7 @@ function startCloudListen() {
 // 남겨둬서 다시 연결값을 붙여넣을 필요는 없게 한다.
 function resetLocalCacheAndReload(){
   if(!confirm('이 기기에 저장된 캐시(학생·시간표·수업기록 등)를 지우고 서버에서 최신 데이터를 다시 받아옵니다.\n\n⚠ 클라우드(서버)에 저장된 데이터는 전혀 지워지지 않습니다 — 이 기기의 로컬 사본만 지우고 새로고침합니다.\n\n계속할까요?'))return;
-  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last'];
+  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_facto_tpl'];
   keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   toast('🔄 캐시를 지웠습니다 — 서버에서 새로 받아옵니다');
   setTimeout(()=>location.reload(),400);
@@ -13637,6 +13955,7 @@ function SD() {
   localStorage.setItem('br5_rm', JSON.stringify(D.recentRemovals||[]));
   localStorage.setItem('br5_book_levels', JSON.stringify(D.bookLevelConfig||null));
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
+  localStorage.setItem('br5_facto_tpl', JSON.stringify(D.factoTemplates||[]));
   // 사고력 그룹 데이터는 별도의 사고력 전용 클라우드(braining_sagoryeok)로도 함께 보냄.
   // 기본 클라우드(braining)에는 지금까지처럼 전체가 저장되므로, 어느 한쪽이 끊겨도 데이터가 유실되지 않음.
   scheduleSagoPush();
@@ -13671,6 +13990,7 @@ function SD_local() {
   localStorage.setItem('br5_rm', JSON.stringify(D.recentRemovals||[]));
   localStorage.setItem('br5_book_levels', JSON.stringify(D.bookLevelConfig||null));
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
+  localStorage.setItem('br5_facto_tpl', JSON.stringify(D.factoTemplates||[]));
 }
 
 // Auto-reconnect on init
@@ -14162,10 +14482,13 @@ function startSagoListen(){
     }).filter(Boolean),null,D.tombstones?.C);
     // 진도체크 레벨 구성은 사고력에서만 쓰는 설정이라 서버 값을 그대로 따름
     if(data.bookLevelConfig)D.bookLevelConfig=data.bookLevelConfig;
+    // 팩토 시험 템플릿도 사고력 전용 공용 설정이라 서버 값을 그대로 따름
+    if(data.factoTemplates)D.factoTemplates=data.factoTemplates;
 
     // 로컬에도 저장 (클라우드로 되밀지는 않음 — 방금 받아온 내용을 그대로 다시 올릴 필요가 없음)
     SD_local();
     localStorage.setItem('br5_book_levels',JSON.stringify(D.bookLevelConfig||null));
+    localStorage.setItem('br5_facto_tpl',JSON.stringify(D.factoTemplates||[]));
     if(JSON.stringify(D)!==prev)renderAll();
   }, err=>{
     // 사고력 클라우드에 못 붙어도 앱 전체가 멈추면 안 됨 — 조용히 꺼두고 로컬 데이터로 계속 사용
@@ -14207,6 +14530,7 @@ function buildSagoPayload(){
     pendingMoves:pick(D.pendingMoves,'sid'),
     dayDefs, scMeta,
     bookLevelConfig:D.bookLevelConfig||null,
+    factoTemplates:D.factoTemplates||[],
     // ⚠ 삭제 무덤(tombstones)도 이 클라우드 자체적으로 갖고 있어야 한다 — 코스 클라우드에서만
     // 오는 값에 의존하면, 두 클라우드 연결 순서가 보장되지 않아 이 리스너가 먼저 뜰 때 방금
     // 지운 기록이 되살아날 수 있다(R 병합의 recordDeletes 체크 참고). 그대로 다 보내도 무방한
@@ -14753,6 +15077,78 @@ init();
   <div class="btn-row">
     <button class="btn btn-sec" onclick="closeM('toma-modal')">취소</button>
     <button class="btn btn-pri" onclick="saveToma()"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
+  </div>
+</div></div>
+
+<!-- 팩토 템플릿 모달 -->
+<div class="overlay" id="factotpl-modal">
+<div class="modal" style="max-width:460px;">
+  <div class="mhdr">
+    <div><div class="mtitle" id="factotpl-modal-title">팩토 템플릿 만들기</div><div class="msub">문제 구성을 한 번 만들어두면 성적 입력할 때 재사용됩니다</div></div>
+    <button class="mclose" onclick="closeM('factotpl-modal')"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="frow">
+    <div class="fg"><label class="flbl">템플릿 이름 *</label>
+      <input class="fi" id="factotpl-name" placeholder="예) 팩토 Lv.1 - 1호">
+    </div>
+  </div>
+  <div class="frow">
+    <div class="fg"><label class="flbl">레벨 (선택)</label>
+      <input class="fi" id="factotpl-level" placeholder="예) Lv.1">
+    </div>
+    <div class="fg"><label class="flbl">회차 (선택)</label>
+      <input class="fi" id="factotpl-round" placeholder="예) 1">
+    </div>
+  </div>
+  <div class="fg"><label class="flbl">학습 목표 (선택)</label>
+    <div id="factotpl-units"></div>
+  </div>
+  <div class="fg"><label class="flbl">문제 구성 *</label>
+    <div id="factotpl-qs"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-sec" onclick="closeM('factotpl-modal')">취소</button>
+    <button class="btn btn-pri" onclick="saveFactoTpl()" style="background:#7C3AED;"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
+  </div>
+  <button onclick="deleteFactoTpl()" id="factotpl-del-btn" style="display:none;width:100%;margin-top:8px;padding:8px;background:none;border:none;color:var(--dan);font-size:12px;cursor:pointer;"><i class="ti ti-trash" style="font-size:11px;"></i> 이 템플릿 삭제</button>
+</div></div>
+
+<!-- 팩토 결과 입력 모달 -->
+<div class="overlay" id="facto-modal">
+<div class="modal" style="max-width:440px;">
+  <div class="mhdr">
+    <div><div class="mtitle" id="facto-modal-title">팩토 결과 입력</div><div class="msub">문제별 점수만 입력하면 영역·난이도별 합계가 자동 계산됩니다</div></div>
+    <button class="mclose" onclick="closeM('facto-modal')"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="fg"><label class="flbl">학생 *</label>
+    <input class="fi" id="facto-stu-search" placeholder="이름 검색" oninput="renderFactoStudentList(this.value)" autocomplete="off" style="margin-bottom:6px;">
+    <select class="fsel" id="facto-sid" size="4" style="height:auto;min-height:80px;"></select>
+  </div>
+  <div class="frow">
+    <div class="fg"><label class="flbl">템플릿 *</label>
+      <select class="fsel" id="facto-tpl" onchange="onFactoTplSelectChange()"></select>
+    </div>
+    <div class="fg"><label class="flbl">회차</label>
+      <input class="fi" id="facto-round" type="number" min="1" placeholder="제N회">
+    </div>
+  </div>
+  <button onclick="closeM('facto-modal');openFactoTplModal(null)" style="width:100%;padding:6px;margin:-4px 0 8px;background:none;border:1px dashed var(--bdr);color:var(--muted);border-radius:6px;font-size:11px;cursor:pointer;">+ 새 템플릿 만들기</button>
+  <div class="fg"><label class="flbl">시험 날짜 *</label>
+    <input class="fi" type="date" id="facto-date">
+  </div>
+  <div class="fg"><label class="flbl">문제별 점수</label>
+    <div id="facto-questions"></div>
+  </div>
+  <div id="facto-preview" style="background:#F5F3FF;border:1px solid #C4B5FD;border-radius:var(--rs);padding:10px;margin-bottom:10px;"></div>
+  <div class="fg"><label class="flbl">학급평균 (선택, 비워두면 자동 계산)</label>
+    <input class="fi" id="facto-classavg" type="number" placeholder="자동 계산됨">
+  </div>
+  <div class="fg"><label class="flbl">코멘트 (선택)</label>
+    <textarea class="fi" id="facto-comment" rows="3" placeholder="학부모용 코멘트를 입력하세요"></textarea>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-sec" onclick="closeM('facto-modal')">취소</button>
+    <button class="btn btn-pri" onclick="saveFacto()" style="background:#7C3AED;"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
   </div>
 </div></div>
 
