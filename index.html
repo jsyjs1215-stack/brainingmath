@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-sago-course-field-guard'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-sago-brand-guard-v2'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -15164,8 +15164,12 @@ function startSagoListen(){
           // ⚠ 아직 옛날 버전을 쓰는 다른 기기가 저학년(교과) 전용 필드를 사고력 클라우드에 실수로
           // 올려도, 이 기기(새 버전)는 그 필드들을 받아들이는 시점에 걸러내서 로컬에 절대 섞이지
           // 않게 한다(buildSagoPayload의 sanitizeSagoRec와 같은 목록을 씀).
+          // ⚠ 서버 쪽(rec)만 걸러내고 이 기기의 기존 로컬 값(localRec)은 그대로 두면, 이 기기가 예전
+          // (코드 업데이트 전)에 저장해둔 오염된 로컬 캐시가 병합 시각 비교에서 "더 최신"으로 이겨서
+          // 방금 서버에서 지운 내용을 되살려버릴 수 있었다("서버에서 지웠는데 다시 나타난다"는 신고의
+          // 실제 원인) — 그래서 로컬 쪽도 병합 직전에 반드시 같이 걸러낸다.
           const cleanRec=sanitizeSagoRec(rec);
-          const localRec=D.R[date][sid];
+          const localRec=D.R[date][sid]?sanitizeSagoRec(D.R[date][sid]):null;
           D.R[date][sid]=localRec?mergeLessonRecord(localRec,cleanRec):cleanRec;
         });
       });
@@ -15239,9 +15243,16 @@ function startSagoListen(){
 // 않으므로 사고력 클라우드로 나가는 마지막 관문에서 원천적으로 걸러낸다 — 어느 기기에서 왜
 // 섞였든 여기만 지키면 사고력 클라우드 자체는 항상 깨끗하게 유지된다.
 const COURSE_ONLY_R_FIELDS=['unitTest','hwStatus','slotData','todayHw','_af','_afDate','_afText','_ph','_pd','_pn','prevHwContent','monthlyEval','_daylock_unlocked','_hwBy','books'];
+// ⚠ curriculum/sessionSubject는 사고력 진도 입력(saveSagoProgress)도 정상적으로 쓰는 "공용" 필드라
+// COURSE_ONLY_R_FIELDS처럼 무조건 지울 수는 없다 — 다만 그 값 자체가 "아리수1-6"처럼 저학년(교과)
+// 전용 교재 브랜드로 시작하면, 사고력 쪽에서는 절대 나올 수 없는 값이므로 이때만 걸러낸다.
+const COURSE_ONLY_BRANDS=['아리수','최상위수학','최상위','아이비츠','개념완성','쎈','개념원리','RPM','체크체크','개념연산SOS','수학의바이블'];
+function isCourseOnlyBrandValue(v){ return typeof v==='string'&&COURSE_ONLY_BRANDS.some(b=>v.startsWith(b)); }
 function sanitizeSagoRec(rec){
   const out={};
   Object.keys(rec||{}).forEach(k=>{ if(!COURSE_ONLY_R_FIELDS.includes(k))out[k]=rec[k]; });
+  if(isCourseOnlyBrandValue(out.curriculum))delete out.curriculum;
+  if(isCourseOnlyBrandValue(out.sessionSubject))delete out.sessionSubject;
   return out;
 }
 function buildSagoPayload(){
