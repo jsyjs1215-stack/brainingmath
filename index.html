@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-student-sc-makeups-sync-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-newbook-resurrection-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2120,6 +2120,12 @@ function sR(date,sid,f,v){
   // 되살려버리면 안 되므로 지운 기록을 남겨서 병합 시 확실히 비워지도록 함
   // (체크 해제 후 저장 / 단원평가 입력 화면에서 삭제 등 이 필드를 지우는 모든 경로에 공통 적용됨)
   if(f==='unitTest'&&v==null)markDeleted('utDeletes',date+'|'+sid);
+  // 📌 새 책 시작(newBook)도 같은 이유로 무덤을 남긴다 — 선생님이 잘못 입력한 새책을 체크
+  // 해제하고 저장해도(v===null), 그 사이 다른 기기가 아직 그 잘못된 값을 갖고 있다가 저장하면
+  // "내용성 필드는 최신 쪽이 비어있으면 예전 값을 보존한다"는 병합 규칙 때문에 지운 값이 다시
+  // 살아났다("잘못 입력한 새책이 시간이 지나면 다시 살아난다"는 신고의 원인) — 재고 차감·복구가
+  // 반복되며 재고 수량이 계속 흔들리는 원인이기도 했다.
+  if(f==='newBook'&&v==null)markDeleted('newBookDeletes',date+'|'+sid);
   SD();
 }
 function prevR(sid,before){
@@ -7445,6 +7451,9 @@ function clearNewBookRecord(sid,date,idx){
   restoreNewBookStock(nb); // 삭제하는 만큼 재고를 다시 채워줌
   const remaining=arr.filter((_,i)=>i!==idx);
   r.newBook=remaining.length?remaining:null;
+  // ⚠ 마지막 한 권까지 지워서 완전히 비워진 경우엔 sR()과 동일하게 무덤을 남겨야, 다른 기기가
+  // 아직 갖고 있는 예전 값으로 되살아나지 않는다.
+  if(!remaining.length)markDeleted('newBookDeletes',date+'|'+sid);
   r._updatedAt=Date.now();
   SD();renderAll();
   toast('새책 기록을 삭제했습니다');
@@ -13306,6 +13315,13 @@ function startCloudListen() {
           if (D.tombstones?.utDeletes?.[utDelKey] != null && serverRec && serverRec.unitTest != null) {
             serverRec.unitTest = null;
           }
+          // 📌 새 책 시작(newBook)도 동일 — 방금 체크 해제해서 지운 기록(newBookDeletes tombstone)이
+          // 있으면, 서버 쪽에 아직 남아있는 예전(잘못 입력한) 값으로 되살아나지 않도록 병합 전에
+          // 서버 레코드에서도 미리 제거한다.
+          const nbDelKey = date + '|' + sid;
+          if (D.tombstones?.newBookDeletes?.[nbDelKey] != null && serverRec && serverRec.newBook != null) {
+            serverRec.newBook = null;
+          }
           // ⚠ 이 학생의 이 날짜 기록 자체를 방금 삭제했으면(recordDeletes tombstone), 로컬에
           // 없다고 해서 서버의 예전 기록으로 되살리지 않는다 — deleteRecord/전체 초기화로
           // 지운 기록이 다른 기기와 동기화되면서 다시 나타나던 문제를 막기 위함.
@@ -14107,6 +14123,12 @@ function startSagoListen(){
           // 기기의 예전 사본으로 되살아나지 않게 막는다 — 빠져있던 보호를 여기도 맞춰서 추가함.
           const recDelKey=date+'|'+sid;
           if(D.tombstones?.recordDeletes?.[recDelKey]!=null)return;
+          // 📌 새 책 시작을 체크 해제해서 지운 기록(newBookDeletes 무덤)도 코스 클라우드와 동일하게
+          // 서버의 예전(잘못 입력한) 값으로 되살아나지 않도록 병합 전에 미리 제거한다.
+          const nbDelKey=date+'|'+sid;
+          if(D.tombstones?.newBookDeletes?.[nbDelKey]!=null&&rec&&rec.newBook!=null){
+            rec.newBook=null;
+          }
           const localRec=D.R[date][sid];
           D.R[date][sid]=localRec?mergeLessonRecord(localRec,rec):rec;
         });
