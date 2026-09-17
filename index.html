@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-18-symmetric-tombstone-guard'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-18-slot-cutover-pause'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1270,7 +1270,11 @@ function _upgradeSlotsAug(arr){
   return arr;
 }
 // 이 날짜(포함)부터 새 시간표 적용. 그 이전 주는 기존 시간표가 그대로 유지됨.
-const SLOT_CUTOVER='2026-08-01';
+// 📌 2026-09-18: 새 시간표(G1~G8)로 실제 학생 재배정이 아직 안 된 상태에서 이 cutover가 발동돼,
+// 저학년/고학년 화면에 학생이 전부 0명으로 보이는 사고가 발생했다. 실제 재배정 작업이 끝나기
+// 전까지는 절대 자동으로 전환되지 않도록 cutover를 먼 미래로 미뤄둔다. 새 시간표로 넘어갈
+// 준비가 되면(=G1~G8에 학생들을 다 옮겨 배정한 뒤) 이 날짜를 실제 전환일로 다시 바꿀 것.
+const SLOT_CUTOVER='2099-01-01';
 let SLOTS_LEGACY = JSON.parse(localStorage.getItem('br5_slots')||'null') || DEFAULT_SLOTS;
 let SLOTS_AUG = _upgradeSlotsAug(JSON.parse(localStorage.getItem('br5_slots_aug')||'null')) || DEFAULT_SLOTS_AUG;
 // SLOTS: 현재 보고 있는 주(WS)에 맞는 시간대 세트. renderAll() 등에서 syncActiveSlots()로 갱신됨.
@@ -14329,18 +14333,25 @@ function startCloudListen() {
         Object.keys(data.R[date]).forEach(sid => {
           const localRec = D.R[date]?.[sid];
           const serverRec = data.R[date][sid];
-          // 📌 단원평가(unitTest)를 지운 기록(utDeletes tombstone)이 있으면, 서버 쪽에 아직
-          // 남아있는 예전 값으로 되살아나지 않도록 병합 전에 서버 레코드에서도 미리 제거
+          // ⚠ 무덤(tombstone)은 반드시 "서버에서 오는 값(serverRec)"과 "이 기기가 이미 갖고 있던
+          // 값(localRec)" 양쪽에 다 적용해야 한다. serverRec만 걸러내면: 병합 시 이긴 쪽(base)이
+          // 이 필드를 비운 걸로 보여도, 진 쪽(other)에 아직 값이 남아있으면 mergeLessonRecord의
+          // "내용성 필드 보존" 로직이 그 값을 다시 살려서 merged에 넣어버린다 — "삭제 버튼을 눌러도
+          // 다시 살아나고, 기기마다 하나씩 다시 눌러줘야 한다"는 신고의 실제 원인이었다.
+          // 📌 단원평가(unitTest)를 지운 기록(utDeletes tombstone)이 있으면, 서버·로컬 양쪽에 아직
+          // 남아있는 예전 값으로 되살아나지 않도록 병합 전에 미리 제거
           const utDelKey = date + '|' + sid;
-          if (D.tombstones?.utDeletes?.[utDelKey] != null && serverRec && serverRec.unitTest != null) {
-            serverRec.unitTest = null;
+          if (D.tombstones?.utDeletes?.[utDelKey] != null) {
+            if (serverRec && serverRec.unitTest != null) serverRec.unitTest = null;
+            if (localRec && localRec.unitTest != null) localRec.unitTest = null;
           }
           // 📌 새 책 시작(newBook)도 동일 — 방금 체크 해제해서 지운 기록(newBookDeletes tombstone)이
-          // 있으면, 서버 쪽에 아직 남아있는 예전(잘못 입력한) 값으로 되살아나지 않도록 병합 전에
-          // 서버 레코드에서도 미리 제거한다.
+          // 있으면, 서버·로컬 양쪽에 아직 남아있는 예전(잘못 입력한) 값으로 되살아나지 않도록
+          // 병합 전에 미리 제거한다.
           const nbDelKey = date + '|' + sid;
-          if (D.tombstones?.newBookDeletes?.[nbDelKey] != null && serverRec && serverRec.newBook != null) {
-            serverRec.newBook = null;
+          if (D.tombstones?.newBookDeletes?.[nbDelKey] != null) {
+            if (serverRec && serverRec.newBook != null) serverRec.newBook = null;
+            if (localRec && localRec.newBook != null) localRec.newBook = null;
           }
           // ⚠ 이 학생의 이 날짜 기록 자체를 방금 삭제했으면(recordDeletes tombstone), 로컬에
           // 없다고 해서 서버의 예전 기록으로 되살리지 않는다 — deleteRecord/전체 초기화로
