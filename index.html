@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-facto-report-restored'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-facto-separate-tab'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -9755,7 +9755,7 @@ function rGrade(){
   if(!D.tomaDist)D.tomaDist={};
   if(!GRADE_DIST_MONTH)GRADE_DIST_MONTH=tdk().slice(0,7);
   if(GRADE_TEST==='DIST')return rGradeDist();
-  if(GRADE_SID)return GRADE_TEST==='ME'?rGradeDetME(GRADE_SID):rGradeDet(GRADE_SID);
+  if(GRADE_SID)return GRADE_TEST==='ME'?rGradeDetME(GRADE_SID):GRADE_TEST==='FACTO'?rGradeDetFacto(GRADE_SID):rGradeDet(GRADE_SID);
   return rGradeList();
 }
 
@@ -10173,9 +10173,10 @@ function rGradeList(){
   let out=`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
-    ${GRADE_TEST==='TOMA'?`<div style="display:flex;gap:6px;flex-wrap:wrap;">
-      <button onclick="openTomaModal(null)" style="padding:7px 14px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> TOMA 입력</button>
-      <button onclick="openScoreTplManager()" style="padding:7px 14px;background:#fff;color:#0369A1;border:1px solid #7DD3FC;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-analytics"></i> 시험지 템플릿 관리</button>
+    ${GRADE_TEST==='TOMA'?`<button onclick="openTomaModal(null)" style="padding:7px 14px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> TOMA 입력</button>`
+    :GRADE_TEST==='FACTO'?`<div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button onclick="openFactoScoreModal(null)" style="padding:7px 14px;background:#7C3AED;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 팩토시험 입력</button>
+      <button onclick="openScoreTplManager()" style="padding:7px 14px;background:#fff;color:#7C3AED;border:1px solid #C4B5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-analytics"></i> 시험지 템플릿 관리</button>
     </div>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
   </div>
   <div style="display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;">
@@ -10189,16 +10190,19 @@ function rGradeList(){
   <div style="display:flex;gap:5px;margin-bottom:12px;">
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='ME'?'#1E40AF':'var(--bdr)'};background:${GRADE_TEST==='ME'?'#1E40AF':'#fff'};color:${GRADE_TEST==='ME'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
     <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='TOMA'?'var(--pri2)':'var(--bdr)'};background:${GRADE_TEST==='TOMA'?'var(--pri2)':'#fff'};color:${GRADE_TEST==='TOMA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
+    <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='FACTO'?'#7C3AED':'var(--bdr)'};background:${GRADE_TEST==='FACTO'?'#7C3AED':'#fff'};color:${GRADE_TEST==='FACTO'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
   </div>`;
 
   if(GRADE_TEST==='ME') return out+rGradeListME(stuList);
+  if(GRADE_TEST==='FACTO') return out+rGradeListFacto(stuList);
 
   // ── TOMA 목록 (월별로 확인) ──────────────
   if(!TOMA_MONTH_FILTER)TOMA_MONTH_FILTER=new Date().getMonth()+1;
   const curMonthT=new Date().getMonth()+1;
   const byStudent={};
   (D.tomaScores||[]).forEach(t=>{
+    if(isFactoScoreEntry(t))return; // 팩토시험은 별도 탭에서 관리 — TOMA 목록에는 섞이지 않게 함
     if(Number(t.month)!==TOMA_MONTH_FILTER)return;
     if(!byStudent[t.sid])byStudent[t.sid]={latest:null,total:0};
     byStudent[t.sid].total++;
@@ -10437,7 +10441,7 @@ function rGradeDetME(sid){
 
 function rGradeDet(sid){
   const s=gS(sid);if(!s)return`<div class="empty">학생 없음</div>`;
-  const scores=(D.tomaScores||[]).filter(t=>t.sid===sid).sort((a,b)=>(b.year*12+b.month)-(a.year*12+a.month));
+  const scores=(D.tomaScores||[]).filter(t=>t.sid===sid&&!isFactoScoreEntry(t)).sort((a,b)=>(b.year*12+b.month)-(a.year*12+a.month));
 
   let out=`<button onclick="GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;margin-bottom:12px;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i> 전체 목록</button>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -10502,6 +10506,141 @@ function rGradeDet(sid){
               <button onclick="saveRetestScore('${t.id}')" style="padding:7px 14px;background:var(--ok);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">저장</button>
             </div>`}
       </div>`:''}
+    </div>`;
+  });
+  return out;
+}
+
+// ── 팩토시험 목록 (월별로 확인) — TOMA와 별개의 사고력 전용 시험 ──────────────
+let FACTO_MONTH_FILTER=null;
+function shiftFactoMonth(delta){
+  FACTO_MONTH_FILTER+=delta;
+  if(FACTO_MONTH_FILTER<1)FACTO_MONTH_FILTER=12;
+  if(FACTO_MONTH_FILTER>12)FACTO_MONTH_FILTER=1;
+  renderAll();
+}
+function isFactoScoreEntry(t){ return !!(t&&t.testName&&t.testName.includes('팩토')); }
+function rGradeListFacto(stuList){
+  if(!FACTO_MONTH_FILTER)FACTO_MONTH_FILTER=new Date().getMonth()+1;
+  const curMonthT=new Date().getMonth()+1;
+  const byStudent={};
+  (D.tomaScores||[]).forEach(t=>{
+    if(!isFactoScoreEntry(t))return;
+    if(Number(t.month)!==FACTO_MONTH_FILTER)return;
+    if(!byStudent[t.sid])byStudent[t.sid]={latest:null,total:0};
+    byStudent[t.sid].total++;
+    if(!byStudent[t.sid].latest||t.date>byStudent[t.sid].latest.date)byStudent[t.sid].latest=t;
+  });
+  let out=`<div style="display:flex;align-items:center;justify-content:space-between;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:var(--rs);padding:10px 12px;margin-bottom:12px;">
+    <button onclick="shiftFactoMonth(-1)" style="border:none;background:none;font-size:16px;color:#7C3AED;cursor:pointer;padding:2px 8px;">◀</button>
+    <div style="text-align:center;">
+      <div style="font-size:14px;font-weight:700;color:#7C3AED;">${FACTO_MONTH_FILTER}월 팩토시험${FACTO_MONTH_FILTER===curMonthT?' <span style="font-size:10px;background:#EDE9FE;color:#5B21B6;padding:1px 6px;border-radius:10px;font-weight:600;">이번달</span>':''}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:1px;">사고력 팩토시험 · 이 달만 따로 확인</div>
+    </div>
+    <button onclick="shiftFactoMonth(1)" style="border:none;background:none;font-size:16px;color:#7C3AED;cursor:pointer;padding:2px 8px;">▶</button>
+  </div>`;
+  const grades=['07','1','2','3','4','5','6','m1','m2','m3','h1','h2','h3'];
+  let hasAny=false;
+  grades.forEach(g=>{
+    const gl=stuList.filter(s=>s.grade===g&&(GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true));
+    if(!gl.length)return;
+    const withScores=gl.filter(s=>byStudent[s.id]);
+    const withoutScores=gl.filter(s=>!byStudent[s.id]);
+    const showList=[...withScores,...withoutScores];
+    if(!showList.length)return;
+    hasAny=true;
+    out+=`<div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">${GL[g]||g}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:7px;margin-bottom:4px;">`;
+    showList.forEach(s=>{
+      const b=byStudent[s.id];
+      const [bg,c]=avc(s.id);
+      const latest=b?.latest;
+      const hasScore=!!latest;
+      out+=`<div onclick="GRADE_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid ${hasScore?'#DDD6FE':'var(--bdr)'};border-radius:var(--rs);padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:9px;${hasScore?'background:#F5F3FF;':''}">
+        <div style="width:34px;height:34px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(dispStuName(s.id))}</div>
+          ${hasScore
+            ?`<div style="font-size:10px;color:${latest.retest&&!latest.retestScore&&!latest.score?'var(--dan)':latest.retest&&latest.retestScore?'var(--ok)':'#7C3AED'};font-weight:600;">${latest.retest&&!latest.retestScore?'🔄 재시험 대상':latest.retest&&latest.retestScore?'✓ 재시험 '+latest.retestScore+'점':latest.score+'점'}</div>
+               <div style="font-size:10px;color:var(--muted);">${latest.date}</div>`
+            :`<div style="font-size:10px;color:var(--muted);">이 달 기록 없음</div>`}
+        </div>
+      </div>`;
+    });
+    out+=`</div>`;
+  });
+  if(!hasAny)out+=`<div class="empty"><i class="ti ti-chart-bar-off"></i>팩토시험 기록이 없습니다.<br><span style="font-size:12px;color:var(--muted);">+ 팩토시험 입력 버튼을 눌러 시작하세요</span></div>`;
+  return out;
+}
+
+// ── 팩토시험 상세 ──────────────
+function rGradeDetFacto(sid){
+  const s=gS(sid);if(!s)return`<div class="empty">학생 없음</div>`;
+  const scores=(D.tomaScores||[]).filter(t=>t.sid===sid&&isFactoScoreEntry(t)).sort((a,b)=>(b.year*12+b.month)-(a.year*12+a.month));
+
+  let out=`<button onclick="GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;margin-bottom:12px;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i> 전체 목록</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      ${avEl(sid,40)}
+      <div>
+        <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
+        <div style="font-size:11px;color:var(--muted);">${GL[s.grade]||s.grade} · 팩토시험 ${scores.length}회</div>
+      </div>
+    </div>
+    <button onclick="openFactoScoreModal('${esc(sid)}')" style="padding:7px 14px;background:#7C3AED;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-plus"></i> 성적 추가</button>
+  </div>`;
+
+  if(!scores.length){
+    out+=`<div class="empty"><i class="ti ti-chart-bar-off"></i>${esc(sid)} 팩토시험 기록이 없습니다.</div>`;
+    return out;
+  }
+
+  // 점수 추이 간이 차트
+  const recent=[...scores].sort((a,b)=>(a.year*12+a.month)-(b.year*12+b.month)).slice(-6);
+  if(recent.length>=2){
+    const max=Math.max(...recent.map(t=>Number(t.score)||0));
+    const min=Math.min(...recent.map(t=>Number(t.score)||0));
+    const range=max-min||1;
+    out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:12px 14px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;">📈 최근 ${recent.length}회 추이</div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:60px;">
+        ${recent.map(t=>{const h=Math.round(((Number(t.score)||0)-min)/range*50)+10;return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+          <div style="font-size:9px;font-weight:700;color:#7C3AED;">${t.score}</div>
+          <div style="width:100%;height:${h}px;background:#7C3AED;border-radius:4px 4px 0 0;min-height:8px;"></div>
+          <div style="font-size:8px;color:var(--muted);white-space:nowrap;">${t.month}월</div>
+        </div>`;}).join('')}
+      </div>
+    </div>`;
+  }
+
+  scores.forEach(t=>{
+    out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:11px 14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${t.retest&&!t.score
+            ?`<span style="font-size:15px;font-weight:700;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:var(--rs);padding:3px 10px;">🔄 재시험 대상</span>`
+            :`<span style="font-size:20px;font-weight:700;color:#7C3AED;">${t.score}점</span>`}
+          ${t.retest&&t.retestScore?`<span style="font-size:11px;background:var(--ok-l);color:var(--ok);border:1px solid var(--ok-b);border-radius:10px;padding:1px 7px;font-weight:600;">✓ 재시험 ${t.retestScore}점</span>`:''}
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button onclick="openFactoScoreModal('${esc(sid)}','${t.id}')" style="font-size:11px;color:#7C3AED;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i></button>
+          <button onclick="deleteToma('${t.id}')" style="font-size:11px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-trash" style="font-size:10px;"></i></button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);">📅 ${t.year||new Date().getFullYear()}년 ${t.month}월${t.round?` · 제${t.round}회`:''} &nbsp;|&nbsp; 🏷 ${t.testName||'팩토시험'}</div>
+      ${t.memo?`<div style="font-size:12px;color:var(--txt);margin-top:5px;background:#F8FAFC;border-radius:6px;padding:5px 8px;">${esc(t.memo)}</div>`:''}
+      ${t.retest?`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--bdr);">
+        <div style="font-size:11px;font-weight:700;color:var(--dan);margin-bottom:6px;">🔄 재시험 결과</div>
+        ${t.retestScore
+          ?`<div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;font-weight:700;color:var(--ok);">✓ ${t.retestScore}점</span>
+              <button onclick="editRetestScore('${t.id}')" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 9px;cursor:pointer;">수정</button>
+            </div>`
+          :`<div style="display:flex;align-items:center;gap:6px;">
+              <input id="retest-score-${t.id}" type="number" placeholder="재시험 점수 입력" style="flex:1;padding:7px 10px;border:1px solid var(--dan-b);border-radius:var(--rs);font-size:15px;font-weight:700;color:var(--dan);outline:none;background:var(--dan-l);">
+              <button onclick="saveRetestScore('${t.id}')" style="padding:7px 14px;background:var(--ok);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">저장</button>
+            </div>`}
+      </div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--bdr);flex-wrap:wrap;">
         <button onclick="openMEReportEditor('${t.id}')" style="font-size:11px;font-weight:700;color:#fff;background:#185FA5;border:none;border-radius:20px;padding:5px 12px;cursor:pointer;display:flex;align-items:center;gap:4px;"><i class="ti ti-file-analytics" style="font-size:12px;"></i> ${t.report?'상세 성적표 수정':'상세 성적표 작성'}</button>
         ${t.report?`<button onclick="printMEReport('${t.id}')" style="font-size:11px;font-weight:700;color:#185FA5;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:20px;padding:5px 12px;cursor:pointer;display:flex;align-items:center;gap:4px;"><i class="ti ti-printer" style="font-size:12px;"></i> 인쇄</button>`:''}
@@ -10509,6 +10648,79 @@ function rGradeDet(sid){
     </div>`;
   });
   return out;
+}
+
+// ── 팩토시험 직접 입력 (TOMA 입력창과 별개) ──────────────
+let FACTO_SCORE_EDIT_ID=null;
+function togFactoRetest(){
+  const chk=document.getElementById('facto-score-retest')?.checked;
+  const scoreEl=document.getElementById('facto-score-score');
+  if(!scoreEl)return;
+  if(chk){scoreEl.value='';scoreEl.disabled=true;scoreEl.placeholder='재시험 대상';}
+  else{scoreEl.disabled=false;scoreEl.placeholder='예) 85';}
+}
+function renderFactoScoreStudentList(q){
+  const sel=document.getElementById('facto-score-sid');if(!sel)return;
+  const cur=sel.value;
+  // 팩토시험은 사고력 전용이라 ActiveGroup과 무관하게 D.S에서 사고력 그룹만 직접 골라야 한다 —
+  // 안 그러면 저학년/고학년 화면에서 이 모달을 열었을 때 학생 목록이 텅 비어 보인다.
+  const list=D.S.filter(s=>s&&s.status!=='퇴원'&&(s.group||'저학년')==='사고력'&&(!q||korSearch(s.id,q)));
+  sel.innerHTML=list.map(s=>`<option value="${esc(s.id)}"${s.id===cur?' selected':''}>${esc(dispStuName(s.id))} (${GL[s.grade]||s.grade})</option>`).join('');
+}
+function openFactoScoreModal(sid,tid){
+  FACTO_SCORE_EDIT_ID=tid||null;
+  const isEdit=!!tid;
+  const t=isEdit?(D.tomaScores||[]).find(x=>x.id===tid):null;
+  document.getElementById('facto-score-modal-title').textContent=isEdit?'팩토시험 성적 수정':'팩토시험 성적 입력';
+  document.getElementById('facto-score-stu-search').value='';
+  renderFactoScoreStudentList('');
+  if(t?.sid||sid){
+    const sel=document.getElementById('facto-score-sid');
+    for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===(t?.sid||sid)){sel.options[i].selected=true;break;}}
+  }
+  const curMonth=t?.month||(D._factoLastMonth||(new Date().getMonth()+1));
+  document.getElementById('facto-score-month').value=curMonth;
+  document.getElementById('facto-score-round').value=t?.round||(D._factoLastRound||'');
+  const isRetest=t?.retest||false;
+  const retestEl=document.getElementById('facto-score-retest');
+  if(retestEl)retestEl.checked=isRetest;
+  document.getElementById('facto-score-score').value=t?.score||'';
+  document.getElementById('facto-score-score').disabled=isRetest;
+  document.getElementById('facto-score-score').placeholder=isRetest?'재시험 대상':'예) 85';
+  document.getElementById('facto-score-memo').value=t?.memo||'';
+  openM('facto-score-modal');
+}
+function saveFactoScore(){
+  const sel=document.getElementById('facto-score-sid');
+  const sid=sel?.value;
+  const month=document.getElementById('facto-score-month').value;
+  const round=document.getElementById('facto-score-round').value;
+  const score=document.getElementById('facto-score-score').value.trim();
+  const memo=document.getElementById('facto-score-memo').value.trim();
+  const retest=document.getElementById('facto-score-retest')?.checked||false;
+  if(!sid){alert('학생을 선택해주세요.');return;}
+  if(!month){alert('시험 월을 선택해주세요.');return;}
+  if(!retest&&!score){alert('점수를 입력하거나 재시험 대상을 체크해주세요.');return;}
+  if(!D.tomaScores)D.tomaScores=[];
+  const year=new Date().getFullYear();
+  const existing=FACTO_SCORE_EDIT_ID?D.tomaScores.find(x=>x.id===FACTO_SCORE_EDIT_ID):null;
+  // ⚠ 이미 "상세 성적표"(report 상세 분석, tplId/tplName 등)가 저장돼있는 기록도 있다 — 여기서
+  // 저장할 때 그 기록을 통째로 새 객체로 바꿔치기하면 그 값들이 전부 사라진다("팩토 결과지가
+  // 없어졌다"는 신고의 실제 원인). 그래서 새 기록일 때만 만들고, 기존 기록을 고치는 거면 이
+  // 입력칸이 다루는 필드만 덮어써서 나머지(report 등)는 그대로 둔다.
+  const testName=round?`제${round}회 팩토시험`:`${month}월 팩토시험`;
+  const entry=Object.assign({},existing,{id:FACTO_SCORE_EDIT_ID||Date.now()+'',sid,month:Number(month),year,round:round?Number(round):null,score:retest?'':score,retest,memo,testName});
+  if(!retest)delete entry.retestScore;
+  D._factoLastMonth=Number(month);
+  D._factoLastRound=round?Number(round):null;
+  if(FACTO_SCORE_EDIT_ID){
+    const idx=D.tomaScores.findIndex(x=>x.id===FACTO_SCORE_EDIT_ID);
+    if(idx>=0)D.tomaScores[idx]=entry;
+  } else {
+    D.tomaScores.push(entry);
+  }
+  SD();closeM('facto-score-modal');GRADE_SID=sid;renderAll();
+  toast(FACTO_SCORE_EDIT_ID?'수정되었습니다':`${month}월 팩토시험 성적 저장 ✓`);
 }
 
 // ── 월말평가 직접 입력 ──────────────
@@ -15595,6 +15807,51 @@ init();
   <div class="btn-row">
     <button class="btn btn-sec" onclick="closeM('toma-modal')">취소</button>
     <button class="btn btn-pri" onclick="saveToma()"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
+  </div>
+</div></div>
+
+<!-- 팩토시험 SCORE MODAL (TOMA와 별개) -->
+<div class="overlay" id="facto-score-modal">
+<div class="modal" style="max-width:400px;">
+  <div class="mhdr">
+    <div><div class="mtitle" id="facto-score-modal-title">팩토시험 성적 입력</div><div class="msub">팩토시험 성적 기록</div></div>
+    <button class="mclose" onclick="closeM('facto-score-modal')"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="fg"><label class="flbl">학생 *</label>
+    <input class="fi" id="facto-score-stu-search" placeholder="이름 검색" oninput="renderFactoScoreStudentList(this.value)" autocomplete="off" style="margin-bottom:6px;">
+    <select class="fsel" id="facto-score-sid" size="4" style="height:auto;min-height:80px;"></select>
+  </div>
+  <div class="fg"><label class="flbl">시험 월 · 회차 *</label>
+    <div class="frow" style="margin-bottom:0;">
+      <div class="fg">
+        <select class="fsel" id="facto-score-month">
+          <option value="">월 선택</option>
+          <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+          <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+          <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+          <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+        </select>
+      </div>
+      <div class="fg">
+        <input class="fi" id="facto-score-round" type="number" min="1" placeholder="제N회" style="text-align:center;">
+      </div>
+    </div>
+  </div>
+  <div class="fg"><label class="flbl">점수 *</label>
+    <input class="fi" id="facto-score-score" type="number" placeholder="예) 85" style="font-size:20px;font-weight:700;color:#7C3AED;">
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin:-4px 0 8px;">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dan);cursor:pointer;padding:6px 10px;background:var(--dan-l);border:1px solid var(--dan-b);border-radius:var(--rs);">
+      <input type="checkbox" id="facto-score-retest" onchange="togFactoRetest()" style="width:15px;height:15px;accent-color:var(--dan);cursor:pointer;">
+      🔄 재시험 대상 (점수 없음)
+    </label>
+  </div>
+  <div class="fg"><label class="flbl">메모 (선택)</label>
+    <input class="fi" id="facto-score-memo" placeholder="예) 도형 영역 약점">
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-sec" onclick="closeM('facto-score-modal')">취소</button>
+    <button class="btn btn-pri" onclick="saveFactoScore()" style="background:#7C3AED;"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
   </div>
 </div></div>
 
