@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-newbook-resurrection-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-local-cache-reset-btn'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13390,6 +13390,19 @@ function startCloudListen() {
 // 남아있었다. 그래서 선생님이 "연결 해제"를 눌러도 화면에 아무 변화가 안 보여서 "초기화가
 // 안 되는 것 같다"고 느꼈다. 이제는 입력칸을 완전히 비우고 설정창을 열어둔 채로 남겨서,
 // 눈으로 바로 "초기화됐다"는 걸 확인하고 그 자리에서 바로 새 설정값을 붙여넣을 수 있게 한다.
+// ⚠ 이 기기의 로컬 캐시(br5_* 저장값)만 지우고 서버 데이터는 전혀 건드리지 않은 채 새로고침해서,
+// 서버의 최신 상태를 처음부터 다시 받아오게 한다. "어떤 기기 하나가 옛날 값을 계속 고집하고
+// 재연결로도 안 고쳐지는" 상황(그 기기 로컬의 scMeta 등 수정시각이 잘못 찍혀 서버보다 항상
+// "더 최신"으로 오판되는 경우 등)을 선생님이 직접, 서버 데이터 유실 위험 없이 해결할 수 있게 함.
+// br5_fb_config/br5_fb_autoconnect_off(클라우드 연결 설정)와 br5_teacher_name 등 개인 설정은
+// 남겨둬서 다시 연결값을 붙여넣을 필요는 없게 한다.
+function resetLocalCacheAndReload(){
+  if(!confirm('이 기기에 저장된 캐시(학생·시간표·수업기록 등)를 지우고 서버에서 최신 데이터를 다시 받아옵니다.\n\n⚠ 클라우드(서버)에 저장된 데이터는 전혀 지워지지 않습니다 — 이 기기의 로컬 사본만 지우고 새로고침합니다.\n\n계속할까요?'))return;
+  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last'];
+  keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  toast('🔄 캐시를 지웠습니다 — 서버에서 새로 받아옵니다');
+  setTimeout(()=>location.reload(),400);
+}
 function disconnectCloud() {
   if (db) { try { db.ref('braining').off(); } catch(e) {} try { db.ref('.info/connected').off(); } catch(e) {} }
   // ⚠ firebase.apps엔 사고력 전용 앱('sago')도 항상 들어있어서, length만으로 판단하면 기본 앱이
@@ -14864,6 +14877,13 @@ __이렇게 쓰면 밑줄이 그어집니다__" style="resize:vertical;line-heig
       <div id="cloud-status-sub" style="font-size:12px;color:var(--muted);">Firebase를 연결하면 모든 기기에서 데이터가 동기화됩니다</div>
     </div>
     <button id="cloud-disconnect-btn" onclick="disconnectCloud()" style="display:none;margin-left:auto;padding:6px 12px;border-radius:20px;background:var(--dan-l);color:var(--dan);border:1px solid var(--dan-b);font-size:12px;cursor:pointer;">연결 해제</button>
+  </div>
+  <!-- 🔄 다른 기기와 화면이 다르게 보일 때, 이 기기의 로컬 캐시만 지우고 서버에서 다시 받아오는
+       안전한 리셋 — 서버 데이터는 전혀 건드리지 않는다 -->
+  <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--rs);padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1E40AF;">
+    <div style="font-weight:700;margin-bottom:6px;">🔄 이 화면이 다른 선생님 화면과 다르게 보이나요?</div>
+    <div style="margin-bottom:8px;">이 기기에 저장된 캐시만 지우고 서버의 최신 데이터를 처음부터 다시 받아옵니다. <strong>서버(클라우드)에 저장된 데이터는 전혀 지워지지 않으니</strong> 안심하고 눌러도 됩니다.</div>
+    <button onclick="resetLocalCacheAndReload()" style="width:100%;padding:9px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-refresh"></i> 이 기기 캐시 초기화 후 새로 받기</button>
   </div>
   <!-- 🔄 이 기기가 학원 공식 공유 주소가 아닌 예전/다른 주소에 연결(또는 그 값이 저장)돼 있을 때만
        나타남 — JSON을 직접 지우고 새로 붙여넣지 않아도 버튼 한 번으로 공식 주소로 바꿀 수 있음 -->
