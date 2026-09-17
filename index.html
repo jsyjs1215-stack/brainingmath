@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-sago-course-separation'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-facto-report-restored'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1717,10 +1717,10 @@ function LD(){
     // SD()/SD_local()/클라우드 저장·병합에 넣는 걸 깜빡해서, 입력해도 저장이 전혀 안 되고
     // (로컬 저장소·클라우드 어디에도 안 남아서) 새로고침하면 사라지는 문제가 있었음.
     highClassNames:JSON.parse(localStorage.getItem('br5_high_classnames')||'{}'),
-    // 팩토 시험 템플릿(사고력 전용, 공용) — 레벨·회차별로 문제 구성(영역·난이도·배점)과
-    // 학습 목표(units)를 한 번 만들어두면 재사용. bookLevelConfig와 동일한 패턴.
-    factoTemplates:JSON.parse(localStorage.getItem('br5_facto_tpl')||'[]'),
-  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},factoTemplates:[]};}
+    // 팩토(상세 성적표) 시험지 템플릿(사고력 전용, 공용) — 레벨·권별로 문항 구성·회원평균을
+    // 한 번 만들어두면 재사용. 여러 선생님이 각자 템플릿을 추가할 수 있어 id 기준으로 병합.
+    scoreTemplates:JSON.parse(localStorage.getItem('br5_score_tpl')||'[]'),
+  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[]};}
 }
 let D=LD();
 
@@ -2974,7 +2974,7 @@ function renderAll(){
 
   try{
     document.getElementById('main').innerHTML=
-      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='factoreport'?rFactoReport():TAB==='gtsm'?rGtsm():rHov();
+      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='mereport'?rMEReportPage():TAB==='gtsm'?rGtsm():rHov();
   }catch(renderErr){
     // ⚠ 화면 렌더링 중 하나라도 오류가 나면(예: 예상 못한 데이터 모양) 그냥 조용히 이전 화면이
     // 그대로 남아있게 되어("학생이 분명 등록됐는데 시간표엔 안 보인다"처럼) 사용자가 원인을 알 수 없는
@@ -10175,8 +10175,7 @@ function rGradeList(){
     <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
     ${GRADE_TEST==='TOMA'?`<div style="display:flex;gap:6px;flex-wrap:wrap;">
       <button onclick="openTomaModal(null)" style="padding:7px 14px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> TOMA 입력</button>
-      <button onclick="openFactoModal(null)" style="padding:7px 14px;background:#7C3AED;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 팩토 결과 입력</button>
-      <button onclick="openFactoTplModal(null)" style="padding:7px 14px;background:#fff;color:#7C3AED;border:1px solid #C4B5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-settings"></i> 팩토 템플릿</button>
+      <button onclick="openScoreTplManager()" style="padding:7px 14px;background:#fff;color:#0369A1;border:1px solid #7DD3FC;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-analytics"></i> 시험지 템플릿 관리</button>
     </div>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
   </div>
   <div style="display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;">
@@ -10485,8 +10484,7 @@ function rGradeDet(sid){
           ${t.retest&&t.retestScore?`<span style="font-size:11px;background:var(--ok-l);color:var(--ok);border:1px solid var(--ok-b);border-radius:10px;padding:1px 7px;font-weight:600;">✓ 재시험 ${t.retestScore}점</span>`:''}
         </div>
         <div style="display:flex;gap:5px;">
-          ${isFactoEntry(t)?`<button onclick="printFactoReport('${t.id}')" style="font-size:11px;color:#7C3AED;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-file-text" style="font-size:10px;"></i> 결과지</button>`:''}
-          <button onclick="${isFactoEntry(t)?`openFactoModal('${esc(sid)}','${t.id}')`:`openTomaModal('${esc(sid)}','${t.id}')`}" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i></button>
+          <button onclick="openTomaModal('${esc(sid)}','${t.id}')" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i></button>
           <button onclick="deleteToma('${t.id}')" style="font-size:11px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:10px;padding:2px 9px;cursor:pointer;"><i class="ti ti-trash" style="font-size:10px;"></i></button>
         </div>
       </div>
@@ -10504,6 +10502,10 @@ function rGradeDet(sid){
               <button onclick="saveRetestScore('${t.id}')" style="padding:7px 14px;background:var(--ok);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">저장</button>
             </div>`}
       </div>`:''}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--bdr);flex-wrap:wrap;">
+        <button onclick="openMEReportEditor('${t.id}')" style="font-size:11px;font-weight:700;color:#fff;background:#185FA5;border:none;border-radius:20px;padding:5px 12px;cursor:pointer;display:flex;align-items:center;gap:4px;"><i class="ti ti-file-analytics" style="font-size:12px;"></i> ${t.report?'상세 성적표 수정':'상세 성적표 작성'}</button>
+        ${t.report?`<button onclick="printMEReport('${t.id}')" style="font-size:11px;font-weight:700;color:#185FA5;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:20px;padding:5px 12px;cursor:pointer;display:flex;align-items:center;gap:4px;"><i class="ti ti-printer" style="font-size:12px;"></i> 인쇄</button>`:''}
+      </div>
     </div>`;
   });
   return out;
@@ -10959,312 +10961,827 @@ function deleteToma(tid){
   SD();renderAll();toast('삭제되었습니다');
 }
 
-// ═══ 팩토 결과지 (사고력 전용) ══════════════════════════════
-// 📌 이 기능은 화면 코드가 통째로 삭제됐다가 데이터(D.tomaScores 안의 report 필드)만 남아있던
-// 것을 "예전과 같은 틀"로 다시 만든 것 — 남아있던 예전 기록 13건의 실제 구조(문제별 영역·난이도·
-// 배점, 학습목표 목록, 학급평균, 코멘트)를 그대로 본떠서 설계함.
-// · 시험 템플릿(레벨+회차별 문제 구성)을 한 번 만들어두면, 학생마다 문제별 점수만 입력하면
-//   영역별/난이도별 합계가 자동 계산됨.
-// · 점수 기록 자체는 예전과 동일하게 D.tomaScores에 testName="제N회 팩토시험"으로 저장되고,
-//   사고력 학생 id만 담기므로 기존 pushSagoNow/buildSagoPayload의 tomaScores 필터링을 그대로 탄다.
-const FACTO_AREAS=['추론능력','의사소통능력','문제해결력','창의성'];
-const FACTO_DIFFS=['상','중','하'];
-function isFactoEntry(t){ return !!(t&&t.report); }
-// 예전(화면이 삭제되기 전) 기록 13건에는 템플릿 관리 기능이 없던 시절이라 D.factoTemplates에
-// 저장된 적이 없다 — 그 기록들 안에 이미 들어있는 tplId/tplName/questions/units를 그대로
-// 읽어서, 템플릿 목록에 없는 것만 자동으로 복원해준다(저장은 하지 않고 화면에 보여줄 때만
-// 즉석에서 합쳐서 만듦 — D.factoTemplates 자체를 건드리지 않아 안전함).
-function getFactoTemplates(){
-  const saved=D.factoTemplates||[];
-  const savedIds=new Set(saved.map(t=>t.id));
-  const recovered=[];
-  const seen=new Set();
-  (D.tomaScores||[]).forEach(t=>{
-    const r=t.report;
-    if(!r||!r.tplId||savedIds.has(r.tplId)||seen.has(r.tplId))return;
-    seen.add(r.tplId);
-    recovered.push({id:r.tplId,name:r.tplName||'(이름 없는 예전 템플릿)',level:'',round:'',units:r.units||[],questions:(r.questions||[]).map(q=>({area:q.area,diff:q.diff,total:q.total}))});
-  });
-  return recovered.length?[...saved,...recovered]:saved;
+// ═══ 🖨️ 월말평가 상세 성적표 (FACTO 등 외부 시험지 양식 재현) ═══════════════════════
+// 문항별/영역별/난이도별 점수까지 직접 입력해서, 시험지에서 받는 성적표와 최대한 비슷한
+// 인쇄물을 만들 수 있게 함. D.tomaScores 레코드마다 별도의 `.report` 서브객체로 저장.
+let ME_REPORT_ID=null, ME_REPORT_RETURN_TAB='grade';
+const ME_REPORT_DEFAULT_AREAS=['추론능력','의사소통능력','문제해결력','창의성'];
+const ME_REPORT_DEFAULT_DIFFS=['상','중','하'];
+// 문항별 "과정영역" 선택칸의 옵션 목록 — 현재 설정된 영역별 성취도의 영역명을 그대로 가져다 씀
+// (영역이 나중에 이름 바뀌어서 목록에 없는 값이 저장되어 있어도, 그 값을 잃어버리지 않도록 임시로 목록에 끼워넣음)
+function scoreAreaOptionsHtml(areas,current){
+  const names=(areas||[]).map(a=>a.name||'').filter(Boolean);
+  const opts=['<option value="">-</option>'];
+  names.forEach(n=>opts.push(`<option value="${esc(n)}"${current===n?' selected':''}>${esc(n)}</option>`));
+  if(current&&!names.includes(current))opts.push(`<option value="${esc(current)}" selected>${esc(current)} (이전값)</option>`);
+  return opts.join('');
 }
+// 🎯 "영역별 배점" 자동 배정 — 시험지에 문항별 과정영역이 안 적혀 있어도, 문항별 배점과 영역별
+// 배점을 비교하면 알아낼 수 있음. 오차 없는 정확한 배정을 위해 3단계로 시도함:
+//  1단계) 연속 구간 탐색: 같은 영역의 문항들은 보통 시험지에서 이어져 있으므로, 문항을 연속된
+//         구간으로 나눠 각 구간의 합이 영역 배점과 정확히 맞아떨어지는 조합을 백트래킹으로 탐색.
+//         (영역이 배정되는 "순서"는 영역 목록 순서와 달라도 됨 — 실제 시험지 순서가 영역 목록
+//          입력 순서와 다를 수 있기 때문. 다만 목록 순서를 먼저 시도해서 가능하면 그 순서를 씀)
+//  2단계) 1단계로 정확히 안 맞으면, 구간이 이어지지 않아도 되는 전수 조합 탐색(배낭/파티션
+//         백트래킹)으로 문항들을 영역별 배점에 정확히 나누는 조합이 있는지 찾음.
+//  3단계) 그래도 정확히 맞는 조합이 전혀 없으면(배점 합계 자체가 다르거나 오타 등), 예전 방식대로
+//         순서대로 채워서 참고용 결과라도 제공하고 어디가 안 맞는지 알려줌.
+// 실패 사유(reason)를 반환해서, 호출하는 쪽에서 "무엇을 먼저 채워야 하는지" 안내할 수 있게 함.
+function autoAssignQuestionAreasByTotal(questions,areas){
+  const namedAreas=(areas||[]).filter(a=>a.name&&a.name.trim());
+  if(!namedAreas.length)return{ok:false,reason:'no-areas'};
+  const missingAreaTotal=namedAreas.filter(a=>a.total===''||a.total==null||Number(a.total)<=0);
+  if(missingAreaTotal.length)return{ok:false,reason:'missing-area-total',missing:missingAreaTotal.map(a=>a.name)};
+  const qs=questions||[];
+  if(!qs.length)return{ok:false,reason:'no-questions'};
+  const missingQTotal=qs.map((q,i)=>({q,i})).filter(({q})=>q.total===''||q.total==null);
+  if(missingQTotal.length)return{ok:false,reason:'missing-question-total',missing:missingQTotal.map(({i})=>i+1)};
 
-// ── 템플릿 관리 (문제 구성 만들기) ──────────────
-let FACTO_TPL_EDIT_ID=null, FACTO_TPL_UNITS=[], FACTO_TPL_QS=[];
-function openFactoTplModal(tplId){
-  FACTO_TPL_EDIT_ID=tplId||null;
-  const tpl=tplId?getFactoTemplates().find(x=>x.id===tplId):null;
-  document.getElementById('factotpl-modal-title').textContent=tpl?'팩토 템플릿 수정':'팩토 템플릿 만들기';
-  const delBtn=document.getElementById('factotpl-del-btn');
-  if(delBtn)delBtn.style.display=tpl?'block':'none';
-  document.getElementById('factotpl-name').value=tpl?.name||'';
-  document.getElementById('factotpl-level').value=tpl?.level||'';
-  document.getElementById('factotpl-round').value=tpl?.round||'';
-  FACTO_TPL_UNITS=tpl?JSON.parse(JSON.stringify(tpl.units||[])):[];
-  FACTO_TPL_QS=tpl?JSON.parse(JSON.stringify(tpl.questions||[])):[];
-  if(!FACTO_TPL_UNITS.length)FACTO_TPL_UNITS.push({area:FACTO_AREAS[0],title:'',goal:''});
-  if(!FACTO_TPL_QS.length)FACTO_TPL_QS.push({area:FACTO_AREAS[0],diff:'중',total:8});
-  renderFactoTplUnitRows();
-  renderFactoTplQRows();
-  openM('factotpl-modal');
-}
-function renderFactoTplUnitRows(){
-  const wrap=document.getElementById('factotpl-units');
-  if(!wrap)return;
-  wrap.innerHTML=FACTO_TPL_UNITS.map((u,i)=>`
-    <div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
-      <select onchange="FACTO_TPL_UNITS[${i}].area=this.value" style="flex:0 0 100px;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
-        ${FACTO_AREAS.map(a=>`<option value="${a}" ${u.area===a?'selected':''}>${a}</option>`).join('')}
-      </select>
-      <input value="${escAttr(u.title||'')}" oninput="FACTO_TPL_UNITS[${i}].title=this.value" placeholder="단원명 (예: 공통점 찾기)" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
-      <input value="${escAttr(u.goal||'')}" oninput="FACTO_TPL_UNITS[${i}].goal=this.value" placeholder="학습 목표" style="flex:1;padding:6px 8px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
-      <button onclick="FACTO_TPL_UNITS.splice(${i},1);renderFactoTplUnitRows()" style="border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;padding:6px 8px;cursor:pointer;flex-shrink:0;"><i class="ti ti-trash" style="font-size:11px;"></i></button>
-    </div>`).join('')
-    +`<button onclick="FACTO_TPL_UNITS.push({area:FACTO_AREAS[0],title:'',goal:''});renderFactoTplUnitRows()" style="width:100%;padding:6px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);border-radius:6px;font-size:11px;cursor:pointer;">+ 학습 목표 추가</button>`;
-}
-function renderFactoTplQRows(){
-  const wrap=document.getElementById('factotpl-qs');
-  if(!wrap)return;
-  const sumTotal=FACTO_TPL_QS.reduce((a,q)=>a+(Number(q.total)||0),0);
-  wrap.innerHTML=FACTO_TPL_QS.map((q,i)=>`
-    <div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
-      <div style="width:22px;font-size:10px;color:var(--muted);flex-shrink:0;">${i+1}.</div>
-      <select onchange="FACTO_TPL_QS[${i}].area=this.value" style="flex:1;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
-        ${FACTO_AREAS.map(a=>`<option value="${a}" ${q.area===a?'selected':''}>${a}</option>`).join('')}
-      </select>
-      <select onchange="FACTO_TPL_QS[${i}].diff=this.value" style="flex:0 0 60px;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;">
-        ${FACTO_DIFFS.map(d=>`<option value="${d}" ${q.diff===d?'selected':''}>${d}</option>`).join('')}
-      </select>
-      <input type="number" min="0" value="${q.total??''}" oninput="FACTO_TPL_QS[${i}].total=this.value;renderFactoTplQRows()" placeholder="배점" style="flex:0 0 56px;padding:6px;border:1px solid var(--bdr);border-radius:6px;font-size:11px;text-align:center;">
-      <button onclick="FACTO_TPL_QS.splice(${i},1);renderFactoTplQRows()" style="border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;padding:6px 8px;cursor:pointer;flex-shrink:0;"><i class="ti ti-trash" style="font-size:11px;"></i></button>
-    </div>`).join('')
-    +`<button onclick="FACTO_TPL_QS.push({area:FACTO_AREAS[0],diff:'중',total:8});renderFactoTplQRows()" style="width:100%;padding:6px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:4px;">+ 문제 추가</button>
-    <div style="font-size:11px;color:${sumTotal===100?'var(--ok)':'var(--warn)'};font-weight:600;">배점 합계: ${sumTotal}점${sumTotal!==100?' (보통 100점이 되도록 맞춰주세요)':''}</div>`;
-}
-function saveFactoTpl(){
-  const name=document.getElementById('factotpl-name').value.trim();
-  if(!name){alert('템플릿 이름을 입력해주세요. (예: 팩토 Lv.1 - 1호)');return;}
-  if(!FACTO_TPL_QS.length){alert('문제를 1개 이상 추가해주세요.');return;}
-  const tpl={
-    id:FACTO_TPL_EDIT_ID||(Date.now()+''),
-    name,
-    level:document.getElementById('factotpl-level').value.trim(),
-    round:document.getElementById('factotpl-round').value.trim(),
-    units:FACTO_TPL_UNITS.filter(u=>u.title||u.goal),
-    questions:FACTO_TPL_QS.map(q=>({area:q.area,diff:q.diff,total:Number(q.total)||0})),
-  };
-  if(!D.factoTemplates)D.factoTemplates=[];
-  const idx=D.factoTemplates.findIndex(x=>x.id===tpl.id);
-  if(idx>=0)D.factoTemplates[idx]=tpl;else D.factoTemplates.push(tpl);
-  SD();closeM('factotpl-modal');
-  toast('템플릿이 저장되었습니다');
-  // 방금 만든/수정한 템플릿을 성적 입력 모달이 열려있으면 바로 반영
-  const sel=document.getElementById('facto-tpl');
-  if(sel){ renderFactoTplOptions(tpl.id); onFactoTplSelectChange(); }
-}
-function deleteFactoTpl(){
-  if(!FACTO_TPL_EDIT_ID)return;
-  if(!confirm('이 템플릿을 삭제할까요? (이미 입력된 학생 성적 기록은 남아있습니다)'))return;
-  D.factoTemplates=(D.factoTemplates||[]).filter(x=>x.id!==FACTO_TPL_EDIT_ID);
-  SD();closeM('factotpl-modal');
-  toast('템플릿이 삭제되었습니다');
-}
+  const qSum=qs.reduce((s,q)=>s+(Number(q.total)||0),0);
+  const aSum=namedAreas.reduce((s,a)=>s+(Number(a.total)||0),0);
 
-// ── 성적 입력 ──────────────
-let FACTO_EDIT_ID=null;
-function renderFactoStudentList(q){
-  const sel=document.getElementById('facto-sid');if(!sel)return;
-  // ⚠ curS()는 지금 보고 있는 ActiveGroup(저학년/고학년/사고력) 기준으로 걸러져서, 팩토는
-  // 사고력 전용 기능이라 D.S 전체에서 직접 사고력 그룹만 골라야 한다 — 안 그러면 저학년/고학년
-  // 화면에서 이 모달을 열었을 때 학생 목록이 텅 비어 보인다.
-  const list=D.S.filter(s=>s&&isActiveStu(s)&&(s.group||'저학년')==='사고력'&&(!q||korSearch(s.id,q)));
-  sel.innerHTML=list.map(s=>`<option value="${esc(s.id)}">${esc(dispStuName(s.id))}${s.school?' · '+esc(s.school):''}</option>`).join('');
+  const contiguous=findContiguousAreaAssignment(qs,namedAreas);
+  if(contiguous)return{ok:true,questions:contiguous,method:'contiguous',qSum,aSum};
+
+  const partition=findExactAreaPartition(qs,namedAreas);
+  if(partition)return{ok:true,questions:partition,method:'partition',qSum,aSum};
+
+  const fallback=greedyBestEffortAreaAssignment(qs,namedAreas);
+  return{ok:false,reason:qSum!==aSum?'sum-mismatch':'no-exact-partition',qSum,aSum,questions:fallback.questions,mismatches:fallback.mismatches,unassignedCount:fallback.unassignedCount};
 }
-function renderFactoTplOptions(selectedId){
-  const sel=document.getElementById('facto-tpl');if(!sel)return;
-  const tpls=getFactoTemplates();
-  sel.innerHTML=`<option value="">템플릿 선택</option>`+tpls.map(t=>`<option value="${t.id}" ${t.id===selectedId?'selected':''}>${esc(t.name)}</option>`).join('');
-}
-function openFactoModal(sid,tid){
-  FACTO_EDIT_ID=tid||null;
-  const t=tid?(D.tomaScores||[]).find(x=>x.id===tid):null;
-  document.getElementById('facto-modal-title').textContent=t?'팩토 결과 수정':'팩토 결과 입력';
-  document.getElementById('facto-stu-search').value='';
-  renderFactoStudentList('');
-  if(t?.sid||sid){
-    const sel=document.getElementById('facto-sid');
-    for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===(t?.sid||sid)){sel.options[i].selected=true;break;}}
+// 1단계: 문항을 "연속된 구간"으로 나눠 각 구간이 영역 배점과 정확히 일치하는 조합을 백트래킹으로 탐색.
+// 구간이 배정되는 순서(어떤 영역이 먼저 나오는지)는 영역 목록 순서와 달라도 되지만, 각 영역의 문항은
+// 반드시 이어진 구간이어야 함 — 실제 시험지에서 같은 영역 문제는 보통 뭉쳐 있기 때문.
+// 실패하면 null 반환.
+function findContiguousAreaAssignment(questions,namedAreas){
+  const n=questions.length;
+  const targets=namedAreas.map(a=>Number(a.total));
+  const names=namedAreas.map(a=>a.name);
+  const vals=questions.map(q=>Number(q.total)||0);
+  const k=targets.length;
+  const assignArea=new Array(n).fill(-1);
+  const used=new Array(k).fill(false);
+  const failCache=new Set();
+  let steps=0;
+  const STEP_LIMIT=300000; // 병적으로 큰 입력에서 무한정 오래 걸리지 않도록 하는 안전장치
+  function usedKey(){ let s=''; for(let i=0;i<k;i++)s+=used[i]?'1':'0'; return s; }
+  function backtrack(qIndex){
+    if(++steps>STEP_LIMIT)return false;
+    if(qIndex===n)return used.every(Boolean);
+    const ck=qIndex+'|'+usedKey();
+    if(failCache.has(ck))return false;
+    for(let ai=0;ai<k;ai++){
+      if(used[ai])continue;
+      const target=targets[ai];
+      let sum=0;
+      for(let j=qIndex;j<n;j++){
+        sum+=vals[j];
+        if(sum===target){
+          used[ai]=true;
+          for(let x=qIndex;x<=j;x++)assignArea[x]=ai;
+          if(backtrack(j+1))return true;
+          used[ai]=false;
+        } else if(sum>target){
+          break;
+        }
+      }
+    }
+    failCache.add(ck);
+    return false;
   }
-  renderFactoTplOptions(t?.report?.tplId||'');
-  document.getElementById('facto-round').value=t?.round||'';
-  document.getElementById('facto-date').value=t?.report?.testDate||tdk();
-  document.getElementById('facto-comment').value=t?.report?.comment||'';
-  document.getElementById('facto-classavg').value=t?.report?.classAvg||'';
-  // 수정 중이면 그 기록의 문제별 점수를 그대로 불러와야 하므로, 렌더링 시 참조할 수 있게 임시 보관
-  window._factoEditQuestions=t?.report?.questions||null;
-  onFactoTplSelectChange();
-  openM('facto-modal');
+  const ok=backtrack(0);
+  if(!ok)return null;
+  return questions.map((q,i)=>({...q,area:names[assignArea[i]]}));
 }
-function onFactoTplSelectChange(){
-  const tplId=document.getElementById('facto-tpl')?.value;
-  const tpl=getFactoTemplates().find(x=>x.id===tplId);
-  const wrap=document.getElementById('facto-questions');
-  if(!wrap)return;
-  if(!tpl){
-    wrap.innerHTML=`<div style="font-size:11px;color:var(--muted);padding:8px;text-align:center;">템플릿을 먼저 선택하거나, 아래에서 새 템플릿을 만들어주세요.</div>`;
+// 2단계: 구간이 이어져 있지 않아도, 문항들을 영역별 배점에 정확히 나누는 조합이 있는지 전수 탐색
+// (배낭형 파티션 백트래킹). 문항을 배점 큰 순서로 정렬해 가지치기를 빠르게 하고, 남은 배점이 같은
+// 영역끼리는 대칭이므로 중복 탐색을 건너뜀(symmetry breaking). 실패하면 null 반환.
+function findExactAreaPartition(questions,namedAreas){
+  const items=questions.map((q,i)=>({i,total:Number(q.total)||0})).sort((a,b)=>b.total-a.total);
+  const names=namedAreas.map(a=>a.name);
+  const initCaps=namedAreas.map(a=>Number(a.total));
+  const k=initCaps.length;
+  const assign=new Array(questions.length).fill(-1);
+  const memoFail=new Set();
+  let steps=0;
+  const STEP_LIMIT=300000;
+  function backtrack(idx,caps){
+    if(++steps>STEP_LIMIT)return false;
+    if(idx===items.length)return caps.every(c=>c===0);
+    const ck=idx+'|'+caps.join(',');
+    if(memoFail.has(ck))return false;
+    const item=items[idx];
+    const triedCaps=new Set();
+    for(let ai=0;ai<k;ai++){
+      const cap=caps[ai];
+      if(cap<item.total)continue;
+      if(triedCaps.has(cap))continue; // 남은 배점이 같은 영역은 대칭이므로 하나만 시도
+      triedCaps.add(cap);
+      const newCaps=caps.slice();
+      newCaps[ai]=cap-item.total;
+      assign[item.i]=ai;
+      if(backtrack(idx+1,newCaps))return true;
+      assign[item.i]=-1;
+    }
+    memoFail.add(ck);
+    return false;
+  }
+  const ok=backtrack(0,initCaps);
+  if(!ok)return null;
+  return questions.map((q,i)=>({...q,area:names[assign[i]]}));
+}
+// 3단계(최후 수단): 정확히 맞는 조합을 찾지 못했을 때, 예전 방식대로 문항을 순서대로 훑으며 영역
+// 목표 배점에 도달할 때마다 다음 영역으로 넘어가는 방식으로 "참고용" 결과라도 만들어줌.
+function greedyBestEffortAreaAssignment(questions,namedAreas){
+  const outQuestions=questions.map(q=>({...q}));
+  let qi=0;
+  const mismatches=[];
+  namedAreas.forEach(a=>{
+    const target=Number(a.total);
+    let sum=0;
+    while(qi<outQuestions.length&&sum<target){
+      outQuestions[qi].area=a.name;
+      sum+=Number(outQuestions[qi].total)||0;
+      qi++;
+    }
+    if(sum!==target)mismatches.push({name:a.name,target,got:sum});
+  });
+  const unassignedCount=outQuestions.length-qi;
+  return{questions:outQuestions,mismatches,unassignedCount};
+}
+// 🪄 "과정영역" 자동 채움 — 문항별 배점/영역별 배점만 입력해두면, 문항마다 과정영역을 사람이
+// "자동 배정" 버튼을 누르지 않아도 저절로 채워줌(난이도가 기본값 '하'로 항상 채워져 있는 것과
+// 동일한 느낌). 선생님이 문항의 과정영역을 드롭다운에서 직접 다른 값으로 바꿔둔 경우에는(그
+// 문항의 area가 마지막으로 자동 채워졌던 값 _autoArea와 달라진 경우) 그 선택을 존중해서 덮어쓰지
+// 않음 — 드롭다운을 다시 "-"(빈값)로 되돌리면 자동 채움이 다시 적용됨.
+// 정확히 맞는 조합을 못 찾은 경우(res.ok===false)는 아무것도 건드리지 않고 기존 값을 그대로 둠 —
+// 문항 배점을 아직 다 입력하는 중이라 일시적으로 합계가 안 맞을 때 괜히 지워지지 않게 하기 위함.
+function autoFillAreaField(questions,areas){
+  const res=autoAssignQuestionAreasByTotal(questions,areas);
+  if(!res.ok)return{questions,res};
+  const filled=questions.map((q,i)=>{
+    const autoArea=res.questions[i]?.area||'';
+    const isManualOverride=q.area&&q.area!==q._autoArea;
+    if(isManualOverride)return q;
+    return{...q,area:autoArea,_autoArea:autoArea};
+  });
+  return{questions:filled,res};
+}
+// 자동 배정 결과(res)를 보고 사람이 읽을 알림 메시지를 만들어줌 — 성공/실패 사유를 구체적으로 안내
+function autoAssignResultMessage(res){
+  if(!res.ok&&res.reason==='no-areas')return'먼저 "과정 영역별 성취도"에 영역 이름을 입력해주세요.';
+  if(!res.ok&&res.reason==='missing-area-total')return`다음 영역의 배점이 비어있어서 자동 배정할 수 없어요. 먼저 채워주세요:\n${res.missing.join(', ')}`;
+  if(!res.ok&&res.reason==='no-questions')return'문항이 없어요. 먼저 문항을 추가해주세요.';
+  if(!res.ok&&res.reason==='missing-question-total')return`다음 문항의 배점이 비어있어서 자동 배정할 수 없어요. 먼저 채워주세요:\n문항 ${res.missing.join(', ')}번`;
+  if(res.ok&&res.method==='contiguous')return'배점을 기준으로 문항마다 과정영역을 오차 없이 정확히 자동 배정했어요 ✓\n(같은 영역의 문항끼리 이어진 구간으로 배정됐어요)';
+  if(res.ok&&res.method==='partition')return'배점을 기준으로 문항마다 과정영역을 오차 없이 정확히 자동 배정했어요 ✓\n(문항 순서상 같은 영역끼리 붙어있지 않을 수 있으니, 배정된 영역을 한 번 확인해주세요)';
+  if(res.ok)return'배점을 기준으로 문항마다 과정영역을 오차 없이 정확히 자동 배정했어요 ✓';
+  let msg;
+  if(res.reason==='sum-mismatch'){
+    msg=`문항 배점 합계(${res.qSum}점)와 영역 배점 합계(${res.aSum}점)가 서로 달라서, 오차 없이 자동 배정할 수 없어요.\n먼저 배점 합계를 맞춰주세요.\n\n`;
+  } else {
+    msg='배점 합계는 서로 같지만, 문항 배점 조합으로는 영역별 배점에 정확히 맞아떨어지는 경우의 수를 찾지 못했어요.\n(문항 배점이 실제 시험지와 다르게 입력됐을 수 있어요)\n\n';
+  }
+  msg+='일단 참고용으로 순서대로 채워봤어요:\n';
+  if(res.mismatches&&res.mismatches.length)msg+=res.mismatches.map(m=>`- ${m.name}: 목표 ${m.target}점 / 문항 합계 ${m.got}점`).join('\n')+'\n\n';
+  if(res.unassignedCount)msg+=`뒤쪽 문항 ${res.unassignedCount}개는 배정하지 못했어요.\n\n`;
+  msg+='배점을 다시 확인하거나, 자동 배정된 결과를 직접 수정해주세요.';
+  return msg;
+}
+function meReportRecord(){ return ME_REPORT_ID?(D.tomaScores||[]).find(m=>m.id===ME_REPORT_ID):null; }
+// report 서브객체가 없으면 기본값으로 초기화해서 반환 (있으면 그대로 반환)
+function getMEReport(m){
+  if(!m.report)m.report={};
+  const r=m.report;
+  if(r.totalScore==null||r.totalScore==='')r.totalScore=100;
+  if(r.classAvg==null)r.classAvg='';
+  if(r.testDate==null)r.testDate='';
+  if(!Array.isArray(r.units))r.units=[];
+  if(!Array.isArray(r.areas))r.areas=ME_REPORT_DEFAULT_AREAS.map(name=>({name,total:'',avg:'',score:''}));
+  if(!Array.isArray(r.diffs))r.diffs=ME_REPORT_DEFAULT_DIFFS.map(level=>({level,total:'',avg:'',score:''}));
+  if(!Array.isArray(r.questions))r.questions=Array.from({length:13},()=>({diff:'하',total:'',score:'',area:''})); // 팩토시험은 보통 13문항
+  if(r.comment==null)r.comment='';
+  if(r.locked==null)r.locked=false; // 템플릿을 적용하면 true — 템플릿에서 가져온 값(총배점·회원평균·UNIT·영역/난이도/문항 구성)은 고정되고 학생 득점만 입력 가능
+  if(r.tplId==null)r.tplId=null;
+  if(r.tplName==null)r.tplName='';
+  return r;
+}
+// ═══ 상세 성적표 템플릿 (레벨·책 권마다 문항 구성·회원평균이 고정되어 있어, 한 번 만들어두고 재사용) ═══
+function getScoreTemplates(){ if(!Array.isArray(D.scoreTemplates))D.scoreTemplates=[]; return D.scoreTemplates; }
+function applyScoreTemplate(){
+  const sel=document.getElementById('mer-tpl-select');
+  const tid=sel?.value;
+  if(!tid){toast('적용할 템플릿을 선택해주세요');return;}
+  const tpl=getScoreTemplates().find(x=>x.id===tid);
+  if(!tpl)return;
+  readMEReportFormIntoData();
+  const m=meReportRecord();if(!m)return;
+  const r=getMEReport(m);
+  const hasExisting=r.units.length||r.questions.some(q=>q.total)||r.areas.some(a=>a.total)||r.comment;
+  if(hasExisting&&!confirm(`"${tpl.name}" 템플릿을 적용할까요?\n\n현재 입력된 UNIT·영역·난이도·문항 구성이 템플릿 내용으로 바뀌어요. (학생 득점은 비워지니 새로 입력해주세요)`))return;
+  if(tpl.totalScore!=null&&tpl.totalScore!=='')r.totalScore=tpl.totalScore;
+  if(tpl.classAvg!=null&&tpl.classAvg!=='')r.classAvg=tpl.classAvg;
+  r.units=(tpl.units||[]).map(u=>({area:u.area||'',title:u.title||'',goal:u.goal||''}));
+  r.areas=(tpl.areas||[]).map(a=>({name:a.name||'',total:a.total??'',avg:a.avg??'',score:''}));
+  r.diffs=(tpl.diffs||[]).map(d=>({level:d.level||'',total:d.total??'',avg:d.avg??'',score:''}));
+  r.questions=(tpl.questions||[]).map(q=>({diff:q.diff||'하',total:q.total??'',area:q.area||'',score:'',_autoArea:q._autoArea}));
+  r.tplId=tpl.id;
+  r.tplName=tpl.name;
+  r.locked=true; // 템플릿에서 가져온 값은 고정 — 학생 득점/실시일/코멘트만 입력하면 됨 (필요하면 🔓로 해제 가능)
+  renderMEReportEditor();
+  toast(`"${tpl.name}" 템플릿을 적용했어요 — 이제 학생 득점만 입력하면 돼요`);
+}
+// 템플릿 잠금 해제/재잠금 토글 — 드물게 템플릿 값을 직접 손봐야 할 때 사용
+function toggleMEReportLock(){
+  readMEReportFormIntoData();
+  const m=meReportRecord();if(!m)return;
+  const r=getMEReport(m);
+  r.locked=!r.locked;
+  renderMEReportEditor();
+  toast(r.locked?'템플릿 값을 다시 고정했어요':'템플릿 값을 직접 수정할 수 있어요');
+}
+function saveCurrentAsTemplate(){
+  readMEReportFormIntoData();
+  const m=meReportRecord();if(!m)return;
+  const r=getMEReport(m);
+  const name=(prompt('템플릿 이름을 입력해주세요 (예: 베타 3권, 감마 Lv.2 06호)','')||'').trim();
+  if(!name)return;
+  const tpl={
+    id:Date.now()+'',
+    name,
+    totalScore:r.totalScore,
+    classAvg:r.classAvg,
+    units:(r.units||[]).map(u=>({area:u.area||'',title:u.title||'',goal:u.goal||''})),
+    areas:(r.areas||[]).map(a=>({name:a.name||'',total:a.total??'',avg:a.avg??''})),
+    diffs:(r.diffs||[]).map(d=>({level:d.level||'',total:d.total??'',avg:d.avg??''})),
+    questions:(r.questions||[]).map(q=>({diff:q.diff||'하',total:q.total??'',area:q.area||'',_autoArea:q._autoArea})),
+    _updatedAt:Date.now(),
+  };
+  getScoreTemplates().push(tpl);
+  r.tplId=tpl.id;
+  r.tplName=name;
+  r.locked=true; // 방금 만든 템플릿 값으로 이 성적표도 고정 — 학생 득점만 마저 입력하면 됨
+  SD();
+  renderMEReportEditor();
+  toast(`"${name}" 템플릿으로 저장했어요 — 다음부터 같은 시험은 이 템플릿으로 바로 불러올 수 있어요`);
+}
+// ═══ 시험지 템플릿 관리 화면 (학생 성적표를 거치지 않고 템플릿만 바로 만들고 수정) ═══
+let SCORE_TPL_DRAFT=null; // null=목록 화면, 객체=편집중인 템플릿(신규 또는 기존)
+function openScoreTplManager(){
+  SCORE_TPL_DRAFT=null;
+  renderScoreTplManager();
+  openM('score-tpl-modal');
+}
+function blankScoreTplDraft(){
+  return{
+    id:null,
+    name:'',
+    totalScore:100,
+    classAvg:'',
+    units:[],
+    areas:ME_REPORT_DEFAULT_AREAS.map(name=>({name,total:'',avg:''})),
+    diffs:ME_REPORT_DEFAULT_DIFFS.map(level=>({level,total:'',avg:''})),
+    questions:Array.from({length:13},()=>({diff:'하',total:'',area:''})),
+  };
+}
+function newScoreTpl(){
+  SCORE_TPL_DRAFT=blankScoreTplDraft();
+  renderScoreTplManager();
+}
+function editScoreTplInManager(id){
+  const tpl=getScoreTemplates().find(x=>x.id===id);
+  if(!tpl)return;
+  // 원본을 바로 건드리지 않도록 깊은 복사해서 편집
+  SCORE_TPL_DRAFT=JSON.parse(JSON.stringify(tpl));
+  renderScoreTplManager();
+}
+function cancelScoreTplDraft(){
+  SCORE_TPL_DRAFT=null;
+  renderScoreTplManager();
+}
+function readScoreTplDraftForm(){
+  if(!SCORE_TPL_DRAFT)return;
+  const d=SCORE_TPL_DRAFT;
+  const gv=id=>{const el=document.getElementById(id);return el?el.value:null;};
+  const nameV=gv('tpl-name');if(nameV!=null)d.name=nameV;
+  const totalV=gv('tpl-total');if(totalV!=null)d.totalScore=totalV.trim();
+  const avgV=gv('tpl-classavg');if(avgV!=null)d.classAvg=avgV.trim();
+  d.units=d.units.map((u,i)=>({
+    area:(gv('tpl-unit-area-'+i)??u.area??''),
+    title:(gv('tpl-unit-title-'+i)??u.title??''),
+    goal:(gv('tpl-unit-goal-'+i)??u.goal??''),
+  }));
+  d.areas=d.areas.map((a,i)=>({
+    name:(gv('tpl-area-name-'+i)??a.name??''),
+    total:(gv('tpl-area-total-'+i)??a.total??''),
+    avg:(gv('tpl-area-avg-'+i)??a.avg??''),
+  }));
+  d.diffs=d.diffs.map((diff,i)=>({
+    level:(gv('tpl-diff-level-'+i)??diff.level??''),
+    total:(gv('tpl-diff-total-'+i)??diff.total??''),
+    avg:(gv('tpl-diff-avg-'+i)??diff.avg??''),
+  }));
+  d.questions=d.questions.map((q,i)=>({
+    diff:(gv('tpl-q-diff-'+i)??q.diff??'하'),
+    area:(gv('tpl-q-area-'+i)??q.area??''),
+    total:(gv('tpl-q-total-'+i)??q.total??''),
+    _autoArea:q._autoArea,
+  }));
+  // 문항 배점만 입력하면 과정영역도 저절로 채워지도록 자동 배정을 시도함(직접 바꾼 값은 존중)
+  const filled=autoFillAreaField(d.questions,d.areas);
+  d.questions=filled.questions;
+  d._areaAutoRes=filled.res;
+}
+function addScoreTplUnit(){ readScoreTplDraftForm(); SCORE_TPL_DRAFT.units.push({area:'',title:'',goal:''}); renderScoreTplManager(); }
+function delScoreTplUnit(i){ readScoreTplDraftForm(); SCORE_TPL_DRAFT.units.splice(i,1); renderScoreTplManager(); }
+function addScoreTplQuestion(){ readScoreTplDraftForm(); SCORE_TPL_DRAFT.questions.push({diff:'하',total:'',area:''}); renderScoreTplManager(); }
+function delScoreTplQuestion(i){ readScoreTplDraftForm(); SCORE_TPL_DRAFT.questions.splice(i,1); renderScoreTplManager(); }
+// 🎯 문항별 배점과 영역별 배점을 비교해서 과정영역을 자동으로 배정
+function autoAssignScoreTplAreas(){
+  readScoreTplDraftForm();
+  const d=SCORE_TPL_DRAFT;if(!d)return;
+  const res=autoAssignQuestionAreasByTotal(d.questions,d.areas);
+  if(res.questions)d.questions=res.questions;
+  renderScoreTplManager();
+  alert(autoAssignResultMessage(res));
+}
+function saveScoreTplDraft(){
+  readScoreTplDraftForm();
+  const d=SCORE_TPL_DRAFT;
+  if(!d.name||!d.name.trim()){toast('템플릿 이름을 입력해주세요');return;}
+  const list=getScoreTemplates();
+  if(d.id){
+    const idx=list.findIndex(x=>x.id===d.id);
+    if(idx>=0)list[idx]={...d,_updatedAt:Date.now()};
+  } else {
+    list.push({...d,id:Date.now()+'',_updatedAt:Date.now()});
+  }
+  SD();
+  SCORE_TPL_DRAFT=null;
+  renderScoreTplManager();
+  toast('템플릿을 저장했어요');
+}
+function deleteScoreTplInManager(id){
+  const tpl=getScoreTemplates().find(x=>x.id===id);
+  if(!tpl)return;
+  if(!confirm(`"${tpl.name}" 템플릿을 삭제할까요?\n(이미 작성해둔 성적표에는 영향 없어요)`))return;
+  markDeleted('scoreTemplates',id);
+  D.scoreTemplates=getScoreTemplates().filter(x=>x.id!==id);
+  SD();
+  renderScoreTplManager();
+  toast('템플릿을 삭제했어요');
+}
+function renderScoreTplManager(){
+  const body=document.getElementById('score-tpl-body');if(!body)return;
+  if(!SCORE_TPL_DRAFT){
+    const list=getScoreTemplates();
+    let h=`<button type="button" onclick="newScoreTpl()" style="width:100%;padding:10px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;"><i class="ti ti-plus"></i> 새 템플릿 만들기</button>`;
+    if(!list.length){
+      h+=`<div class="empty"><i class="ti ti-file-off"></i>아직 저장된 템플릿이 없어요.<br><span style="font-size:12px;color:var(--muted);">레벨·권마다 하나씩 만들어두면 성적표 작성이 훨씬 빨라져요.</span></div>`;
+    } else {
+      h+=list.map(t=>`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:11px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">문항 ${t.questions?.length||0}개 · 영역 ${t.areas?.length||0}개 · UNIT ${t.units?.length||0}개</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0;">
+          <button onclick="editScoreTplInManager('${esc(t.id)}')" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:4px 10px;cursor:pointer;"><i class="ti ti-edit" style="font-size:10px;"></i> 수정</button>
+          <button onclick="deleteScoreTplInManager('${esc(t.id)}')" style="font-size:11px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:10px;padding:4px 9px;cursor:pointer;"><i class="ti ti-trash" style="font-size:10px;"></i></button>
+        </div>
+      </div>`).join('');
+    }
+    body.innerHTML=h;
     return;
   }
-  const prevQ=window._factoEditQuestions;
-  wrap.innerHTML=tpl.questions.map((q,i)=>{
-    const prevScore=(prevQ&&prevQ[i]&&prevQ[i].area===q.area&&prevQ[i].diff===q.diff)?prevQ[i].score:'';
-    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;">
-      <div style="width:18px;color:var(--muted);flex-shrink:0;">${i+1}.</div>
-      <div style="flex:1;color:var(--muted);">${q.area} · ${q.diff}</div>
-      <input type="number" min="0" max="${q.total}" value="${esc(prevScore)}" data-q="${i}" oninput="updateFactoPreview()" placeholder="/${q.total}" style="width:56px;padding:5px;border:1px solid var(--bdr);border-radius:6px;text-align:center;font-size:11px;">
-    </div>`;
-  }).join('');
-  window._factoEditQuestions=null; // 한 번만 채우고 이후엔 입력칸의 실제 값을 기준으로 함
-  updateFactoPreview();
+  const d=SCORE_TPL_DRAFT;
+  let h=`<button type="button" onclick="cancelScoreTplDraft()" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;margin-bottom:10px;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i> 템플릿 목록</button>`;
+  h+=`<div class="fg"><label class="flbl">템플릿 이름 *</label><input class="fi" id="tpl-name" placeholder="예) 베타 3권, 감마 Lv.2 06호" value="${esc(d.name||'')}"></div>`;
+  h+=`<div class="frow">
+    <div class="fg"><label class="flbl">총 배점</label><input class="fi" id="tpl-total" type="number" value="${esc(String(d.totalScore))}"></div>
+    <div class="fg"><label class="flbl">전체 회원평균</label><input class="fi" id="tpl-classavg" value="${esc(String(d.classAvg))}" placeholder="예) 89.38"></div>
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">📘 월 학습 내용 (UNIT별)</label>`;
+  h+=d.units.map((u,i)=>`<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+    <span style="font-size:11px;color:var(--muted);flex-shrink:0;width:44px;">UNIT ${i+1}</span>
+    <input class="fi" id="tpl-unit-area-${i}" placeholder="영역(예: 문제해결력)" value="${esc(u.area||'')}" style="flex:1;max-width:110px;">
+    <input class="fi" id="tpl-unit-title-${i}" placeholder="제목(예: 문장 완성하기)" value="${esc(u.title||'')}" style="flex:1;">
+    <input class="fi" id="tpl-unit-goal-${i}" placeholder="학습목표" value="${esc(u.goal||'')}" style="flex:2;">
+    <button type="button" onclick="delScoreTplUnit(${i})" style="flex-shrink:0;padding:6px 8px;border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;cursor:pointer;">✕</button>
+  </div>`).join('');
+  h+=`<button type="button" onclick="addScoreTplUnit()" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:8px;padding:5px 10px;cursor:pointer;">+ UNIT 추가</button></div>`;
+  h+=`<div class="fg"><label class="flbl">🎯 과정 영역별 배점·회원평균</label>
+    <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr;gap:5px;font-size:10px;color:var(--muted);margin-bottom:3px;"><div>영역</div><div>배점</div><div>회원평균</div></div>
+    ${d.areas.map((a,i)=>`<div style="display:grid;grid-template-columns:1.3fr .8fr .8fr;gap:5px;margin-bottom:4px;">
+      <input class="fi" id="tpl-area-name-${i}" value="${esc(a.name||'')}" onchange="readScoreTplDraftForm();renderScoreTplManager();">
+      <input class="fi" id="tpl-area-total-${i}" type="number" value="${esc(String(a.total))}" onchange="readScoreTplDraftForm();renderScoreTplManager();">
+      <input class="fi" id="tpl-area-avg-${i}" type="number" step="0.01" value="${esc(String(a.avg))}">
+    </div>`).join('')}
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">📊 난이도별 배점·회원평균</label>
+    <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr;gap:5px;font-size:10px;color:var(--muted);margin-bottom:3px;"><div>난이도</div><div>배점</div><div>회원평균</div></div>
+    ${d.diffs.map((diff,i)=>`<div style="display:grid;grid-template-columns:1.3fr .8fr .8fr;gap:5px;margin-bottom:4px;">
+      <input class="fi" id="tpl-diff-level-${i}" value="${esc(diff.level||'')}">
+      <input class="fi" id="tpl-diff-total-${i}" type="number" value="${esc(String(diff.total))}">
+      <input class="fi" id="tpl-diff-avg-${i}" type="number" step="0.01" value="${esc(String(diff.avg))}">
+    </div>`).join('')}
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">🔢 문항별 난이도·과정영역·배점 <small style="font-weight:400;color:var(--muted);">(배점만 입력하면 과정영역은 영역별 배점에 맞춰 자동으로 채워져요 — 직접 바꾸고 싶으면 드롭다운에서 선택)</small></label>
+    <div style="display:grid;grid-template-columns:.4fr .8fr .9fr .7fr .3fr;gap:5px;font-size:10px;color:var(--muted);margin-bottom:3px;"><div>문항</div><div>난이도</div><div>과정영역</div><div>배점</div><div></div></div>
+    ${d.questions.map((q,i)=>`<div style="display:grid;grid-template-columns:.4fr .8fr .9fr .7fr .3fr;gap:5px;margin-bottom:4px;align-items:center;">
+      <div style="font-size:12px;font-weight:600;text-align:center;">${i+1}</div>
+      <select class="fsel" id="tpl-q-diff-${i}" onchange="readScoreTplDraftForm();renderScoreTplManager();">${['상','중','하'].map(lv=>`<option${q.diff===lv?' selected':''}>${lv}</option>`).join('')}</select>
+      <select class="fsel" id="tpl-q-area-${i}" onchange="readScoreTplDraftForm();renderScoreTplManager();">${scoreAreaOptionsHtml(d.areas,q.area)}</select>
+      <input class="fi" id="tpl-q-total-${i}" type="number" value="${esc(String(q.total))}" onchange="readScoreTplDraftForm();renderScoreTplManager();">
+      <button type="button" onclick="delScoreTplQuestion(${i})" style="padding:6px 6px;border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;cursor:pointer;">✕</button>
+    </div>`).join('')}
+    <button type="button" onclick="addScoreTplQuestion()" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:8px;padding:5px 10px;cursor:pointer;">+ 문항 추가</button>
+    <button type="button" onclick="autoAssignScoreTplAreas()" style="font-size:11px;font-weight:700;color:#0369A1;background:#F0F9FF;border:1px solid #7DD3FC;border-radius:8px;padding:5px 10px;cursor:pointer;margin-left:5px;"><i class="ti ti-wand"></i> 배점으로 과정영역 자동 배정</button>
+  </div>`;
+  h+=`<button type="button" onclick="saveScoreTplDraft()" style="width:100%;padding:11px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;"><i class="ti ti-check"></i> 템플릿 저장</button>`;
+  body.innerHTML=h;
 }
-function collectFactoQScores(){
-  const tplId=document.getElementById('facto-tpl')?.value;
-  const tpl=getFactoTemplates().find(x=>x.id===tplId);
-  if(!tpl)return null;
-  const inputs=document.querySelectorAll('#facto-questions input[data-q]');
-  const questions=tpl.questions.map((q,i)=>{
-    const el=document.querySelector(`#facto-questions input[data-q="${i}"]`);
-    return {area:q.area,diff:q.diff,total:q.total,score:el?el.value:''};
+function deleteScoreTemplate(){
+  const sel=document.getElementById('mer-tpl-select');
+  const tid=sel?.value;
+  if(!tid){toast('삭제할 템플릿을 선택해주세요');return;}
+  const tpl=getScoreTemplates().find(x=>x.id===tid);
+  if(!tpl)return;
+  if(!confirm(`"${tpl.name}" 템플릿을 삭제할까요?\n(이미 작성해둔 성적표에는 영향 없어요)`))return;
+  markDeleted('scoreTemplates',tid);
+  D.scoreTemplates=getScoreTemplates().filter(x=>x.id!==tid);
+  SD();
+  renderMEReportEditor();
+  toast('템플릿을 삭제했어요');
+}
+function openMEReportEditor(meId){
+  ME_REPORT_ID=meId;
+  const m=meReportRecord();
+  if(!m){toast('기록을 찾을 수 없습니다');return;}
+  getMEReport(m);
+  renderMEReportEditor();
+  openM('me-report-modal');
+}
+// 화면의 입력값을 실제 데이터(m.report)로 읽어옴 — 행 추가/삭제로 다시 그리기 전에 반드시
+// 먼저 호출해서, 이미 입력해둔 다른 값들이 사라지지 않게 함 (저장 시에도 동일하게 호출)
+function readMEReportFormIntoData(){
+  const m=meReportRecord();if(!m)return;
+  const r=getMEReport(m);
+  const gv=id=>{const el=document.getElementById(id);return el?el.value:null;};
+  const totalV=gv('mer-total');if(totalV!=null)r.totalScore=totalV.trim();
+  const avgV=gv('mer-classavg');if(avgV!=null)r.classAvg=avgV.trim();
+  const dateV=gv('mer-testdate');if(dateV!=null)r.testDate=dateV;
+  const commentV=gv('mer-comment');if(commentV!=null)r.comment=commentV;
+  r.units=r.units.map((u,i)=>({
+    area:(gv('mer-unit-area-'+i)??u.area??'').trim?.()??(gv('mer-unit-area-'+i)??u.area??''),
+    title:(gv('mer-unit-title-'+i)??u.title??''),
+    goal:(gv('mer-unit-goal-'+i)??u.goal??''),
+  }));
+  r.areas=r.areas.map((a,i)=>({
+    name:(gv('mer-area-name-'+i)??a.name??''),
+    total:(gv('mer-area-total-'+i)??a.total??''),
+    avg:(gv('mer-area-avg-'+i)??a.avg??''),
+    score:(gv('mer-area-score-'+i)??a.score??''),
+  }));
+  r.diffs=r.diffs.map((d,i)=>({
+    level:(gv('mer-diff-level-'+i)??d.level??''),
+    total:(gv('mer-diff-total-'+i)??d.total??''),
+    avg:(gv('mer-diff-avg-'+i)??d.avg??''),
+    score:(gv('mer-diff-score-'+i)??d.score??''),
+  }));
+  r.questions=r.questions.map((q,i)=>({
+    diff:(gv('mer-q-diff-'+i)??q.diff??'하'),
+    area:(gv('mer-q-area-'+i)??q.area??''),
+    total:(gv('mer-q-total-'+i)??q.total??''),
+    score:(gv('mer-q-score-'+i)??q.score??''),
+    _autoArea:q._autoArea,
+  }));
+  // 🪄 문항 배점만 입력하면 과정영역도 저절로 채워지도록 자동 배정을 시도함(직접 바꾼 값은 존중) —
+  // 난이도가 항상 기본값 '하'로 채워져 있는 것처럼, 과정영역도 버튼을 누르지 않아도 자동으로 채워짐
+  const filled=autoFillAreaField(r.questions,r.areas);
+  r.questions=filled.questions;
+  r._areaAutoRes=filled.res;
+  // 📌 문항별로 입력한 득점을 "과정영역"·"난이도" 기준으로 각각 합산해서, 영역별/난이도별
+  // 성취도의 득점 칸을 함수처럼 자동으로 채워줌 — 선생님은 문항 득점만 입력하면 됨.
+  // (문항에 해당 영역/난이도가 하나도 없으면 예전처럼 직접 입력하는 값을 그대로 둠)
+  r.areas=meAutoSumByQuestionField(r.areas,r.questions,'area','name');
+  r.diffs=meAutoSumByQuestionField(r.diffs,r.questions,'diff','level');
+}
+// rows(영역별 또는 난이도별 배열)의 각 항목에 대해, 문항 배열(questions) 중 qField(예: 'area','diff')값이
+// 그 항목의 keyField(예: 'name','level')와 같은 문항들의 득점을 합산해서 score로 채워줌
+function meAutoSumByQuestionField(rows,questions,qField,keyField){
+  return (rows||[]).map(row=>{
+    const key=row[keyField];
+    const tagged=(questions||[]).filter(q=>q[qField]&&key&&q[qField]===key);
+    if(!tagged.length)return row;
+    let sum=0,any=false;
+    tagged.forEach(q=>{ if(q.score!==''&&q.score!=null){any=true;sum+=Number(q.score)||0;} });
+    return{...row,score:any?String(sum):''};
   });
-  return {tpl,questions};
 }
-function updateFactoPreview(){
-  const box=document.getElementById('facto-preview');
-  if(!box)return;
-  const c=collectFactoQScores();
-  if(!c){box.innerHTML='';return;}
-  const{questions}=c;
-  const scored=questions.filter(q=>q.score!==''&&!isNaN(Number(q.score)));
-  const totalScore=scored.reduce((a,q)=>a+Number(q.score),0);
-  const byArea={};
-  questions.forEach(q=>{ if(!byArea[q.area])byArea[q.area]={score:0,total:0}; byArea[q.area].total+=Number(q.total)||0; if(q.score!=='')byArea[q.area].score+=Number(q.score)||0; });
-  box.innerHTML=`<div style="font-size:22px;font-weight:700;color:var(--pri2);text-align:center;margin-bottom:6px;">${totalScore}점</div>
-    <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;">
-      ${Object.entries(byArea).map(([a,v])=>`<span style="font-size:10px;background:#F1F5F9;border-radius:10px;padding:2px 8px;">${a} ${v.score}/${v.total}</span>`).join('')}
-    </div>`;
-}
-function saveFacto(){
-  const sid=document.getElementById('facto-sid')?.value;
-  const tplId=document.getElementById('facto-tpl')?.value;
-  const tpl=getFactoTemplates().find(x=>x.id===tplId);
-  const date=document.getElementById('facto-date').value;
-  const round=document.getElementById('facto-round').value;
-  const comment=document.getElementById('facto-comment').value.trim();
-  const classAvgInput=document.getElementById('facto-classavg').value.trim();
-  if(!sid){alert('학생을 선택해주세요.');return;}
-  if(!tpl){alert('템플릿을 선택해주세요.');return;}
-  if(!date){alert('시험 날짜를 선택해주세요.');return;}
-  const c=collectFactoQScores();
-  const questions=c.questions.map(q=>({...q,score:q.score===''?'':String(Number(q.score)||0)}));
-  if(questions.some(q=>q.score==='')){ if(!confirm('점수를 입력하지 않은 문제가 있습니다. 0점으로 처리하고 저장할까요?'))return; }
-  const totalScore=questions.reduce((a,q)=>a+(Number(q.score)||0),0);
-  const areas=FACTO_AREAS.map(name=>{
-    const qs=questions.filter(q=>q.area===name);
-    if(!qs.length)return null;
-    return {name,score:qs.reduce((a,q)=>a+(Number(q.score)||0),0),total:qs.reduce((a,q)=>a+(Number(q.total)||0),0)};
-  }).filter(Boolean);
-  const diffs=FACTO_DIFFS.map(level=>{
-    const qs=questions.filter(q=>q.diff===level);
-    if(!qs.length)return null;
-    return {level,score:qs.reduce((a,q)=>a+(Number(q.score)||0),0),total:qs.reduce((a,q)=>a+(Number(q.total)||0),0)};
-  }).filter(Boolean);
-  const year=new Date().getFullYear();
-  const month=Number(date.slice(5,7));
-  const existing=FACTO_EDIT_ID?D.tomaScores.find(x=>x.id===FACTO_EDIT_ID):null;
-  const testName=round?`제${round}회 팩토시험`:(existing?.testName||'팩토시험');
-  const report={
-    testDate:date,tplId:tpl.id,tplName:tpl.name,units:tpl.units||[],questions,areas,diffs,
-    classAvg:classAvgInput, comment, locked:false,
+// ⚡ 실시간 미리보기 — 문항 득점을 입력할 때마다 전체 폼을 다시 그리면(re-render) 포커스가
+// 끊겨서 연속 입력이 불편해지므로, 계산된 숫자만 해당 칸에 바로 반영(DOM 텍스트만 갱신)하고
+// 나머지 입력칸은 건드리지 않음. 실제 데이터(r.areas/r.diffs)는 저장·행 추가삭제 등
+// readMEReportFormIntoData()가 호출되는 시점에 정확히 계산되어 반영됨(이 함수는 미리보기 전용).
+function refreshMEReportAutoTotals(){
+  const m=meReportRecord();if(!m)return;
+  const r=getMEReport(m);
+  const gv=id=>{const el=document.getElementById(id);return el?el.value:null;};
+  const questions=r.questions.map((q,i)=>({
+    area:gv('mer-q-area-'+i)??q.area??'',
+    diff:gv('mer-q-diff-'+i)??q.diff??'',
+    score:gv('mer-q-score-'+i)??q.score??'',
+  }));
+  const sumFor=(rows,qField,keyField)=>{
+    const out={};
+    (rows||[]).forEach((row,i)=>{
+      const key=row[keyField];
+      if(!key)return;
+      const tagged=questions.filter(q=>q[qField]&&q[qField]===key);
+      if(!tagged.length)return;
+      let sum=0,any=false;
+      tagged.forEach(q=>{ if(q.score!==''&&q.score!=null){any=true;sum+=Number(q.score)||0;} });
+      out[i]=any?String(sum):'-';
+    });
+    return out;
   };
-  const entry=Object.assign({},existing,{
-    id:FACTO_EDIT_ID||(Date.now()+''),sid,month,year,round:round?Number(round):null,
-    score:String(totalScore),retest:false,testName,report,_updatedAt:Date.now(),
+  const areaSums=sumFor(r.areas,'area','name');
+  Object.keys(areaSums).forEach(i=>{ const el=document.getElementById('mer-area-autoscore-'+i); if(el)el.textContent=areaSums[i]; });
+  const diffSums=sumFor(r.diffs,'diff','level');
+  Object.keys(diffSums).forEach(i=>{ const el=document.getElementById('mer-diff-autoscore-'+i); if(el)el.textContent=diffSums[i]; });
+}
+function addMEReportUnit(){ readMEReportFormIntoData(); const m=meReportRecord();if(!m)return; getMEReport(m).units.push({area:'',title:'',goal:''}); renderMEReportEditor(); }
+function delMEReportUnit(i){ readMEReportFormIntoData(); const m=meReportRecord();if(!m)return; getMEReport(m).units.splice(i,1); renderMEReportEditor(); }
+function addMEReportQuestion(){ readMEReportFormIntoData(); const m=meReportRecord();if(!m)return; getMEReport(m).questions.push({diff:'하',total:'',score:'',area:''}); renderMEReportEditor(); }
+function delMEReportQuestion(i){ readMEReportFormIntoData(); const m=meReportRecord();if(!m)return; getMEReport(m).questions.splice(i,1); renderMEReportEditor(); }
+// 🎯 문항별 배점과 영역별 배점을 비교해서 과정영역을 자동으로 배정 — 시험지에 문항별 영역이
+// 안 적혀 있어서 일일이 계산할 필요 없게 함
+function autoAssignMEReportAreas(){
+  readMEReportFormIntoData();
+  const m=meReportRecord();if(!m)return;
+  const r=getMEReport(m);
+  const res=autoAssignQuestionAreasByTotal(r.questions,r.areas);
+  if(res.questions){
+    r.questions=res.questions;
+    r.areas=meAutoSumByQuestionField(r.areas,r.questions,'area','name');
+    r.diffs=meAutoSumByQuestionField(r.diffs,r.questions,'diff','level');
+  }
+  renderMEReportEditor();
+  alert(autoAssignResultMessage(res));
+}
+function renderMEReportEditor(){
+  const body=document.getElementById('me-report-body');if(!body)return;
+  const m=meReportRecord();
+  if(!m){body.innerHTML='<div class="empty">기록을 찾을 수 없습니다.</div>';return;}
+  const r=getMEReport(m);
+  const mLabel=m.testName||(m.round?`제${m.round}회 팩토시험`:(m.month?m.month+'월 팩토시험':'팩토시험'));
+  let h=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${esc(m.sid)} · ${esc(mLabel)}</div>`;
+  // 📌 시험지 템플릿: 같은 레벨·같은 책(권)의 시험은 문항 구성·UNIT·회원평균이 항상 같으므로,
+  // 한 번 저장해두면 다음부터는 학생 득점만 입력하면 되게 함.
+  const tpls=getScoreTemplates();
+  h+=`<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:var(--rs);padding:10px 11px;margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:#0369A1;margin-bottom:6px;">📋 시험지 템플릿 <small style="font-weight:400;color:var(--muted);">(레벨·권별로 저장해두고 재사용 — 회원평균·문항 구성이 자동으로 채워져요)</small></div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;">
+      <select class="fsel" id="mer-tpl-select" style="flex:1;min-width:140px;">
+        <option value="">템플릿 선택...</option>
+        ${tpls.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
+      </select>
+      <button type="button" onclick="applyScoreTemplate()" style="font-size:11px;font-weight:700;color:#fff;background:#0369A1;border:none;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;">불러오기</button>
+      <button type="button" onclick="saveCurrentAsTemplate()" style="font-size:11px;font-weight:700;color:#0369A1;background:#fff;border:1px solid #7DD3FC;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;">현재 내용 저장</button>
+    </div>
+  </div>`;
+  const L=!!r.locked; // 잠금 상태 — 템플릿에서 가져온 값은 읽기전용으로, 학생 득점/실시일/코멘트는 항상 입력 가능
+  const ro=val=>`<div class="fi" style="background:#F1F5F9;color:#475569;border-style:dashed;cursor:default;">${esc(val===''||val==null?'-':String(val))}</div>`;
+  if(L){
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 11px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:#92400E;">🔒 ${r.tplName?`"${esc(r.tplName)}" `:''}템플릿 값이 고정되어 있어요 — 학생 득점만 입력하면 돼요</div>
+      <button type="button" onclick="toggleMEReportLock()" style="flex-shrink:0;font-size:11px;font-weight:700;color:#92400E;background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;">🔓 직접 수정</button>
+    </div>`;
+  } else if(r.tplId){
+    h+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rs);padding:9px 11px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:#166534;">🔓 템플릿 값을 직접 수정하는 중이에요</div>
+      <button type="button" onclick="toggleMEReportLock()" style="flex-shrink:0;font-size:11px;font-weight:700;color:#166534;background:#fff;border:1px solid #86EFAC;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;">🔒 다시 고정</button>
+    </div>`;
+  }
+  h+=`<div class="frow">
+    <div class="fg"><label class="flbl">총 배점</label>${L?ro(r.totalScore):`<input class="fi" id="mer-total" type="number" value="${esc(String(r.totalScore))}">`}</div>
+    <div class="fg"><label class="flbl">전체 회원평균 <small style="font-weight:400;color:var(--muted);">(시험지에 적힌 값)</small></label>${L?ro(r.classAvg):`<input class="fi" id="mer-classavg" value="${esc(String(r.classAvg))}" placeholder="예) 89.38">`}</div>
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">실시일 <small style="font-weight:400;color:var(--muted);">(시험지에 적힌 날짜)</small></label><input class="fi" id="mer-testdate" type="date" value="${esc(r.testDate||'')}"></div>`;
+  h+=`<div class="fg"><label class="flbl">📘 이번 달 학습 내용 (UNIT별)</label>`;
+  h+=r.units.map((u,i)=>L?`<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+    <span style="font-size:11px;color:var(--muted);flex-shrink:0;width:44px;">UNIT ${i+1}</span>
+    <div style="flex:1;max-width:110px;">${ro(u.area)}</div>
+    <div style="flex:1;">${ro(u.title)}</div>
+    <div style="flex:2;">${ro(u.goal)}</div>
+  </div>`:`<div style="display:flex;gap:5px;margin-bottom:5px;align-items:center;">
+    <span style="font-size:11px;color:var(--muted);flex-shrink:0;width:44px;">UNIT ${i+1}</span>
+    <input class="fi" id="mer-unit-area-${i}" placeholder="영역(예: 문제해결력)" value="${esc(u.area||'')}" style="flex:1;max-width:110px;">
+    <input class="fi" id="mer-unit-title-${i}" placeholder="제목(예: 문장 완성하기)" value="${esc(u.title||'')}" style="flex:1;">
+    <input class="fi" id="mer-unit-goal-${i}" placeholder="학습목표" value="${esc(u.goal||'')}" style="flex:2;">
+    <button type="button" onclick="delMEReportUnit(${i})" style="flex-shrink:0;padding:6px 8px;border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;cursor:pointer;">✕</button>
+  </div>`).join('');
+  h+=L?`</div>`:`<button type="button" onclick="addMEReportUnit()" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:8px;padding:5px 10px;cursor:pointer;">+ UNIT 추가</button></div>`;
+  h+=`<div class="fg"><label class="flbl">🎯 과정 영역별 성취도 <small style="font-weight:400;color:var(--muted);">(득점 칸은 아래 문항별 표에서 같은 영역으로 지정한 문항의 득점 합계로 자동 계산돼요)</small></label>
+    <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:5px;font-size:10px;color:var(--muted);margin-bottom:3px;"><div>영역</div><div>배점</div><div>평균</div><div>득점</div></div>
+    ${r.areas.map((a,i)=>{
+      const autoScore=r.questions.some(q=>q.area&&q.area===a.name);
+      return`<div style="display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:5px;margin-bottom:4px;">
+      ${L?ro(a.name):`<input class="fi" id="mer-area-name-${i}" value="${esc(a.name||'')}" onchange="readMEReportFormIntoData();renderMEReportEditor();">`}
+      ${L?ro(a.total):`<input class="fi" id="mer-area-total-${i}" type="number" value="${esc(String(a.total))}" onchange="readMEReportFormIntoData();renderMEReportEditor();">`}
+      ${L?ro(a.avg):`<input class="fi" id="mer-area-avg-${i}" type="number" step="0.01" value="${esc(String(a.avg))}">`}
+      ${autoScore?`<div class="fi" style="background:#EFF6FF;color:#1D4ED8;border-style:dashed;cursor:default;" title="문항별 득점 합계로 자동 계산됨"><span id="mer-area-autoscore-${i}">${esc(a.score===''?'-':String(a.score))}</span> <small style="font-weight:400;">자동</small></div>`:`<input class="fi" id="mer-area-score-${i}" type="number" value="${esc(String(a.score))}">`}
+    </div>`;}).join('')}
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">📊 난이도별 성취도 <small style="font-weight:400;color:var(--muted);">(득점 칸은 아래 문항별 표의 같은 난이도 문항 득점 합계로 자동 계산돼요)</small></label>
+    <div style="display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:5px;font-size:10px;color:var(--muted);margin-bottom:3px;"><div>난이도</div><div>배점</div><div>평균</div><div>득점</div></div>
+    ${r.diffs.map((d,i)=>{
+      const autoScore=r.questions.some(q=>q.diff&&q.diff===d.level);
+      return`<div style="display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:5px;margin-bottom:4px;">
+      ${L?ro(d.level):`<input class="fi" id="mer-diff-level-${i}" value="${esc(d.level||'')}">`}
+      ${L?ro(d.total):`<input class="fi" id="mer-diff-total-${i}" type="number" value="${esc(String(d.total))}">`}
+      ${L?ro(d.avg):`<input class="fi" id="mer-diff-avg-${i}" type="number" step="0.01" value="${esc(String(d.avg))}">`}
+      ${autoScore?`<div class="fi" style="background:#EFF6FF;color:#1D4ED8;border-style:dashed;cursor:default;" title="문항별 득점 합계로 자동 계산됨"><span id="mer-diff-autoscore-${i}">${esc(d.score===''?'-':String(d.score))}</span> <small style="font-weight:400;">자동</small></div>`:`<input class="fi" id="mer-diff-score-${i}" type="number" value="${esc(String(d.score))}">`}
+    </div>`;}).join('')}
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">🔢 문항별 난이도·과정영역·배점/득점 <small style="font-weight:400;color:var(--muted);">(배점을 입력하면 과정영역이 자동으로 채워지고, 득점을 입력하면 위 영역별·난이도별 득점이 자동으로 계산돼요)</small></label>
+    <div style="display:grid;grid-template-columns:.4fr .8fr .9fr .7fr .7fr .3fr;gap:5px;font-size:10px;color:var(--muted);margin-bottom:3px;"><div>문항</div><div>난이도</div><div>과정영역</div><div>배점</div><div>득점</div><div></div></div>
+    ${r.questions.map((q,i)=>`<div style="display:grid;grid-template-columns:.4fr .8fr .9fr .7fr .7fr .3fr;gap:5px;margin-bottom:4px;align-items:center;">
+      <div style="font-size:12px;font-weight:600;text-align:center;">${i+1}</div>
+      ${L?ro(q.diff):`<select class="fsel" id="mer-q-diff-${i}" onchange="readMEReportFormIntoData();renderMEReportEditor();">${['상','중','하'].map(lv=>`<option${q.diff===lv?' selected':''}>${lv}</option>`).join('')}</select>`}
+      ${L?ro(q.area||'-'):`<select class="fsel" id="mer-q-area-${i}" onchange="readMEReportFormIntoData();renderMEReportEditor();">${scoreAreaOptionsHtml(r.areas,q.area)}</select>`}
+      ${L?ro(q.total):`<input class="fi" id="mer-q-total-${i}" type="number" value="${esc(String(q.total))}" onchange="readMEReportFormIntoData();renderMEReportEditor();">`}
+      <input class="fi" id="mer-q-score-${i}" type="number" value="${esc(String(q.score))}" oninput="refreshMEReportAutoTotals()">
+      ${L?'':`<button type="button" onclick="delMEReportQuestion(${i})" style="padding:6px 6px;border:none;background:var(--dan-l);color:var(--dan);border-radius:6px;cursor:pointer;">✕</button>`}
+    </div>`).join('')}
+    ${L?'':`<button type="button" onclick="addMEReportQuestion()" style="font-size:11px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:8px;padding:5px 10px;cursor:pointer;">+ 문항 추가</button>
+    <button type="button" onclick="autoAssignMEReportAreas()" style="font-size:11px;font-weight:700;color:#0369A1;background:#F0F9FF;border:1px solid #7DD3FC;border-radius:8px;padding:5px 10px;cursor:pointer;margin-left:5px;"><i class="ti ti-wand"></i> 배점으로 과정영역 자동 배정</button>`}
+  </div>`;
+  h+=`<div class="fg"><label class="flbl">💬 코멘트</label><textarea class="fta" id="mer-comment" style="min-height:50px;">${esc(r.comment||'')}</textarea></div>`;
+  body.innerHTML=h;
+}
+function saveMEReport(){
+  readMEReportFormIntoData();
+  const m=meReportRecord();if(!m)return;
+  m._updatedAt=Date.now();
+  SD();closeM('me-report-modal');renderAll();
+  toast('상세 성적표가 저장되었습니다');
+}
+// 레이더(방사형) 차트 — 영역별 득점 vs 평균을 각 영역 배점 대비 비율로 정규화해서 그림
+function buildRadarChart(areas){
+  const valid=(areas||[]).filter(a=>a.name&&Number(a.total)>0);
+  if(valid.length<3)return`<div style="text-align:center;padding:16px 10px;color:#BBB;font-size:11px;border:1px dashed #DDD;border-radius:8px;">영역별 배점을 3개 이상 입력하면 그래프가 표시됩니다.</div>`;
+  const n=valid.length,w=220,h=238,cx=w/2,cy=100,R=76;
+  const angleAt=i=>(-90+360*i/n)*Math.PI/180;
+  const ptAt=(i,pct)=>{const a=angleAt(i),rr=R*Math.max(0,Math.min(1,pct));return[cx+rr*Math.cos(a),cy+rr*Math.sin(a)];};
+  const rings=[.25,.5,.75,1].map(lv=>`<polygon points="${valid.map((_,i)=>ptAt(i,lv).join(',')).join(' ')}" fill="none" stroke="#E5E7EB" stroke-width="1"/>`).join('');
+  const axes=valid.map((a,i)=>{const[x,y]=ptAt(i,1);return`<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#E5E7EB" stroke-width="1"/>`;}).join('');
+  const labels=valid.map((a,i)=>{const[x,y]=ptAt(i,1.24);return`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="9.5" fill="#475569" text-anchor="middle" font-weight="700">${esc(a.name)}</text>`;}).join('');
+  const pctOf=(a,f)=>Number(a.total)>0?(Number(a[f]||0)/Number(a.total)):0;
+  const poly=(f,color,op)=>`<polygon points="${valid.map((a,i)=>ptAt(i,pctOf(a,f)).join(',')).join(' ')}" fill="${color}" fill-opacity="${op}" stroke="${color}" stroke-width="1.6"/>`;
+  return`<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:250px;height:auto;display:block;margin:0 auto;">
+    ${rings}${axes}
+    ${poly('avg','#DC2626',.12)}
+    ${poly('score','#185FA5',.18)}
+    ${labels}
+    <g transform="translate(${cx-58},${h-14})"><rect width="9" height="9" fill="#185FA5"/><text x="12" y="8" font-size="9" fill="#333">득점</text><rect x="46" width="9" height="9" fill="#DC2626"/><text x="58" y="8" font-size="9" fill="#333">평균</text></g>
+  </svg>`;
+}
+// 난이도별 득점/평균 막대그래프
+function buildDiffBarChart(diffs){
+  const valid=(diffs||[]).filter(d=>d.level&&Number(d.total)>0);
+  if(!valid.length)return`<div style="text-align:center;padding:16px 10px;color:#BBB;font-size:11px;border:1px dashed #DDD;border-radius:8px;">난이도별 배점을 입력하면 그래프가 표시됩니다.</div>`;
+  const w=260,h=140,padL=26,padR=8,padT=14,padB=24,plotW=w-padL-padR,plotH=h-padT-padB,n=valid.length,groupW=plotW/n,barW=Math.min(20,groupW*.32);
+  const yAt=pct=>padT+plotH*(1-Math.max(0,Math.min(1,pct)));
+  const bars=valid.map((d,i)=>{
+    const gx=padL+groupW*i+groupW/2;
+    const scorePct=Number(d.total)>0?Number(d.score||0)/Number(d.total):0, avgPct=Number(d.total)>0?Number(d.avg||0)/Number(d.total):0;
+    const y1=yAt(scorePct),y2=yAt(avgPct),base=padT+plotH,x1=gx-barW-2,x2=gx+2;
+    return`<rect x="${x1.toFixed(1)}" y="${y1.toFixed(1)}" width="${barW}" height="${(base-y1).toFixed(1)}" fill="#185FA5"/><rect x="${x2.toFixed(1)}" y="${y2.toFixed(1)}" width="${barW}" height="${(base-y2).toFixed(1)}" fill="#DC2626"/><text x="${gx.toFixed(1)}" y="${h-6}" font-size="9" fill="#475569" text-anchor="middle" font-weight="700">${esc(d.level)}</text>`;
+  }).join('');
+  const gridLines=[0,.5,1].map(v=>`<line x1="${padL}" y1="${yAt(v).toFixed(1)}" x2="${w-padR}" y2="${yAt(v).toFixed(1)}" stroke="#EEE" stroke-width="1"/>`).join('');
+  return`<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:280px;height:auto;display:block;margin:0 auto;">
+    ${gridLines}${bars}
+    <g transform="translate(${w-92},2)"><rect width="9" height="9" fill="#185FA5"/><text x="12" y="8" font-size="8.5" fill="#333">득점</text><rect x="46" width="9" height="9" fill="#DC2626"/><text x="58" y="8" font-size="8.5" fill="#333">평균</text></g>
+  </svg>`;
+}
+function printMEReport(meId){
+  ME_REPORT_ID=meId;
+  ME_REPORT_RETURN_TAB=(TAB==='mereport')?ME_REPORT_RETURN_TAB:TAB;
+  setTab('mereport');
+}
+function rMEReportPage(){
+  const m=meReportRecord();
+  if(!m){
+    return`<div class="no-print" style="margin-bottom:12px;"><button onclick="setTab(ME_REPORT_RETURN_TAB||'grade');" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button></div><div class="empty"><i class="ti ti-file-off"></i>성적 기록을 찾을 수 없습니다.</div>`;
+  }
+  const s=gS(m.sid);
+  const r=getMEReport(m);
+  const now=new Date();
+  const ds=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
+  const title=`브레이닝${s?.level?' '+esc(s.level)+'반':''}${m.month?' '+m.month+'월':''} 팩토시험 결과`;
+  const scoreDisp=(m.retest&&m.retestScore)?m.retestScore+'점':(m.score!==''&&m.score!=null?m.score+'점':(m.retest?'재시험 대상':'-'));
+  // 문항별 계
+  const qTotalSum=r.questions.reduce((a,q)=>a+(Number(q.total)||0),0);
+  const qScoreSum=r.questions.reduce((a,q)=>a+(Number(q.score)||0),0);
+  // 최근 3개월 성적 — 같은 학생의 팩토시험 기록 중, 이 시험의 월을 마지막 달로 하는 3개월 구간
+  const sameStuToma=(D.tomaScores||[]).filter(t=>t.sid===m.sid);
+  const monthlyMap={};
+  sameStuToma.forEach(t=>{
+    const key=t.month;
+    const existing=monthlyMap[key];
+    if(!existing||(t.year*12+t.month)>=(existing.year*12+existing.month))monthlyMap[key]=t;
   });
-  if(!D.tomaScores)D.tomaScores=[];
-  if(FACTO_EDIT_ID){
-    const idx=D.tomaScores.findIndex(x=>x.id===FACTO_EDIT_ID);
-    if(idx>=0)D.tomaScores[idx]=entry;
-  } else {
-    D.tomaScores.push(entry);
-  }
-  // 같은 템플릿(같은 시험)을 본 다른 학생들의 학급평균도 함께 최신화 — 학급평균은 "그 시험을
-  // 같이 본 학생 전체"의 총점 평균이라 한 명이 더 입력될 때마다 값이 바뀌어야 정확함. 직접
-  // 학급평균을 입력칸에 써넣은 경우(수기 조정)는 존중해서 자동 재계산으로 덮지 않는다.
-  if(!classAvgInput){
-    const siblings=D.tomaScores.filter(x=>x.report&&x.report.tplId===tpl.id&&x.month===month&&x.year===year);
-    const avgScores=siblings.map(x=>Number(x.score)||0);
-    const avg=avgScores.length?Math.round((avgScores.reduce((a,b)=>a+b,0)/avgScores.length)*100)/100:0;
-    siblings.forEach(x=>{ x.report.classAvg=String(avg); });
-  }
-  SD();closeM('facto-modal');GRADE_SID=sid;renderAll();
-  toast(FACTO_EDIT_ID?'수정되었습니다':'팩토 결과가 저장되었습니다 ✓');
-}
+  const monthsWindow=[];
+  if(m.month){for(let k=2;k>=0;k--){let mm=m.month-k;while(mm<1)mm+=12;while(mm>12)mm-=12;monthsWindow.push(mm);}}
+  const recentCols=monthsWindow.map(mm=>{const rec=monthlyMap[mm];const sc=rec?((rec.retest&&rec.retestScore)?rec.retestScore:rec.score):'';return{label:mm?mm+'월':'-',score:sc};});
+  // 월 학습 내용: 영역별로 그룹핑해서 표시
+  const unitGroups=[];
+  r.units.forEach((u,i)=>{
+    const areaName=u.area||'';
+    let g=unitGroups.find(x=>x.area===areaName);
+    if(!g){g={area:areaName,rows:[]};unitGroups.push(g);}
+    g.rows.push({no:i+1,title:u.title,goal:u.goal});
+  });
+  const unitTableHtml=!r.units.length?'':`<table class="sr-tbl" style="font-size:10.5px;border:1px solid #E2E8F0;margin-bottom:14px;">
+    <tr style="background:#F1F5F9;"><th style="width:110px;">영역</th><th>UNIT</th><th>학습 목표</th></tr>
+    ${unitGroups.map(g=>g.rows.map((row,ri)=>`<tr style="border-top:1px solid #F1F5F9;">
+      ${ri===0?`<td rowspan="${g.rows.length}" style="font-weight:700;color:#1E40AF;vertical-align:top;background:#F8FAFC;">${esc(g.area||'-')}</td>`:''}
+      <td style="white-space:nowrap;font-weight:600;">UNIT ${row.no} ${esc(row.title||'')}</td>
+      <td style="color:#475569;">${esc(row.goal||'')}</td>
+    </tr>`).join('')).join('')}
+  </table>`;
+  const areaTableHtml=`<table class="sr-tbl" style="font-size:11px;border:1px solid #E2E8F0;">
+    <tr style="background:#F1F5F9;"><th>영역</th><th style="text-align:center;">배점</th><th style="text-align:center;">회원평균</th><th style="text-align:center;">득점</th></tr>
+    ${r.areas.map(a=>`<tr style="border-top:1px solid #F1F5F9;"><td style="font-weight:600;">${esc(a.name||'-')}</td><td style="text-align:center;">${esc(String(a.total||''))}</td><td style="text-align:center;color:#DC2626;">${esc(String(a.avg||''))}</td><td style="text-align:center;font-weight:700;color:#185FA5;">${esc(String(a.score||''))}</td></tr>`).join('')}
+  </table>`;
+  const diffTableHtml=`<table class="sr-tbl" style="font-size:11px;border:1px solid #E2E8F0;">
+    <tr style="background:#F1F5F9;"><th>난이도</th><th style="text-align:center;">배점</th><th style="text-align:center;">회원평균</th><th style="text-align:center;">득점</th></tr>
+    ${r.diffs.map(d=>`<tr style="border-top:1px solid #F1F5F9;"><td style="font-weight:600;">${esc(d.level||'-')}</td><td style="text-align:center;">${esc(String(d.total||''))}</td><td style="text-align:center;color:#DC2626;">${esc(String(d.avg||''))}</td><td style="text-align:center;font-weight:700;color:#185FA5;">${esc(String(d.score||''))}</td></tr>`).join('')}
+  </table>`;
+  const qTableHtml=!r.questions.length?'':`<div style="overflow-x:auto;"><table class="sr-tbl" style="font-size:10px;border:1px solid #E2E8F0;min-width:${Math.max(360,r.questions.length*32+120)}px;">
+    <tr style="background:#F1F5F9;"><td style="font-weight:700;">문항</td>${r.questions.map((q,i)=>`<td style="text-align:center;font-weight:700;">${i+1}</td>`).join('')}<td style="text-align:center;font-weight:700;background:#FDE68A;">계</td></tr>
+    <tr style="border-top:1px solid #F1F5F9;"><td style="font-weight:600;color:#475569;">난이도</td>${r.questions.map(q=>`<td style="text-align:center;">${esc(q.diff||'')}</td>`).join('')}<td></td></tr>
+    <tr style="border-top:1px solid #F1F5F9;"><td style="font-weight:600;color:#475569;">배점</td>${r.questions.map(q=>`<td style="text-align:center;">${esc(String(q.total||''))}</td>`).join('')}<td style="text-align:center;font-weight:700;background:#FEF9C3;">${qTotalSum||''}</td></tr>
+    <tr style="border-top:1px solid #F1F5F9;"><td style="font-weight:600;color:#475569;">득점</td>${r.questions.map(q=>`<td style="text-align:center;font-weight:700;color:#185FA5;">${esc(String(q.score||''))}</td>`).join('')}<td style="text-align:center;font-weight:700;background:#FEF9C3;color:#185FA5;">${qScoreSum||''}</td></tr>
+  </table></div>`;
+  const recentTableHtml=`<table class="sr-tbl" style="font-size:10.5px;border:1px solid #E2E8F0;">
+    <tr style="background:#F1F5F9;">${recentCols.map(c=>`<th style="text-align:center;">${esc(c.label)}</th>`).join('')}</tr>
+    <tr style="border-top:1px solid #F1F5F9;">${recentCols.map(c=>`<td style="text-align:center;font-weight:700;">${c.score?esc(String(c.score))+'점':'-'}</td>`).join('')}</tr>
+  </table>`;
+  let out=`<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+    <button onclick="setTab(ME_REPORT_RETURN_TAB||'grade');" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
+    <div style="display:flex;gap:6px;">
+      <button onclick="openMEReportEditor('${esc(m.id)}')" style="padding:9px 16px;background:#1E40AF;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-edit"></i> 내용 수정</button>
+      <button onclick="window.print()" style="padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
+    </div>
+  </div>`;
+  out+=`<style>.sr-tbl{width:100%;border-collapse:collapse;} .sr-tbl th{padding:6px 8px;text-align:left;font-size:11px;} .sr-tbl td{padding:5px 8px;}</style>`;
+  out+=`<div class="report-print me-report-print" style="background:#fff;padding:0;">
+    <div style="height:6px;background:linear-gradient(90deg,#DC2626,#F59E0B,#22C55E,#185FA5,#7C3AED);border-radius:10px 10px 0 0;"></div>
+    <div style="padding:16px 20px;border:1px solid #E2E8F0;border-top:none;">
+      <div class="sr-sec" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div><div style="font-size:10px;color:#64748B;letter-spacing:1.2px;margin-bottom:4px;">브레이닝 수학학원 · 사고력 관리</div><div style="font-size:20px;font-weight:800;color:#042C53;">${title}</div></div>
+        <div style="text-align:right;font-size:11px;color:#64748B;">발행일 ${ds}</div>
+      </div>
+      <table class="sr-tbl sr-sec" style="border:1px solid #E2E8F0;margin-bottom:16px;">
+        <tr style="background:#F1F5F9;"><th style="width:18%;">실시일</th><th style="width:22%;">학교</th><th style="width:12%;">학년</th><th style="width:14%;">이름</th><th colspan="3" style="text-align:center;">평가결과</th></tr>
+        <tr style="border-top:1px solid #F1F5F9;text-align:center;"><td>${esc(r.testDate||'-')}</td><td>${esc(s?.school||'-')}</td><td>${esc(GL[s?.grade]||s?.grade||'-')}</td><td style="font-weight:700;">${esc(m.sid)}</td>
+          <td style="border-left:1px solid #F1F5F9;"><div style="font-size:9.5px;color:#94A3B8;">배점</div><div style="font-weight:700;">${esc(String(r.totalScore))}</div></td>
+          <td><div style="font-size:9.5px;color:#94A3B8;">회원평균</div><div style="font-weight:700;color:#DC2626;">${esc(String(r.classAvg||'-'))}</div></td>
+          <td><div style="font-size:9.5px;color:#94A3B8;">득점</div><div style="font-weight:800;color:#185FA5;font-size:14px;">${esc(scoreDisp)}</div></td>
+        </tr>
+      </table>
 
-// ── 결과지 인쇄 ──────────────
-let FACTO_REPORT_TID=null, FACTO_REPORT_RETURN_TAB=null;
-function printFactoReport(tid){
-  FACTO_REPORT_TID=tid;
-  FACTO_REPORT_RETURN_TAB=(TAB==='factoreport')?FACTO_REPORT_RETURN_TAB:TAB;
-  setTab('factoreport');
-}
-function rFactoReport(){
-  const t=(D.tomaScores||[]).find(x=>x.id===FACTO_REPORT_TID);
-  if(!t||!t.report){
-    return `<div class="no-print" style="margin-bottom:12px;"><button onclick="setTab(FACTO_REPORT_RETURN_TAB||'grade')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button></div><div class="empty"><i class="ti ti-file-off"></i>결과지를 찾을 수 없습니다.</div>`;
-  }
-  const s=gS(t.sid);
-  const r=t.report;
-  const total=Number(t.score)||0;
-  const classAvg=r.classAvg?Number(r.classAvg):null;
-  const tier=meScoreStyle(String(total));
-  let out=`<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <button onclick="setTab(FACTO_REPORT_RETURN_TAB||'grade')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
-    <button onclick="window.print()" style="padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
-  </div>
-  <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:24px;">
-    <div style="text-align:center;margin-bottom:18px;">
-      <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;">FACTO TEST REPORT</div>
-      <div style="font-size:19px;font-weight:700;margin-top:4px;">${esc(r.tplName||t.testName||'팩토시험')} 결과지</div>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;background:#F8FAFC;border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;">
-      <div>
-        <div style="font-size:15px;font-weight:700;">${esc(dispStuName(t.sid))}${s?.school?` <span style="font-size:11px;font-weight:400;color:var(--muted);">· ${esc(s.school)}</span>`:''}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">응시일 ${esc(r.testDate||'')}</div>
+      ${r.units.length?`<div class="sr-sec"><div style="font-size:12px;font-weight:700;color:#042C53;border-bottom:2px solid #042C53;padding-bottom:4px;margin-bottom:8px;">📘 월 학습 내용</div>${unitTableHtml}</div>`:''}
+
+      <div class="sr-sec" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#042C53;border-bottom:2px solid #042C53;padding-bottom:4px;margin-bottom:8px;">🎯 과정 영역별 성취도</div>
+          ${areaTableHtml}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;">${buildRadarChart(r.areas)}</div>
       </div>
-      <div style="text-align:right;">
-        <div style="font-size:28px;font-weight:700;color:${tier.color||'var(--pri2)'};">${total}<span style="font-size:14px;">점</span></div>
-        ${classAvg!=null?`<div style="font-size:11px;color:var(--muted);">학급평균 ${classAvg}점</div>`:''}
+
+      <div class="sr-sec" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#042C53;border-bottom:2px solid #042C53;padding-bottom:4px;margin-bottom:8px;">📊 난이도별 성취도</div>
+          ${diffTableHtml}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;">${buildDiffBarChart(r.diffs)}</div>
       </div>
+
+      ${r.questions.length?`<div class="sr-sec"><div style="font-size:12px;font-weight:700;color:#042C53;border-bottom:2px solid #042C53;padding-bottom:4px;margin-bottom:8px;">🔢 문항별 배점/득점 · 최근 3개월 성적</div>
+      <div class="sr-qgrid" style="display:grid;grid-template-columns:2.2fr 1fr;gap:12px;margin-bottom:16px;align-items:start;">
+        ${qTableHtml}
+        ${recentTableHtml}
+      </div></div>`:''}
+
+      <div class="no-print"><div style="font-size:12px;font-weight:700;color:#042C53;border-bottom:2px solid #042C53;padding-bottom:4px;margin-bottom:8px;">💬 코멘트 <small style="font-weight:400;color:var(--muted);">(인쇄물에는 포함되지 않아요 — A4 한 장에 맞추기 위해 제외)</small></div>
+      <div style="min-height:50px;border:1px solid #E2E8F0;border-radius:6px;padding:10px 12px;font-size:11.5px;color:#334155;white-space:pre-wrap;margin-bottom:14px;">${esc(r.comment||'')||'<span style="color:#CBD5E1;">코멘트 없음</span>'}</div></div>
+
+      <div style="text-align:center;font-size:9px;color:#CCC;border-top:1px solid #EEE;padding-top:7px;">브레이닝 수학학원 · 본 성적표는 학원 내부 평가 자료입니다 · 발행일 ${ds}</div>
     </div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">📊 영역별 점수</div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
-      ${(r.areas||[]).map(a=>{const pct=a.total?Math.round(a.score/a.total*100):0;return`
-      <div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>${esc(a.name)}</span><span style="font-weight:600;">${a.score}/${a.total}</span></div>
-        <div style="background:#F1F5F9;border-radius:99px;height:7px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:var(--pri2);border-radius:99px;"></div></div>
-      </div>`;}).join('')}
-    </div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">🎯 난이도별 점수</div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
-      ${(r.diffs||[]).map(d=>`<div style="flex:1;text-align:center;background:#F8FAFC;border-radius:var(--rs);padding:8px;">
-        <div style="font-size:10px;color:var(--muted);">${esc(d.level)}</div>
-        <div style="font-size:15px;font-weight:700;">${d.score}/${d.total}</div>
-      </div>`).join('')}
-    </div>
-    ${(r.units||[]).length?`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">📘 학습 단원</div>
-    <div style="font-size:11px;color:var(--txt);line-height:1.8;margin-bottom:16px;">
-      ${r.units.map((u,i)=>`${i+1}. <b>${esc(u.title||'')}</b>${u.goal?` — ${esc(u.goal)}`:''}`).join('<br>')}
-    </div>`:''}
-    ${r.comment?`<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">✏️ 선생님 코멘트</div>
-    <div style="font-size:12.5px;line-height:1.7;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:10px 12px;">${esc(r.comment)}</div>`:''}
+    <div style="height:6px;background:linear-gradient(90deg,#7C3AED,#185FA5,#22C55E,#F59E0B,#DC2626);border-radius:0 0 10px 10px;"></div>
   </div>`;
   return out;
 }
@@ -13686,7 +14203,7 @@ function startCloudListen() {
 // 남겨둬서 다시 연결값을 붙여넣을 필요는 없게 한다.
 function resetLocalCacheAndReload(){
   if(!confirm('이 기기에 저장된 캐시(학생·시간표·수업기록 등)를 지우고 서버에서 최신 데이터를 다시 받아옵니다.\n\n⚠ 클라우드(서버)에 저장된 데이터는 전혀 지워지지 않습니다 — 이 기기의 로컬 사본만 지우고 새로고침합니다.\n\n계속할까요?'))return;
-  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_facto_tpl'];
+  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_score_tpl'];
   keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   toast('🔄 캐시를 지웠습니다 — 서버에서 새로 받아옵니다');
   setTimeout(()=>location.reload(),400);
@@ -13955,7 +14472,7 @@ function SD() {
   localStorage.setItem('br5_rm', JSON.stringify(D.recentRemovals||[]));
   localStorage.setItem('br5_book_levels', JSON.stringify(D.bookLevelConfig||null));
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
-  localStorage.setItem('br5_facto_tpl', JSON.stringify(D.factoTemplates||[]));
+  localStorage.setItem('br5_score_tpl', JSON.stringify(D.scoreTemplates||[]));
   // 사고력 그룹 데이터는 별도의 사고력 전용 클라우드(braining_sagoryeok)로도 함께 보냄.
   // 기본 클라우드(braining)에는 지금까지처럼 전체가 저장되므로, 어느 한쪽이 끊겨도 데이터가 유실되지 않음.
   scheduleSagoPush();
@@ -13990,7 +14507,7 @@ function SD_local() {
   localStorage.setItem('br5_rm', JSON.stringify(D.recentRemovals||[]));
   localStorage.setItem('br5_book_levels', JSON.stringify(D.bookLevelConfig||null));
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
-  localStorage.setItem('br5_facto_tpl', JSON.stringify(D.factoTemplates||[]));
+  localStorage.setItem('br5_score_tpl', JSON.stringify(D.scoreTemplates||[]));
 }
 
 // Auto-reconnect on init
@@ -14482,13 +14999,14 @@ function startSagoListen(){
     }).filter(Boolean),null,D.tombstones?.C);
     // 진도체크 레벨 구성은 사고력에서만 쓰는 설정이라 서버 값을 그대로 따름
     if(data.bookLevelConfig)D.bookLevelConfig=data.bookLevelConfig;
-    // 팩토 시험 템플릿도 사고력 전용 공용 설정이라 서버 값을 그대로 따름
-    if(data.factoTemplates)D.factoTemplates=data.factoTemplates;
+    // 팩토(상세 성적표) 시험지 템플릿도 사고력 전용 공용 설정 — 여러 선생님이 동시에 템플릿을
+    // 만들 수 있으므로 통째로 덮어쓰지 않고 id 기준으로 병합(무덤 포함)
+    if(data.scoreTemplates)D.scoreTemplates=mergeArrById(D.scoreTemplates,data.scoreTemplates,null,D.tombstones?.scoreTemplates);
 
     // 로컬에도 저장 (클라우드로 되밀지는 않음 — 방금 받아온 내용을 그대로 다시 올릴 필요가 없음)
     SD_local();
     localStorage.setItem('br5_book_levels',JSON.stringify(D.bookLevelConfig||null));
-    localStorage.setItem('br5_facto_tpl',JSON.stringify(D.factoTemplates||[]));
+    localStorage.setItem('br5_score_tpl',JSON.stringify(D.scoreTemplates||[]));
     if(JSON.stringify(D)!==prev)renderAll();
   }, err=>{
     // 사고력 클라우드에 못 붙어도 앱 전체가 멈추면 안 됨 — 조용히 꺼두고 로컬 데이터로 계속 사용
@@ -14530,7 +15048,7 @@ function buildSagoPayload(){
     pendingMoves:pick(D.pendingMoves,'sid'),
     dayDefs, scMeta,
     bookLevelConfig:D.bookLevelConfig||null,
-    factoTemplates:D.factoTemplates||[],
+    scoreTemplates:D.scoreTemplates||[],
     // ⚠ 삭제 무덤(tombstones)도 이 클라우드 자체적으로 갖고 있어야 한다 — 코스 클라우드에서만
     // 오는 값에 의존하면, 두 클라우드 연결 순서가 보장되지 않아 이 리스너가 먼저 뜰 때 방금
     // 지운 기록이 되살아날 수 있다(R 병합의 recordDeletes 체크 참고). 그대로 다 보내도 무방한
@@ -15080,75 +15598,30 @@ init();
   </div>
 </div></div>
 
-<!-- 팩토 템플릿 모달 -->
-<div class="overlay" id="factotpl-modal">
-<div class="modal" style="max-width:460px;">
+<!-- 상세 성적표(팩토 등) 작성 모달 -->
+<div class="overlay" id="me-report-modal">
+<div class="modal" style="max-width:640px;">
   <div class="mhdr">
-    <div><div class="mtitle" id="factotpl-modal-title">팩토 템플릿 만들기</div><div class="msub">문제 구성을 한 번 만들어두면 성적 입력할 때 재사용됩니다</div></div>
-    <button class="mclose" onclick="closeM('factotpl-modal')"><i class="ti ti-x"></i></button>
+    <div><div class="mtitle">📋 상세 성적표 작성</div><div class="msub">문항별·영역별 점수, 월 학습 내용을 입력하면 성적표가 자동으로 만들어져요</div></div>
+    <button class="mclose" onclick="closeM('me-report-modal')"><i class="ti ti-x"></i></button>
   </div>
-  <div class="frow">
-    <div class="fg"><label class="flbl">템플릿 이름 *</label>
-      <input class="fi" id="factotpl-name" placeholder="예) 팩토 Lv.1 - 1호">
-    </div>
-  </div>
-  <div class="frow">
-    <div class="fg"><label class="flbl">레벨 (선택)</label>
-      <input class="fi" id="factotpl-level" placeholder="예) Lv.1">
-    </div>
-    <div class="fg"><label class="flbl">회차 (선택)</label>
-      <input class="fi" id="factotpl-round" placeholder="예) 1">
-    </div>
-  </div>
-  <div class="fg"><label class="flbl">학습 목표 (선택)</label>
-    <div id="factotpl-units"></div>
-  </div>
-  <div class="fg"><label class="flbl">문제 구성 *</label>
-    <div id="factotpl-qs"></div>
-  </div>
+  <div id="me-report-body"></div>
   <div class="btn-row">
-    <button class="btn btn-sec" onclick="closeM('factotpl-modal')">취소</button>
-    <button class="btn btn-pri" onclick="saveFactoTpl()" style="background:#7C3AED;"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
+    <button class="btn btn-sec" onclick="closeM('me-report-modal')">취소</button>
+    <button class="btn btn-pri" onclick="saveMEReport()"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
   </div>
-  <button onclick="deleteFactoTpl()" id="factotpl-del-btn" style="display:none;width:100%;margin-top:8px;padding:8px;background:none;border:none;color:var(--dan);font-size:12px;cursor:pointer;"><i class="ti ti-trash" style="font-size:11px;"></i> 이 템플릿 삭제</button>
 </div></div>
 
-<!-- 팩토 결과 입력 모달 -->
-<div class="overlay" id="facto-modal">
-<div class="modal" style="max-width:440px;">
+<!-- 시험지 템플릿 관리 모달: 학생 성적표를 거치지 않고 템플릿(레벨·권별 고정 문항 구성·회원평균)만 바로 관리 -->
+<div class="overlay" id="score-tpl-modal">
+<div class="modal" style="max-width:640px;">
   <div class="mhdr">
-    <div><div class="mtitle" id="facto-modal-title">팩토 결과 입력</div><div class="msub">문제별 점수만 입력하면 영역·난이도별 합계가 자동 계산됩니다</div></div>
-    <button class="mclose" onclick="closeM('facto-modal')"><i class="ti ti-x"></i></button>
+    <div><div class="mtitle">📋 시험지 템플릿 관리</div><div class="msub">레벨·권별로 고정된 문항 구성·회원평균을 미리 만들어두면, 상세 성적표 작성이 훨씬 빨라져요</div></div>
+    <button class="mclose" onclick="closeM('score-tpl-modal')"><i class="ti ti-x"></i></button>
   </div>
-  <div class="fg"><label class="flbl">학생 *</label>
-    <input class="fi" id="facto-stu-search" placeholder="이름 검색" oninput="renderFactoStudentList(this.value)" autocomplete="off" style="margin-bottom:6px;">
-    <select class="fsel" id="facto-sid" size="4" style="height:auto;min-height:80px;"></select>
-  </div>
-  <div class="frow">
-    <div class="fg"><label class="flbl">템플릿 *</label>
-      <select class="fsel" id="facto-tpl" onchange="onFactoTplSelectChange()"></select>
-    </div>
-    <div class="fg"><label class="flbl">회차</label>
-      <input class="fi" id="facto-round" type="number" min="1" placeholder="제N회">
-    </div>
-  </div>
-  <button onclick="closeM('facto-modal');openFactoTplModal(null)" style="width:100%;padding:6px;margin:-4px 0 8px;background:none;border:1px dashed var(--bdr);color:var(--muted);border-radius:6px;font-size:11px;cursor:pointer;">+ 새 템플릿 만들기</button>
-  <div class="fg"><label class="flbl">시험 날짜 *</label>
-    <input class="fi" type="date" id="facto-date">
-  </div>
-  <div class="fg"><label class="flbl">문제별 점수</label>
-    <div id="facto-questions"></div>
-  </div>
-  <div id="facto-preview" style="background:#F5F3FF;border:1px solid #C4B5FD;border-radius:var(--rs);padding:10px;margin-bottom:10px;"></div>
-  <div class="fg"><label class="flbl">학급평균 (선택, 비워두면 자동 계산)</label>
-    <input class="fi" id="facto-classavg" type="number" placeholder="자동 계산됨">
-  </div>
-  <div class="fg"><label class="flbl">코멘트 (선택)</label>
-    <textarea class="fi" id="facto-comment" rows="3" placeholder="학부모용 코멘트를 입력하세요"></textarea>
-  </div>
+  <div id="score-tpl-body"></div>
   <div class="btn-row">
-    <button class="btn btn-sec" onclick="closeM('facto-modal')">취소</button>
-    <button class="btn btn-pri" onclick="saveFacto()" style="background:#7C3AED;"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
+    <button class="btn btn-sec" onclick="closeM('score-tpl-modal')">닫기</button>
   </div>
 </div></div>
 
