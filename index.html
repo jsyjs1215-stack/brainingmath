@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-17-local-cache-reset-btn'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-17-sago-course-separation'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -4903,23 +4903,10 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
   const today=tdk();
   // isRealLesson 기준으로 필터 (getSessionStats와 동일한 로직)
   const realSessions=sessions.filter(x=>x.date<=today&&isRealLesson(x.date,sid,x));
-  // 🔗 연동 학생: 아래 "수업 기록" 목록만 반대쪽 반 기록과 한 줄로 합쳐서 날짜순으로 보여준다.
-  // (위쪽 통계 카드·월별 수업 현황은 지금까지처럼 이 반 기준 그대로 — 두 반을 합치면 출석 횟수가
-  //  두 배로 부풀려져 실제 수업 일수와 어긋나기 때문)
-  const linkedOther=getLinkedStudent(sid);
-  const linkedSessions=[];
-  if(linkedOther){
-    Object.entries(D.R).forEach(([date,dr])=>{
-      const r=dr[linkedOther.id];if(!r)return;
-      if(date>today)return;
-      if(!isRealLesson(date,linkedOther.id,r))return;
-      const dt=new Date(date+'T00:00:00');
-      const dsc=getSCForDate(date)[WD[dt.getDay()]]||{};
-      let dateSlot=r.slot||'';
-      if(!dateSlot){for(const[sl,ids]of Object.entries(dsc)){if(ids.includes(linkedOther.id)){dateSlot=sl;break;}}}
-      linkedSessions.push({date,dayName:WD[dt.getDay()],slot:dateSlot,...r});
-    });
-  }
+  // ⚠ 예전엔 연동된 상대(사고력↔저학년)의 수업 기록을 여기서 한 줄로 합쳐서 같이 보여줬는데,
+  // 담임도 수업 내용도 완전히 다른 별개의 수업이라 "저학년에서 입력한 숙제·특이사항이 사고력 쪽에
+  // 뜬다"는 혼란을 일으켰다. 이제 이 학생 자신의 기록만 보여주고, linkId는 결석 동시 처리 등
+  // 다른 용도로만 쓴다(아래 🔗 연동 배지는 연결되어 있다는 표시일 뿐 내용을 가져오지 않는다).
   const activeSessions=realSessions.filter(x=>x.attend!=='결석');
   const tot=realSessions.length; // 출결 전체 (결석 포함)
   const totAll=realSessions.length;
@@ -4935,10 +4922,10 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     <button onclick="printScoreReport('${esc(sid)}')" style="padding:7px 14px;background:#042C53;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 학부모용 성적표 인쇄</button>
   </div>`;
   if(extraHtml)out+=extraHtml;
-  // 📘 사고력 연동 파트너 — 저학년/고학년 쪽에서 보고 있어도 사고력에서 지금 뭘 하고 있는지
-  // 같이 보여주기 위함(요청: "사고력교재도 뭐하는지 표시"). 사고력 쪽을 직접 보고 있을 땐 굳이
-  // 자기 자신을 또 보여줄 필요 없으니 제외.
-  const sagoPartner=(s.group||'저학년')!=='사고력'?allGroupMembersFor(sid).find(m=>m&&m.id!==sid&&(m.group||'저학년')==='사고력'&&isActiveStu(m)):null;
+  // ⚠ 예전엔 여기서 연동된 사고력 파트너의 교재/담임을 저학년 화면에도 같이 보여줬는데, 사고력과
+  // 저학년은 담임도 수업 내용도 완전히 다른 별개의 수업이라 오히려 "저학년 반인데 사고력 교재가
+  // 입력되어 있다"는 혼란만 일으켰다(요청: "저학년과 사고력을 같은 거라고 생각하면 안 된다" ·
+  // "입력한 값 그대로 노출되게"). 그래서 다른 그룹 정보를 끌어와 보여주는 건 완전히 제거했다.
   out+=`<div class="sp-card">
     <div class="sp-top">
       ${avEl(sid,46)}
@@ -4962,12 +4949,6 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
             const[bg,fg]=teacherColor(s.teacher);
             return`<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${bg};color:${fg};border:1px solid ${fg};">담임 ${esc(s.teacher)}</span>`;
           })()}
-          ${(()=>{
-            // 저학년은 따로 담임 개념이 없어서, 연동된 사고력 쪽 담임을 그대로 보여준다(요청사항).
-            if((s.group||'저학년')!=='저학년'||!sagoPartner||!sagoPartner.teacher)return'';
-            const[bg,fg]=teacherColor(sagoPartner.teacher);
-            return`<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${bg};color:${fg};border:1px solid ${fg};">담임 ${esc(sagoPartner.teacher)} <span style="opacity:.7;">(사고력)</span></span>`;
-          })()}
           ${(()=>{const o=getLinkedStudent(sid);return o?`<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;">🔗 연동 · ${esc(dispStuName(o.id))} (${esc(linkProgStyle(o.group||'저학년').label)})</span>`:'';})()}
         </div>
         <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;">
@@ -4977,9 +4958,6 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
           <div style="font-size:12.5px;color:var(--txt);background:var(--bg);border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;">
             <span style="flex-shrink:0;">📘</span><span>${esc(stuSubjLabel(s)||'교재 미설정')}</span>
           </div>
-          ${sagoPartner?`<div style="font-size:12.5px;color:#4C1D95;background:#F5F3FF;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;">
-            <span style="flex-shrink:0;">🧠</span><span>사고력 · ${esc(stuSubjLabel(sagoPartner)||'교재 미설정')}</span>
-          </div>`:''}
           ${s.memo?`<div style="font-size:12px;color:var(--warn);padding:0 2px;">⚠️ ${esc(s.memo)}</div>`:''}
         </div>
         ${progStr(s)?`<div style="font-size:12px;color:#075985;margin-top:5px;">📖 현재진도: <strong>${esc(progStr(s))}</strong></div>`:''}
@@ -5125,26 +5103,18 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     });
   }
 
-  // 🔗 연동 학생이면 두 반 기록을 한 줄로 합쳐서 날짜순으로 보여준다.
-  // 각 기록에는 어느 반 수업인지(_prog) 표시를 붙이고, 수정/삭제 버튼도 그 기록의 실제 주인(_sid)에게 건다.
-  const timeline=[
-    ...realSessions.map(x=>Object.assign({},x,{_sid:sid,_stu:s,_prog:s.group||'저학년'})),
-    ...linkedSessions.map(x=>Object.assign({},x,{_sid:linkedOther.id,_stu:linkedOther,_prog:linkedOther.group||'저학년'})),
-  ].sort((a,b)=>b.date.localeCompare(a.date)||String(a._prog).localeCompare(String(b._prog)));
+  // ⚠ 예전엔 연동된 상대의 기록까지 여기서 한 줄로 합쳐서 보여줬는데(담임·숙제·특이사항이 서로
+  // 다른 별개의 수업인데도 섞여 보이는 혼란을 일으켰다), 이제 이 학생 자신의 기록만 보여준다.
+  const timeline=realSessions.map(x=>Object.assign({},x,{_sid:sid,_stu:s,_prog:s.group||'저학년'}))
+    .sort((a,b)=>b.date.localeCompare(a.date));
   out+=`<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px;">
-    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;"><i class="ti ti-calendar" style="font-size:12px;vertical-align:-1px;"></i> 수업 기록 (${tot}회${closedCnt?` · 휴원${closedCnt}회 제외`:''}${linkedOther?` <span style="text-transform:none;color:#5B21B6;">+ 연동 ${linkedSessions.length}회</span>`:''})</div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;"><i class="ti ti-calendar" style="font-size:12px;vertical-align:-1px;"></i> 수업 기록 (${tot}회${closedCnt?` · 휴원${closedCnt}회 제외`:''})</div>
     <button onclick="confirmClearAllRecords('${sid}')" style="font-size:11px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:20px;padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:3px;"><i class="ti ti-trash" style="font-size:11px;"></i> 전체 초기화</button>
   </div>`;
-  if(linkedOther){
-    out+=`<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11px;color:#5B21B6;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:var(--rs);padding:7px 10px;margin-bottom:8px;line-height:1.5;">
-      🔗 <b>${esc(sid)}</b> ${linkProgPill(s.group||'저학년')} 과 <b>${esc(linkedOther.id)}</b> ${linkProgPill(linkedOther.group||'저학년')} 의 수업 기록을 한 줄로 모아서 보여드려요. 위쪽 통계·월별 현황은 <b>${esc(linkProgStyle(s.group||'저학년').label)}</b> 기준입니다.
-    </div>`;
-  }
   if(!totAll&&!timeline.length)return out+`<div class="empty"><i class="ti ti-calendar-off"></i>수업 기록 없음</div>`;
 
   // 📌 누적 교재 히스토리 — "여태까지 어떤 교재/단원을 나갔는지"를 개별 수업 기록과 별도로,
-  // 교재별로 묶어서 한눈에 보여준다 (연동된 사고력 상대 기록도 포함해서 자동으로 만들어짐 —
-  // 별도로 입력·관리할 필요 없이 진도 입력 모달에 기록할 때마다 여기 자동으로 쌓인다).
+  // 교재별로 묶어서 한눈에 보여준다.
   {
     const sagoEntries=timeline.filter(x=>x._prog==='사고력'&&x.sagoBook).sort((a,b)=>a.date.localeCompare(b.date));
     if(sagoEntries.length){
@@ -5199,7 +5169,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
       :'';
     out+=`<div class="hsc" style="border-left-color:${closed?'#CBD5E1':ac};${closed?'opacity:.65;':''}">
       <div class="hsc-head">
-        <div>${linkedOther?linkProgPill(x._prog)+' ':''}<span class="hsc-date">${x.date} (${x.dayName})</span><span class="hsc-slot"> ${slotLabel(x.slot)}</span>${extraBadge}${closed?'<span style="margin-left:5px;font-size:10px;background:#F1F5F9;color:var(--muted);padding:1px 6px;border-radius:10px;border:1px solid var(--bdr);">🚫휴원</span>':''}</div>
+        <div><span class="hsc-date">${x.date} (${x.dayName})</span><span class="hsc-slot"> ${slotLabel(x.slot)}</span>${extraBadge}${closed?'<span style="margin-left:5px;font-size:10px;background:#F1F5F9;color:var(--muted);padding:1px 6px;border-radius:10px;border:1px solid var(--bdr);">🚫휴원</span>':''}</div>
         <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
           <span class="badge b-${x.attend||'출석'}">${x.attend||'출석'}</span>
           ${isSagoEntry?(x.sagoUnderstand?`<span style="font-size:10px;padding:1px 7px;border-radius:10px;font-weight:700;background:${understandStyle[x.sagoUnderstand].bg};color:${understandStyle[x.sagoUnderstand].fg};">이해도 ${x.sagoUnderstand}</span>`:''):`<span class="badge b-${x.hwStatus||'완료'}">${x.hwStatus||'완료'}</span>`}
