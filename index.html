@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-18-isreallesson-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-18-new-schedule-live'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1270,11 +1270,11 @@ function _upgradeSlotsAug(arr){
   return arr;
 }
 // 이 날짜(포함)부터 새 시간표 적용. 그 이전 주는 기존 시간표가 그대로 유지됨.
-// 📌 2026-09-18: 새 시간표(G1~G8)로 실제 학생 재배정이 아직 안 된 상태에서 이 cutover가 발동돼,
-// 저학년/고학년 화면에 학생이 전부 0명으로 보이는 사고가 발생했다. 실제 재배정 작업이 끝나기
-// 전까지는 절대 자동으로 전환되지 않도록 cutover를 먼 미래로 미뤄둔다. 새 시간표로 넘어갈
-// 준비가 되면(=G1~G8에 학생들을 다 옮겨 배정한 뒤) 이 날짜를 실제 전환일로 다시 바꿀 것.
-const SLOT_CUTOVER='2099-01-01';
+// 📌 2026-09-18: 저학년(CLASS6)·고학년(CLASS1~3) 학생들을 새 시간표(G1~G7)로 실제 재배정 완료.
+// 이 파일에서만 cutover를 다시 켜서 새 시간표가 화면에 보이도록 함(index.html은 그대로 둠).
+// ⚠ SLOTS는 "이번 주 월요일" 기준으로 판정되므로, cutover를 오늘(금요일) 날짜로 두면 이번 주
+// 전체가 아직 예전 시간표로 보인다 — 이번 주 전체에 바로 적용되도록 이번 주 월요일 날짜로 지정.
+const SLOT_CUTOVER='2026-09-14';
 let SLOTS_LEGACY = JSON.parse(localStorage.getItem('br5_slots')||'null') || DEFAULT_SLOTS;
 let SLOTS_AUG = _upgradeSlotsAug(JSON.parse(localStorage.getItem('br5_slots_aug')||'null')) || DEFAULT_SLOTS_AUG;
 // SLOTS: 현재 보고 있는 주(WS)에 맞는 시간대 세트. renderAll() 등에서 syncActiveSlots()로 갱신됨.
