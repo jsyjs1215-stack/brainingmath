@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-18-default-book-inv-options'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-18-fieldclears-tombstone-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2131,6 +2131,17 @@ function sR(date,sid,f,v){
   // 살아났다("잘못 입력한 새책이 시간이 지나면 다시 살아난다"는 신고의 원인) — 재고 차감·복구가
   // 반복되며 재고 수량이 계속 흔들리는 원인이기도 했다.
   if(f==='newBook'&&v==null)markDeleted('newBookDeletes',date+'|'+sid);
+  // 📌 위 두 필드(unitTest/newBook) 말고도 "내용성 필드"(ME_MERGE_CONTENT_FIELDS: todayHw, note,
+  // monthlyEval, curriculum, sessionSubject, classMove)는 전부 똑같은 병합 규칙(최신 쪽이 비어있으면
+  // 예전 값을 보존)을 공유해서, 똑같이 "일부러 지운 게 다시 살아나는" 문제가 생길 수 있다.
+  // note/todayHw는 대부분 다른 내용으로 덮어쓰며 이어가는 필드라 지금까지 문제로 보고되지 않았지만,
+  // 체크박스/선택지로 "켰다 끄는" monthlyEval·classMove와, 지우고 다시 입력하는 curriculum·
+  // sessionSubject는 unitTest/newBook과 똑같은 위험이 있어 같은 방식(무덤)으로 보호한다.
+  if(v==null||v===''){
+    if(['monthlyEval','curriculum','sessionSubject','classMove'].includes(f)){
+      markDeleted('fieldClears',date+'|'+sid+'|'+f);
+    }
+  }
   SD();
 }
 function prevR(sid,before){
@@ -14360,6 +14371,17 @@ function startCloudListen() {
             if (serverRec && serverRec.newBook != null) serverRec.newBook = null;
             if (localRec && localRec.newBook != null) localRec.newBook = null;
           }
+          // 📌 monthlyEval·curriculum·sessionSubject·classMove — unitTest/newBook과 같은 이유로
+          // 지운 기록(fieldClears tombstone)이 있으면 서버·로컬 양쪽 다 미리 비운다.
+          if (D.tombstones?.fieldClears) {
+            ['monthlyEval','curriculum','sessionSubject','classMove'].forEach(f => {
+              const key = date + '|' + sid + '|' + f;
+              if (D.tombstones.fieldClears[key] != null) {
+                if (serverRec && serverRec[f] != null && serverRec[f] !== '') serverRec[f] = null;
+                if (localRec && localRec[f] != null && localRec[f] !== '') localRec[f] = null;
+              }
+            });
+          }
           // 📌 보충/시간변동 등 "임시 추가"를 취소한 기록(extraSlotDeletes tombstone)도 동일 —
           // 취소한 그 슬롯만 서버·로컬 양쪽의 _extraSlots 배열에서 제거해서, 다른 필드를 편집하다가
           // _updatedAt이 새로 갱신된 예전(스테일) 기기의 _extraSlots 통째 교체 때문에 방금 취소한
@@ -15201,6 +15223,16 @@ function startSagoListen(){
           if(D.tombstones?.newBookDeletes?.[nbDelKey]!=null){
             if(rec&&rec.newBook!=null)rec.newBook=null;
             if(D.R[date][sid]&&D.R[date][sid].newBook!=null)D.R[date][sid].newBook=null;
+          }
+          // 📌 curriculum·sessionSubject·classMove도 코스 클라우드와 동일하게 fieldClears 무덤으로 보호
+          if(D.tombstones?.fieldClears){
+            ['monthlyEval','curriculum','sessionSubject','classMove'].forEach(f=>{
+              const key=date+'|'+sid+'|'+f;
+              if(D.tombstones.fieldClears[key]!=null){
+                if(rec&&rec[f]!=null&&rec[f]!=='')rec[f]=null;
+                if(D.R[date][sid]&&D.R[date][sid][f]!=null&&D.R[date][sid][f]!=='')D.R[date][sid][f]=null;
+              }
+            });
           }
           // 📌 보충/시간변동 등 "임시 추가"를 취소한 기록(extraSlotDeletes 무덤)도 동일 — 취소한
           // 슬롯만 rec·localRec 양쪽 _extraSlots에서 제거해서 다시 살아나지 않게 한다.
