@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-18-slot-cutover-pause'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-18-isreallesson-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1950,17 +1950,15 @@ function isRealLesson(date, sid, r){
   if(!r||!hasRealData(r))return false;
   if(isClosure(date))return false;
   if(r._sessionExcluded)return false; // 세션 출석 집계에서 수동으로 제외 처리된 기록(테스트 데이터 등)
-  const dateSC=getSCForDate(date);
-  const dayName=WD[new Date(date+'T00:00:00').getDay()];
-  // _skipSlots: 오늘만 제거된 슬롯 목록
-  const skipped=Array.isArray(r._skipSlots)?r._skipSlots:[];
-  // 시간표에 있는 슬롯 중 skipSlots에 없는 슬롯이 하나라도 있으면 정규 수업
-  const daySC=dateSC[dayName]||{};
-  const inSC=Object.entries(daySC).some(([slId,ids])=>ids.includes(sid)&&!skipped.includes(slId));
-  // 임시추가(_extraSlots): 슬롯이 skipSlots에 없는 것
-  const extraSlots=Array.isArray(r._extraSlots)?r._extraSlots:[];
-  const hasValidExtra=extraSlots.some(x=>!skipped.includes(x.slot));
-  return inSC||hasValidExtra;
+  // 📌 2026-09-18: 예전엔 여기서 "그 날짜의 시간표(getSCForDate)에 이 학생이 배정되어 있는지"를
+  // 추가로 확인했는데, 과거 날짜의 시간표는 스냅샷(D.SCH)이 있어야 정확히 알 수 있다. 스냅샷 이력이
+  // 아직 얼마 쌓이지 않은 상태(예: 오늘 날짜 것 딱 1개)에서는 과거 날짜를 조회해도 "지금 현재"
+  // 시간표로 대신 확인하게 되는데, 그 사이에 시간표가 한 번이라도 바뀐 학생은 실제로 수업하고
+  // 선생님이 숙제·특이사항까지 다 입력해놓은 기록인데도 "그때 그 시간표엔 없었다"고 잘못 판정되어
+  // 학생기록 화면에서 그 기록이 통째로 안 보이는 문제가 있었다(데이터는 그대로 있는데 화면에만
+  // 안 뜸). hasRealData(r)로 이미 "선생님이 실제로 뭔가 입력한 기록"인지 걸러지므로, 시간표 배정
+  // 여부는 더 이상 추가로 확인하지 않는다.
+  return true;
 }
 function getSessionStats(sid,session){
   const today=tdk();
