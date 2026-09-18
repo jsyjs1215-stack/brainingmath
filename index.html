@@ -1254,7 +1254,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-18-new-schedule-live'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-18-extraslot-tombstone-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7689,10 +7689,14 @@ function removeOneTime(sid,date,slot){
       if(mk){mk._autoDate='';mk._autoSlot='';}
     });
     r._extraSlots=r._extraSlots.filter(x=>x.slot!==slot);
+    // 📌 방금 취소한 슬롯을 기억해둬서, 다른 필드를 편집하다 갱신된 예전(스테일) 기기의
+    // _extraSlots가 병합 시 이 취소를 덮어쓰고 되살리지 않도록 함 (newBookDeletes/utDeletes와 동일 패턴)
+    markDeleted('extraSlotDeletes', date+'|'+sid+'|'+slot);
     // 구버전 호환
     if(r._oneTime===slot)delete r._oneTime;
   } else {
     // 슬롯 미지정 시 전체 제거 (구버전 호환)
+    (r._extraSlots||[]).forEach(x=>{ if(x.slot)markDeleted('extraSlotDeletes', date+'|'+sid+'|'+x.slot); });
     r._extraSlots=[];delete r._oneTime;
   }
   // ⚠ 여기서 레코드를 통째로 지워버리면(delete D.R[date][sid]), 동기화 시 "그 자리에 아무것도
@@ -14351,6 +14355,18 @@ function startCloudListen() {
             if (serverRec && serverRec.newBook != null) serverRec.newBook = null;
             if (localRec && localRec.newBook != null) localRec.newBook = null;
           }
+          // 📌 보충/시간변동 등 "임시 추가"를 취소한 기록(extraSlotDeletes tombstone)도 동일 —
+          // 취소한 그 슬롯만 서버·로컬 양쪽의 _extraSlots 배열에서 제거해서, 다른 필드를 편집하다가
+          // _updatedAt이 새로 갱신된 예전(스테일) 기기의 _extraSlots 통째 교체 때문에 방금 취소한
+          // 임시 추가가 다시 살아나지 않도록 한다("보충 지웠는데 계속 살아나요" 신고의 원인).
+          if (D.tombstones?.extraSlotDeletes) {
+            const stripDeletedSlots = (rec) => {
+              if (!rec || !Array.isArray(rec._extraSlots)) return;
+              rec._extraSlots = rec._extraSlots.filter(x => D.tombstones.extraSlotDeletes[date + '|' + sid + '|' + x.slot] == null);
+            };
+            stripDeletedSlots(serverRec);
+            stripDeletedSlots(localRec);
+          }
           // ⚠ 이 학생의 이 날짜 기록 자체를 방금 삭제했으면(recordDeletes tombstone), 로컬에
           // 없다고 해서 서버의 예전 기록으로 되살리지 않는다 — deleteRecord/전체 초기화로
           // 지운 기록이 다른 기기와 동기화되면서 다시 나타나던 문제를 막기 위함.
@@ -15180,6 +15196,16 @@ function startSagoListen(){
           if(D.tombstones?.newBookDeletes?.[nbDelKey]!=null){
             if(rec&&rec.newBook!=null)rec.newBook=null;
             if(D.R[date][sid]&&D.R[date][sid].newBook!=null)D.R[date][sid].newBook=null;
+          }
+          // 📌 보충/시간변동 등 "임시 추가"를 취소한 기록(extraSlotDeletes 무덤)도 동일 — 취소한
+          // 슬롯만 rec·localRec 양쪽 _extraSlots에서 제거해서 다시 살아나지 않게 한다.
+          if(D.tombstones?.extraSlotDeletes){
+            const stripDeletedSlots=(r2)=>{
+              if(!r2||!Array.isArray(r2._extraSlots))return;
+              r2._extraSlots=r2._extraSlots.filter(x=>D.tombstones.extraSlotDeletes[date+'|'+sid+'|'+x.slot]==null);
+            };
+            stripDeletedSlots(rec);
+            stripDeletedSlots(D.R[date][sid]);
           }
           // ⚠ 아직 옛날 버전을 쓰는 다른 기기가 저학년(교과) 전용 필드를 사고력 클라우드에 실수로
           // 올려도, 이 기기(새 버전)는 그 필드들을 받아들이는 시점에 걸러내서 로컬에 절대 섞이지
