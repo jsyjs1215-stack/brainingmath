@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-book-billing-v9'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-book-billing-v10'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7624,6 +7624,21 @@ function billIsExcluded(e){
   const t=bp[`xt:${e.subject}|${e.title}`]; if(t&&t.p===1)return true;
   const b=e.subject?bp[`xb:${e.subject}`]:null; return !!(b&&b.p===1);
 }
+// 개념완성 본책과 워크북은 따로 나가는 교재라 청구도 따로 잡는다: 워크북은 "개념완성 워크북" 브랜드로 분리.
+// "개념완성6-2+워크북1,2,3"처럼 한 줄에 같이 적힌 건 본책 1건 + 워크북 1건으로 나눈다(수업 기록 원본은 그대로).
+const BILL_WB_BRAND='개념완성 워크북';
+function billSplitWorkbook(ent,hasOv){
+  if(hasOv||ent.subject!=='개념완성')return [ent];
+  const t=String(ent.title||''); const i=t.indexOf('워크'); if(i<0)return [ent];
+  const head=t.slice(0,i);
+  if(/\+/.test(head)){
+    const main=Object.assign({},ent,{title:head.replace(/[+\s]+$/,'')||ent.title});
+    const wb=Object.assign({},ent,{subject:BILL_WB_BRAND,title:t.slice(i),okey:ent.okey+'#wb'});
+    wb.origTitle=wb.title;wb.origSubject=wb.subject;
+    return [main,wb];
+  }
+  return [Object.assign({},ent,{subject:BILL_WB_BRAND})];
+}
 function collectBillEntries(cy,groupFilter,wantExcluded){
   const out=[];
   Object.keys(D.R||{}).sort().forEach(date=>{
@@ -7635,8 +7650,8 @@ function collectBillEntries(cy,groupFilter,wantExcluded){
         if(groupFilter&&groupFilter!=='전체'&&grp!==groupFilter)return;
         const ent={date,sid,idx,grp,grade:st?st.grade:'',subject:nb.subject||'',title:nb.title,by:nb.by||'',guessBy:nb.by?'':(r._lastEditedBy||'')};
         ent.origTitle=ent.title;ent.origSubject=ent.subject;ent.okey=`${date}|${sid}|${ent.subject}|${ent.title}`;billApplyTitleOv(ent);
-        if(billIsExcluded(ent)!==!!wantExcluded)return;
-        out.push(ent);
+        const ov0=(D.bookBillOv||{})[ent.okey];
+        billSplitWorkbook(ent,!!(ov0&&(ov0.title||ov0.subj!=null))).forEach(p=>{ if(billIsExcluded(p)!==!!wantExcluded)return; out.push(p); });
       });
     });
   });
@@ -7647,6 +7662,7 @@ function collectBillEntries(cy,groupFilter,wantExcluded){
     const st=D.S.find(x=>x&&x.id===v.sid); const grp=st?(st.group||'저학년'):'저학년';
     if(groupFilter&&groupFilter!=='전체'&&grp!==groupFilter)return;
     const ent={date:v.date,sid:v.sid,idx:-1,grp,grade:st?st.grade:'',subject:v.subject||'',title:v.title,by:v.by||'',guessBy:'',manual:true,mkey:k};
+    if(ent.subject==='개념완성'&&/워크/.test(ent.title)&&!/[+]/.test(ent.title))ent.subject=BILL_WB_BRAND;
     if(billIsExcluded(ent)!==!!wantExcluded)return;
     out.push(ent);
   });
