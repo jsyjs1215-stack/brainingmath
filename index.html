@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-book-billing-v5'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-book-billing-v6'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7745,18 +7745,69 @@ function rBillSection(){
   out+=`</tbody></table></div>
   <div style="font-size:10.5px;color:var(--muted);margin:5px 2px 14px;">교재비를 직접 고치면 그 건만 바뀌고(주황 테두리), 비워두면 기본설정 값으로 되돌아갑니다. 청구하지 않는 책은 "청구 제외"를 누르세요(새 책 기록은 그대로 남아요).</div>`;
   out+=billExcludedHtml(excludedList);
-  out+=`
-  <div style="font-size:12px;font-weight:700;color:var(--pri2);margin:4px 0 6px;">👨‍👩‍👧 학생별 청구 합계</div>
-  <div style="display:flex;flex-direction:column;gap:6px;">`;
+  out+=rBillSummaryBlock(sum,list);
+  return out;
+}
+// ── 학생별 청구 합계 / 교재별 청구 합계 ─────────────────────────────────────
+// 학부모께 문자를 "교재별로 묶어서"(예: 아리수 8,000원짜리 학생들) 보내는 경우가 많아서, 같은 화면을
+// 이름순(학생마다 교재별 금액을 각각 표시)과 교재순(교재 브랜드 → 가격별로 학생 명단)으로 바꿔 볼 수 있다.
+let BILL_SORT='name';
+// 브랜드 → 가격(높은 순) 단위로 묶기: 같은 브랜드·같은 가격이면 한 줄(학생 여러 명)
+function billBrandGroups(list){
+  const m={};
+  list.forEach(e=>{
+    const sub=e.subject||'(브랜드 없음)';
+    const k=`${sub}|${e._price==null?'':e._price}`;
+    const g=(m[k]=m[k]||{subject:sub,price:e._price,items:[]});
+    g.items.push(e);
+  });
+  const arr=Object.values(m);
+  arr.forEach(g=>g.items.sort((a,b)=>dispStuName(a.sid).localeCompare(dispStuName(b.sid),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})));
+  arr.sort((a,b)=>a.subject.localeCompare(b.subject,'ko')||((b.price==null?-1:b.price)-(a.price==null?-1:a.price)));
+  return arr;
+}
+function billGroupSmsText(g){
+  return `${g.subject} ${g.price==null?'(교재비 미설정)':Number(g.price).toLocaleString('ko-KR')+'원'} (${g.items.length}권)\n`+g.items.map(e=>`${dispStuName(e.sid)}(${e.title})`).join(', ');
+}
+function copyBillText(txt){
+  const done=()=>toast('복사했습니다 — 문자에 붙여넣기 하세요');
+  try{ navigator.clipboard.writeText(txt).then(done,()=>alert(txt)); }catch(e){ alert(txt); }
+}
+function rBillSortToggle(){
+  const b=(k,l)=>`<button onclick="BILL_SORT='${k}';renderAll()" style="padding:5px 12px;border-radius:16px;border:1px solid var(--bdr);background:${BILL_SORT===k?'var(--pri)':'#fff'};color:${BILL_SORT===k?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;">${l}</button>`;
+  return `<span style="display:inline-flex;gap:5px;align-items:center;">${b('name','이름순')}${b('book','교재순')}</span>`;
+}
+function rBillSummaryBlock(sum,list){
+  let out=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 8px;">
+    <div style="font-size:12px;font-weight:700;color:var(--pri2);">${BILL_SORT==='book'?'📚 교재별 청구 합계 (학부모 문자용)':'👨‍👩‍👧 학생별 청구 합계'}</div>${rBillSortToggle()}</div>`;
+  if(BILL_SORT==='book'){
+    const groups=billBrandGroups(list);
+    let lastSub=null;
+    out+=`<div style="display:flex;flex-direction:column;gap:6px;">`;
+    groups.forEach(g=>{
+      if(g.subject!==lastSub){
+        const sub=groups.filter(x=>x.subject===g.subject);
+        const cnt=sub.reduce((a,x)=>a+x.items.length,0), tot=sub.reduce((a,x)=>a+(x.price==null?0:x.price*x.items.length),0);
+        out+=`<div style="font-size:12px;font-weight:800;margin-top:6px;color:#1E3A8A;">${esc(g.subject)} <span style="font-weight:500;color:var(--muted);font-size:11px;">— ${cnt}권 · ${billMoney(tot)}</span></div>`;
+        lastSub=g.subject;
+      }
+      out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 12px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div style="min-width:96px;font-size:13px;font-weight:800;color:${g.price==null?'#B91C1C':'#166534'};">${g.price==null?'미설정':Number(g.price).toLocaleString('ko-KR')+'원'}<div style="font-size:10.5px;font-weight:500;color:var(--muted);">${g.items.length}권 · ${billMoney(g.price==null?0:g.price*g.items.length)}</div></div>
+        <div style="flex:1;min-width:170px;font-size:12px;line-height:1.7;">${g.items.map(e=>`<span style="white-space:nowrap;"><b>${esc(dispStuName(e.sid))}</b> <span style="color:var(--muted);font-size:10.5px;">${esc(e.title)}</span></span>`).join(' · ')}</div>
+        <button onclick="copyBillText(decodeURIComponent('${encodeURIComponent(billGroupSmsText(g))}'))" style="font-size:10px;border:1px solid var(--bdr);background:#fff;border-radius:12px;padding:4px 10px;cursor:pointer;white-space:nowrap;">📋 명단 복사</button>
+      </div>`;
+    });
+    return out+`</div>`;
+  }
+  out+=`<div style="display:flex;flex-direction:column;gap:6px;">`;
   sum.students.forEach(g=>{
-    out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 12px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div style="min-width:78px;font-size:13px;font-weight:800;">${esc(dispStuName(g.sid))} <span style="font-size:10px;color:var(--muted);font-weight:500;">${esc(g.grp)}</span></div>
-      <div style="flex:1;min-width:150px;font-size:11.5px;color:#475569;line-height:1.5;">${g.items.map(i=>esc(i.title)).join(' · ')}</div>
-      <div style="font-size:13px;font-weight:800;color:${g.unset?'#B91C1C':'#166534'};white-space:nowrap;">${billMoney(g.total)}${g.unset?` <span style="font-size:10px;">(미설정 ${g.unset})</span>`:''}</div>
+      <div style="flex:1;min-width:190px;font-size:12px;line-height:1.7;">${g.items.slice().sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})).map(i=>`<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed #F1F5F9;"><span>${esc(i.title)}</span><b style="color:${i._price==null?'#B91C1C':'#334155'};white-space:nowrap;">${i._price==null?'미설정':Number(i._price).toLocaleString('ko-KR')+'원'}</b></div>`).join('')}</div>
+      <div style="font-size:13px;font-weight:800;color:${g.unset?'#B91C1C':'#166534'};white-space:nowrap;min-width:80px;text-align:right;">${billMoney(g.total)}${g.unset?`<div style="font-size:10px;">(미설정 ${g.unset})</div>`:''}</div>
     </div>`;
   });
-  out+=`</div>`;
-  return out;
+  return out+`</div>`;
 }
 // ── 시트 대조: 원장님이 엑셀로 관리하던 "교재배부 8/20~9/18" 시트를 그대로 옮겨두고, 앱에 입력된 새 책과 비교한다.
 // 시트에만 있는 책은 확인 후 한 번에 청구표에 추가할 수 있다(같은 책은 두 번 추가되지 않음).
@@ -7994,6 +8045,23 @@ function rBillPriceSettings(list){
       </div></details>`:''}
   </div>`;
 }
+// 인쇄용 청구 합계: 이름순(학생마다 교재별 금액 줄줄이) / 교재순(브랜드·가격별 학생 명단) — 화면의 정렬 선택을 따른다
+function billPrintSummary(sum,list,th,td){
+  const price=p=>p==null?'미설정':Number(p).toLocaleString('ko-KR')+'원';
+  if(BILL_SORT==='book'){
+    const groups=billBrandGroups(list);
+    return `<div style="font-size:13px;font-weight:800;margin:14px 0 5px;">교재별 청구 합계 (교재 · 가격별 학생 명단)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}width:15%">교재</th><th style="${th}width:14%">교재비</th><th style="${th}width:9%">권수</th><th style="${th}">학생 (교재명)</th><th style="${th}width:14%">소계</th></tr></thead><tbody>
+    ${groups.map(g=>`<tr><td style="${td}font-weight:700;">${esc(g.subject)}</td><td style="${td}text-align:right;">${price(g.price)}</td><td style="${td}text-align:right;">${g.items.length}</td><td style="${td}">${g.items.map(e=>esc(dispStuName(e.sid))+' <span style="color:#666;font-size:10px;">('+esc(e.title)+')</span>').join(', ')}</td><td style="${td}text-align:right;font-weight:700;">${billMoney(g.price==null?0:g.price*g.items.length)}</td></tr>`).join('')}
+    <tr><td style="${td}font-weight:800;background:#F8FAFC;" colspan="4">합계</td><td style="${td}text-align:right;font-weight:800;background:#F8FAFC;">${billMoney(sum.total)}</td></tr>
+    </tbody></table>`;
+  }
+  return `<div style="font-size:13px;font-weight:800;margin:14px 0 5px;">학생별 청구 합계 (교재별 금액)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}width:15%">이름</th><th style="${th}">교재 / 교재비</th><th style="${th}width:15%">합계</th></tr></thead><tbody>
+    ${sum.students.map(g=>`<tr><td style="${td}font-weight:700;vertical-align:top;">${esc(dispStuName(g.sid))}</td><td style="${td}">${g.items.slice().sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})).map(i=>esc(i.title)+' — '+price(i._price)).join('<br>')}</td><td style="${td}text-align:right;font-weight:700;vertical-align:top;">${billMoney(g.total)}</td></tr>`).join('')}
+    <tr><td style="${td}font-weight:800;background:#F8FAFC;" colspan="2">합계</td><td style="${td}text-align:right;font-weight:800;background:#F8FAFC;">${billMoney(sum.total)}</td></tr>
+    </tbody></table>`;
+}
 function rBillPrintPage(){
   const cy=billCycle();
   const list=collectBillEntries(cy,BILL_GROUP);
@@ -8003,6 +8071,7 @@ function rBillPrintPage(){
   return `<div class="no-print" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="setTab('admin')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
     ${['전체','저학년','고학년','사고력'].map(g=>`<button onclick="BILL_GROUP='${g}';renderAll()" style="padding:6px 13px;border-radius:20px;border:1px solid var(--bdr);background:${BILL_GROUP===g?'var(--pri)':'#fff'};color:${BILL_GROUP===g?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;">${g}</button>`).join('')}
+    <span style="margin-left:8px;">${rBillSortToggle()}</span>
     <button onclick="window.print()" style="margin-left:auto;padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
   </div>
   <div style="background:#fff;padding:16px 18px;max-width:900px;margin:0 auto;">
@@ -8012,11 +8081,7 @@ function rBillPrintPage(){
     <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}">교재(브랜드)</th><th style="${th}width:14%">권수</th><th style="${th}width:20%">금액</th></tr></thead><tbody>
     ${(()=>{const m={}; list.forEach(e=>{const k=e.subject||'(브랜드 없음)'; const g=(m[k]=m[k]||{n:0,t:0}); g.n++; if(e._price!=null)g.t+=e._price;}); return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0],'ko')).map(([k,g])=>`<tr><td style="${td}">${esc(k)}</td><td style="${td}text-align:right;">${g.n}</td><td style="${td}text-align:right;">${billMoney(g.t)}</td></tr>`).join('');})()}
     </tbody></table>
-    <div style="font-size:13px;font-weight:800;margin:14px 0 5px;">학생별 청구 합계</div>
-    <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}width:16%">이름</th><th style="${th}">교재</th><th style="${th}width:16%">청구 금액</th></tr></thead><tbody>
-    ${sum.students.map(g=>`<tr><td style="${td}font-weight:700;">${esc(dispStuName(g.sid))}</td><td style="${td}">${g.items.map(i=>esc(i.title)+(i._price!=null?' ('+Number(i._price).toLocaleString('ko-KR')+')':' (미설정)')).join(' / ')}</td><td style="${td}text-align:right;font-weight:700;">${billMoney(g.total)}</td></tr>`).join('')}
-    <tr><td style="${td}font-weight:800;background:#F8FAFC;" colspan="2">합계</td><td style="${td}text-align:right;font-weight:800;background:#F8FAFC;">${billMoney(sum.total)}</td></tr>
-    </tbody></table>
+    ${billPrintSummary(sum,list,th,td)}
     <div style="font-size:13px;font-weight:800;margin:16px 0 5px;">교재 배부 내역</div>
     <table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr><th style="${th}">배부일</th><th style="${th}">학년</th><th style="${th}">이름</th><th style="${th}">교재명</th><th style="${th}">교재비</th><th style="${th}">입력 교사</th></tr></thead><tbody>
     ${list.map(e=>`<tr><td style="${td}white-space:nowrap;">${e.date.slice(5).replace('-','/')}</td><td style="${td}">${esc(GL[e.grade]||e.grade||'')}</td><td style="${td}">${esc(dispStuName(e.sid))}</td><td style="${td}">${esc(e.title)}</td><td style="${td}text-align:right;">${e._price!=null?Number(e._price).toLocaleString('ko-KR'):'-'}</td><td style="${td}">${esc(e.by||e.guessBy||'')}</td></tr>`).join('')}
