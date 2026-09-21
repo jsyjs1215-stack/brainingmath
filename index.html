@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-range-exclude-choisang'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-makeup-done-sticky'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7656,6 +7656,9 @@ function confirmMakeupLink(mkId){
     removeAutoScheduledMakeup(mk); // 혹시 다른 날짜로 미리 예약해둔 게 있었으면 그 표시부터 정리
     mk.status='done';mk.mkDate=date;mk.mkSlot=slot;mk.mkTimeStart='';mk.mkTimeEnd='';
     mk._autoDate=date;mk._autoSlot=slot;
+    // ⚠ 보충관리는 "더 최근에 수정된(_updatedAt) 쪽"을 통째로 신뢰하는 병합이라, 여기서 완료로 바꾸면서
+    // 수정 시각을 안 갱신하면 서버에 남아있던 예전 "예약됨/대기중" 사본이 더 최근으로 취급돼 완료가 되살아났다.
+    mk._updatedAt=Date.now();
     entry._mkId=mk.id;
     SD();renderAll();
     toast(`${sid} — ${mk.absDate} 결석 보강으로 연결 완료 ✓`);
@@ -7668,6 +7671,7 @@ function unlinkOneTimeMakeup(mkId,date,slot){
   const mk=D.makeups.find(m=>m.id===mkId);
   if(mk&&mk.mkDate===date&&mk.mkSlot===slot){
     mk.status='pending';mk.mkDate='';mk.mkSlot='';mk._autoDate='';mk._autoSlot='';
+    mk._updatedAt=Date.now(); // 되돌린 상태도 다른 기기의 예전(완료) 사본에 덮이지 않게 시각 갱신
   }
 }
 function togOneTime(sid){
@@ -9904,12 +9908,12 @@ function meRangeRows(ym,s){
     const custom=(sub.custom||'').trim();
     const unit=sub.unit||'';
     const text=custom||((auto.base||'')+(auto.base&&unit?' '+unit:'')).trim()||(auto.kind==='first'?'':(unit||''));
-    return{subject:x.subject,curr,auto,unit,custom,text};
+    return{subject:x.subject,curr,auto,unit,custom,text,removed:!!sub.skip};
   });
 }
 function meRangePills(active){
   const btn=(key,label,color)=>`<button onclick="GRADE_TEST='${key}';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${active===key?color:'var(--bdr)'};background:${active===key?color:'#fff'};color:${active===key?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">${label}</button>`;
-  return `<div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">${btn('ME','🏆 월말평가','#1E40AF')}${btn('TOMA','🏅 TOMA','#0C447C')}${btn('FACTO','📝 팩토시험','#7C3AED')}${btn('RANGE','📋 월말평가 범위','#B45309')}${btn('DIST','📄 시험지 배부','#059669')}</div>`;
+  return `<div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">${btn('ME','🏆 월말평가','#1E40AF')}${btn('RANGE','📋 월말평가 범위','#B45309')}${btn('TOMA','🏅 TOMA','#0C447C')}${btn('DIST','📄 시험지 배부','#059669')}${btn('FACTO','📝 팩토시험','#7C3AED')}</div>`;
 }
 function meRangeCollect(ym){
   const gOrder=['07','1','2','3','4','5','6','m1','m2','m3','h1','h2','h3'];
@@ -9921,7 +9925,7 @@ function meRangeCollect(ym){
   // 시험지 범위별 인원 — 같은 범위끼리 묶어서 "이 범위 시험지가 몇 장 필요한지" 한눈에
   const byRange={};
   items.filter(it=>!it.skip).forEach(it=>{
-    it.rows.forEach(r=>{ if(!r.text)return; (byRange[r.text]=byRange[r.text]||[]).push(it.s.id); });
+    it.rows.forEach(r=>{ if(r.removed||!r.text)return; (byRange[r.text]=byRange[r.text]||[]).push(it.s.id); });
   });
   return{items,byRange,gOrder};
 }
@@ -9952,8 +9956,13 @@ function rGradeRange(){
           <span style="font-size:13px;font-weight:700;">${esc(dispStuName(sid))}</span>
           <label style="margin-left:auto;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" ${it.skip?'checked':''} onchange="setMeRangeField('${ym}','${esc(sid)}','','skip',this.checked);renderAll()"> 이번 달 제외</label>
         </div>
-        ${it.rows.length?it.rows.map(r=>`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed #EEE;">
+        ${it.rows.length?it.rows.map(r=>r.removed?`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px dashed #EEE;opacity:.55;">
           <span class="badge ${sC(r.subject)}" style="font-size:10px;">${esc(r.subject)}</span>
+          <span style="font-size:11px;color:var(--muted);text-decoration:line-through;">이번 달 범위에서 뺌</span>
+          <button onclick="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','skip',false);renderAll()" style="margin-left:auto;padding:3px 10px;border-radius:14px;border:1px solid var(--bdr);background:#fff;font-size:11px;cursor:pointer;">다시 넣기</button>
+        </div>`:`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed #EEE;">
+          <span class="badge ${sC(r.subject)}" style="font-size:10px;">${esc(r.subject)}</span>
+          <button onclick="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','skip',true);renderAll()" title="이 교재는 이번 달 범위에서 뺍니다" style="padding:1px 7px;border-radius:12px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-size:10px;cursor:pointer;">✕ 삭제</button>
           <span style="font-size:11px;color:var(--muted);">현재 ${r.curr?esc(r.curr):'<i>진도 미입력</i>'}</span>
           <span style="font-size:11px;color:var(--pri2);font-weight:600;">→ 자동 ${r.auto.base?esc(r.auto.base):(r.auto.kind==='first'?'첫 권(범위 없음)':'-')}</span>
           <select class="fsel" style="width:auto;padding:3px 6px;font-size:11px;" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','unit',this.value);renderAll()">${ME_RANGE_UNIT_OPTS.map(u=>`<option value="${u}"${u===r.unit?' selected':''}>${u||(r.auto.needsUnit?'단원 선택':'단원(선택)')}</option>`).join('')}</select>
@@ -9972,6 +9981,7 @@ function rGradeRange(){
 function rMERangePage(){
   const ym=rangeYm(); const [y,m]=ym.split('-').map(Number);
   const {items,byRange,gOrder}=meRangeCollect(ym);
+  items.forEach(it=>{ it.rows=it.rows.filter(r=>!r.removed); }); // 선생님이 뺀 교재는 인쇄표에서 제외
   const shown=items.filter(it=>!it.skip&&it.rows.length); // 시험 대상 교재가 없는 학생(최상위만 등)은 인쇄표에서 뺌
   let out=`<div class="no-print" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="setTab(RANGE_RETURN_TAB||'grade')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
@@ -10042,11 +10052,12 @@ function rGradeDist(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
   </div>
-  <div style="display:flex;gap:5px;margin-bottom:12px;">
+  <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
-    <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
     <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
+    <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid #059669;background:#059669;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
+    <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;">
     <button onclick="shiftDistMonth(-1)" style="border:none;background:none;font-size:16px;color:#059669;cursor:pointer;padding:2px 8px;">◀</button>
@@ -10431,12 +10442,12 @@ function rGradeList(){
     ${gWdCnt?`<button style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--bdr);background:${GradeStatusFilter==='퇴원'?'#475569':'#fff'};color:${GradeStatusFilter==='퇴원'?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onclick="window.GradeStatusFilter='퇴원';renderAll()">🚪 퇴원생 (${gWdCnt})</button>`:''}
   </div>
   <!-- TOMA / 월말평가 탭 -->
-  <div style="display:flex;gap:5px;margin-bottom:12px;">
+  <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='ME'?'#1E40AF':'var(--bdr)'};background:${GRADE_TEST==='ME'?'#1E40AF':'#fff'};color:${GRADE_TEST==='ME'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
-    <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='TOMA'?'var(--pri2)':'var(--bdr)'};background:${GRADE_TEST==='TOMA'?'var(--pri2)':'#fff'};color:${GRADE_TEST==='TOMA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
-    <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='FACTO'?'#7C3AED':'var(--bdr)'};background:${GRADE_TEST==='FACTO'?'#7C3AED':'#fff'};color:${GRADE_TEST==='FACTO'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
     <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
+    <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='TOMA'?'var(--pri2)':'var(--bdr)'};background:${GRADE_TEST==='TOMA'?'var(--pri2)':'#fff'};color:${GRADE_TEST==='TOMA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
+    <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='FACTO'?'#7C3AED':'var(--bdr)'};background:${GRADE_TEST==='FACTO'?'#7C3AED':'#fff'};color:${GRADE_TEST==='FACTO'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
   </div>`;
 
   if(GRADE_TEST==='ME') return out+rGradeListME(stuList);
@@ -13842,7 +13853,9 @@ function mergeArrByIdTs(localArr, serverArr, tombstones){
     if(!x||x.id==null)return;
     if(byId[x.id]){
       const lTs=byId[x.id]._updatedAt||0, svTs=x._updatedAt||0;
-      byId[x.id]=svTs>lTs?x:byId[x.id];
+      // 수정 시각이 같으면(또는 둘 다 시각이 없는 예전 데이터) "완료"된 쪽을 지켜서, 완료한 보강이
+      // 예전 대기중/예약됨 사본 때문에 되살아나지 않게 한다
+      if(svTs>lTs||(svTs===lTs&&x.status==='done'&&byId[x.id].status!=='done'))byId[x.id]=x;
     } else { byId[x.id]=x; order.push(x.id); }
   });
   // ⚠ tombstone은 한번 지워지면 합집합으로만 쌓여서 영원히 사라지지 않는데, makeups처럼 id를
