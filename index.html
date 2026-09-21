@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-book-billing'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-book-billing-v2'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7552,7 +7552,7 @@ function shiftBillCycle(delta){
   BILL_CYCLE_START=billFmt(new Date(y,m-1+delta,20));
   renderAll();
 }
-function billEntryKey(e){ return `${e.date}|${e.sid}|${e.subject}|${e.title}`; }
+function billEntryKey(e){ return e.mkey||`${e.date}|${e.sid}|${e.subject}|${e.title}`; }
 function billTitleKey(e){ return `t:${e.subject}|${e.title}`; }
 function billBrandKey(subject){ return `b:${subject}`; }
 function billUnitPrice(e){
@@ -7560,10 +7560,46 @@ function billUnitPrice(e){
   if(ov&&ov.price!=null&&ov.price!=='')return{p:Number(ov.price),src:'건별'};
   const t=(D.bookPrices||{})[billTitleKey(e)];
   if(t&&t.p!=null)return{p:Number(t.p),src:'교재별'};
+  // 단어 규칙(예: "워크북" → 3,000원): 교재명에 그 단어가 들어 있으면 적용. 여러 개가 걸리면 더 긴 단어 우선.
+  // 개념완성 세트처럼 "본책 + 워크북 1·2·3권"이 각각 한 줄로 나뉘어 기록되는 경우에 쓴다.
+  let kw=null;
+  Object.entries(D.bookPrices||{}).forEach(([k,v])=>{
+    if(!k.startsWith('k:')||!v||v.p==null)return;
+    const w=k.slice(2); if(w&&String(e.title||'').includes(w)&&(!kw||w.length>kw.w.length))kw={w,p:Number(v.p)};
+  });
+  if(kw)return{p:kw.p,src:`"${kw.w}"`};
   const b=e.subject?(D.bookPrices||{})[billBrandKey(e.subject)]:null;
   if(b&&b.p!=null)return{p:Number(b.p),src:'기본'};
   return{p:null,src:''};
 }
+function addBillKeyword(){
+  const w=(document.getElementById('bl-kw-new')?.value||'').trim();
+  const p=String(document.getElementById('bl-kp-new')?.value||'').replace(/[^\d]/g,'');
+  if(!w||p===''){alert('단어와 가격을 모두 입력해주세요. 예) 워크북 / 3000');return;}
+  setBillPrice('k:'+w,p);
+}
+// 자동으로 나뉜 새 책 기록에 없는 교재(세트 구성품, 종이로 나간 책 등)를 청구표에 직접 추가
+function addBillManual(){
+  const sid=(document.getElementById('bl-add-sid')?.value||'').trim();
+  const date=document.getElementById('bl-add-date')?.value||'';
+  const title=(document.getElementById('bl-add-title')?.value||'').trim();
+  const price=String(document.getElementById('bl-add-price')?.value||'').replace(/[^\d]/g,'');
+  const st=D.S.find(x=>x&&x.id===sid);
+  if(!st){alert('학생 이름을 목록에서 골라주세요.');return;}
+  if(!date||!title){alert('배부 날짜와 교재명을 입력해주세요.');return;}
+  const key=`m|${Date.now()}|${Math.random().toString(36).slice(2,6)}`;
+  if(!D.bookBillOv)D.bookBillOv={};
+  D.bookBillOv[key]={manual:true,sid,date,title,subject:'',price:price===''?null:Number(price),by:getTeacherName()||'이름 미설정',note:'',_u:Date.now()};
+  BILL_ADD_OPEN=false;
+  SD();renderAll();toast('교재를 청구표에 추가했습니다');
+}
+function delBillManual(key){
+  const v=(D.bookBillOv||{})[key]; if(!v)return;
+  if(!confirm(`"${v.title}" (${dispStuName(v.sid)}) 직접 추가한 교재를 삭제할까요?`))return;
+  D.bookBillOv[key]=Object.assign({},v,{del:true,_u:Date.now()});
+  SD();renderAll();
+}
+let BILL_ADD_OPEN=false;
 function setBillPrice(key,val){
   if(!D.bookPrices)D.bookPrices={};
   const n=String(val).replace(/[^\d]/g,'');
@@ -7592,6 +7628,14 @@ function collectBillEntries(cy,groupFilter){
       });
     });
   });
+  // 직접 추가한 교재(manual)
+  Object.entries(D.bookBillOv||{}).forEach(([k,v])=>{
+    if(!v||!v.manual||v.del)return;
+    if(v.date<cy.start||v.date>cy.end)return;
+    const st=D.S.find(x=>x&&x.id===v.sid); const grp=st?(st.group||'저학년'):'저학년';
+    if(groupFilter&&groupFilter!=='전체'&&grp!==groupFilter)return;
+    out.push({date:v.date,sid:v.sid,idx:-1,grp,grade:st?st.grade:'',subject:v.subject||'',title:v.title,by:v.by||'',guessBy:'',manual:true,mkey:k});
+  });
   out.sort((a,b)=>a.date.localeCompare(b.date)||a.sid.localeCompare(b.sid,'ko'));
   return out;
 }
@@ -7615,7 +7659,8 @@ function rBillSection(){
   const nav=(d,ic)=>`<button onclick="shiftBillCycle(${d})" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--bdr);background:#fff;cursor:pointer;"><i class="ti ${ic}"></i></button>`;
   let out=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
     ${nav(-1,'ti-chevron-left')}<div style="font-size:14px;font-weight:800;">${cy.label} <span style="font-size:11px;font-weight:600;color:var(--muted);">(${cy.billLabel})</span></div>${nav(1,'ti-chevron-right')}
-    <button onclick="BILL_SHOW_PRICES=!BILL_SHOW_PRICES;renderAll()" style="margin-left:auto;padding:7px 13px;border-radius:var(--rs);border:1px solid #FDE68A;background:#FFFBEB;color:#92400E;font-size:12px;font-weight:700;cursor:pointer;">⚙ 교재비 기본설정</button>
+    <button onclick="BILL_ADD_OPEN=!BILL_ADD_OPEN;renderAll()" style="margin-left:auto;padding:7px 13px;border-radius:var(--rs);border:1px solid #BBF7D0;background:#F0FDF4;color:#166534;font-size:12px;font-weight:700;cursor:pointer;">＋ 교재 직접 추가</button>
+    <button onclick="BILL_SHOW_PRICES=!BILL_SHOW_PRICES;renderAll()" style="padding:7px 13px;border-radius:var(--rs);border:1px solid #FDE68A;background:#FFFBEB;color:#92400E;font-size:12px;font-weight:700;cursor:pointer;">⚙ 교재비 기본설정</button>
     <button onclick="setTab('billprint')" style="padding:7px 13px;border-radius:var(--rs);border:none;background:#042C53;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 청구표 인쇄</button>
   </div>
   <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">${['전체','저학년','고학년','사고력'].map(chip).join('')}</div>
@@ -7624,6 +7669,21 @@ function rBillSection(){
     <div style="flex:1;min-width:110px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rs);padding:8px 11px;"><div style="font-size:10px;color:var(--muted);">청구 합계</div><div style="font-size:16px;font-weight:800;color:#166534;">${billMoney(sum.total)}</div></div>
     <div style="flex:1;min-width:110px;background:${sum.unset?'#FEF2F2':'#F8FAFC'};border:1px solid ${sum.unset?'#FCA5A5':'var(--bdr)'};border-radius:var(--rs);padding:8px 11px;"><div style="font-size:10px;color:var(--muted);">교재비 미설정</div><div style="font-size:16px;font-weight:800;color:${sum.unset?'#B91C1C':'inherit'};">${sum.unset}건</div></div>
   </div>`;
+  if(BILL_ADD_OPEN){
+    const defDate=(tdk()>=cy.start&&tdk()<=cy.end)?tdk():cy.start;
+    out+=`<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rs);padding:11px 13px;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:800;color:#166534;margin-bottom:3px;">＋ 교재 직접 추가</div>
+      <div style="font-size:11px;color:#166534;margin-bottom:8px;">새 책 기록에 없는 교재(예: 종이로 나간 책, 세트 구성품)를 직접 적고 교재비를 정할 수 있어요. 교재비를 비워두면 미설정으로 나오고, 표에서 나중에 입력해도 됩니다.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <input id="bl-add-sid" list="bl-add-dl" class="fi" style="width:130px;" placeholder="학생 이름">
+        <datalist id="bl-add-dl">${D.S.filter(s=>s&&isActiveStu(s)).map(s=>`<option value="${escAttr(s.id)}">${esc(dispStuName(s.id))} ${esc(s.group||'저학년')}</option>`).join('')}</datalist>
+        <input id="bl-add-date" type="date" class="fi" style="width:140px;" value="${defDate}" min="${cy.start}" max="${cy.end}">
+        <input id="bl-add-title" class="fi" style="flex:1;min-width:150px;" placeholder="교재명 (예: 개념완성6-2 워크북1)">
+        <input id="bl-add-price" inputmode="numeric" class="fi" style="width:90px;text-align:right;" placeholder="교재비">
+        <button onclick="addBillManual()" style="padding:8px 16px;border:none;border-radius:var(--rs);background:#16A34A;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">추가</button>
+      </div>
+    </div>`;
+  }
   if(BILL_SHOW_PRICES)out+=rBillPriceSettings(list);
   if(!list.length){
     return out+`<div class="empty"><i class="ti ti-book-off"></i>이 기간(${cy.label})에 새 책으로 기록된 교재가 없습니다.</div>`;
@@ -7640,10 +7700,10 @@ function rBillSection(){
       <td style="padding:6px 8px;white-space:nowrap;">${e.date.slice(5).replace('-','/')}</td>
       <td style="padding:6px 4px;white-space:nowrap;"><span style="font-size:10px;color:var(--muted);">${esc(e.grp)}</span> ${esc(GL[e.grade]||e.grade||'')}</td>
       <td style="padding:6px 4px;font-weight:700;white-space:nowrap;">${esc(dispStuName(e.sid))}</td>
-      <td style="padding:6px 4px;">${esc(e.title)}${e.subject&&!e.title.startsWith(e.subject)?` <span style="color:var(--muted);font-size:10px;">(${esc(e.subject)})</span>`:''}</td>
+      <td style="padding:6px 4px;">${esc(e.title)}${e.manual?' <span style="font-size:9.5px;font-weight:700;color:#166534;background:#DCFCE7;border-radius:8px;padding:1px 6px;">직접 추가</span>':''}${e.subject&&!e.title.startsWith(e.subject)?` <span style="color:var(--muted);font-size:10px;">(${esc(e.subject)})</span>`:''}</td>
       <td style="padding:4px;white-space:nowrap;"><input id="bl-p-${escAttr(key)}" inputmode="numeric" class="fi" style="width:84px;padding:4px 6px;font-size:12px;text-align:right;${e._price==null?'border-color:#FCA5A5;background:#FEF2F2;':(isOv?'border-color:#F59E0B;':'')}" placeholder="${e._price==null?'미설정':''}" value="${e._price!=null?e._price:''}" onchange="setBillOv('${escAttr(key).replace(/'/g,"\\'")}','price',this.value)"><span style="font-size:10px;color:var(--muted);margin-left:3px;">${isOv?'건별':(e._src||'')}</span></td>
       <td style="padding:6px 4px;">${byCell}</td>
-      <td style="padding:6px 4px;"><button onclick="clearNewBookRecord('${esc(e.sid)}','${e.date}',${e.idx})" title="이 새 책 기록 삭제(재고 복구)" style="font-size:10px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:12px;padding:3px 8px;cursor:pointer;">삭제</button></td>
+      <td style="padding:6px 4px;"><button onclick="${e.manual?`delBillManual('${escAttr(e.mkey).replace(/'/g,"\\'")}')`:`clearNewBookRecord('${esc(e.sid)}','${e.date}',${e.idx})`}" title="${e.manual?'직접 추가한 교재 삭제':'이 새 책 기록 삭제(재고 복구)'}" style="font-size:10px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:12px;padding:3px 8px;cursor:pointer;">삭제</button></td>
     </tr>`;
   });
   out+=`</tbody></table></div>
@@ -7676,6 +7736,18 @@ function rBillPriceSettings(list){
     <div style="font-size:11px;color:#92400E;margin-bottom:9px;line-height:1.5;">브랜드별 기본 가격을 한 번 입력해두면, 새 책이 나갈 때마다 자동으로 그 가격이 들어갑니다. 특정 교재만 가격이 다르면 아래 "교재명별 예외 가격"에 따로 넣으세요(브랜드 기본가보다 우선).</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-bottom:10px;">
       ${brandList.map(b=>{ const cur=bp[billBrandKey(b)]; return `<label style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:5px 8px;"><span style="flex:1;font-size:12px;font-weight:600;">${esc(b)}</span><input id="bl-b-${escAttr(b)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span></label>`; }).join('')}
+    </div>
+    <div style="background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:800;margin-bottom:3px;">🔤 단어로 가격 정하기 <span style="font-weight:500;color:var(--muted);">— 예) "워크북"을 3,000원으로 하면 교재명에 워크북이 들어간 책은 전부 3,000원</span></div>
+      <div style="font-size:10.5px;color:var(--muted);margin-bottom:7px;">개념완성처럼 "본책 + 워크북 1·2·3권" 세트는 본책은 브랜드 기본가, 워크북은 여기서 "워크북" 가격을 정해두면 됩니다. (브랜드 기본가보다 우선, 교재명별·건별 가격보다는 뒤)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+        ${Object.entries(bp).filter(([k,v])=>k.startsWith('k:')&&v&&v.p!=null).map(([k,v])=>`<label style="display:flex;align-items:center;gap:6px;border:1px solid #FDE68A;background:#FFFBEB;border-radius:8px;padding:4px 8px;"><b style="font-size:12px;">${esc(k.slice(2))}</b><input id="bl-k-${escAttr(k)}" inputmode="numeric" class="fi" style="${inputStyle}" value="${v.p}" onchange="setBillPrice('${escAttr(k).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원 (비우면 삭제)</span></label>`).join('')||'<span style="font-size:11px;color:var(--muted);">아직 설정한 단어가 없습니다</span>'}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <input id="bl-kw-new" class="fi" style="width:110px;padding:4px 7px;font-size:12px;" placeholder="단어 (예: 워크북)">
+        <input id="bl-kp-new" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격">
+        <button onclick="addBillKeyword()" style="padding:5px 12px;border:none;border-radius:8px;background:#B45309;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">추가</button>
+      </div>
     </div>
     ${titles.length?`<details style="background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;">교재명별 예외 가격 (이 기간에 나간 ${titles.length}종)</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px;">
