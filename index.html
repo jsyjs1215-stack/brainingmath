@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-book-billing-v4'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-book-billing-v5'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7678,7 +7678,8 @@ function rBillSection(){
   const nav=(d,ic)=>`<button onclick="shiftBillCycle(${d})" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--bdr);background:#fff;cursor:pointer;"><i class="ti ${ic}"></i></button>`;
   let out=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
     ${nav(-1,'ti-chevron-left')}<div style="font-size:14px;font-weight:800;">${cy.label} <span style="font-size:11px;font-weight:600;color:var(--muted);">(${cy.billLabel})</span></div>${nav(1,'ti-chevron-right')}
-    <button onclick="BILL_ADD_OPEN=!BILL_ADD_OPEN;renderAll()" style="margin-left:auto;padding:7px 13px;border-radius:var(--rs);border:1px solid #BBF7D0;background:#F0FDF4;color:#166534;font-size:12px;font-weight:700;cursor:pointer;">＋ 교재 직접 추가</button>
+    <button onclick="BILL_SHEET_OPEN=!BILL_SHEET_OPEN;renderAll()" style="margin-left:auto;padding:7px 13px;border-radius:var(--rs);border:1px solid #BFDBFE;background:#EFF6FF;color:#1E3A8A;font-size:12px;font-weight:700;cursor:pointer;">📄 시트 대조</button>
+    <button onclick="BILL_ADD_OPEN=!BILL_ADD_OPEN;renderAll()" style="padding:7px 13px;border-radius:var(--rs);border:1px solid #BBF7D0;background:#F0FDF4;color:#166534;font-size:12px;font-weight:700;cursor:pointer;">＋ 교재 직접 추가</button>
     <button onclick="BILL_SHOW_PRICES=!BILL_SHOW_PRICES;renderAll()" style="padding:7px 13px;border-radius:var(--rs);border:1px solid #FDE68A;background:#FFFBEB;color:#92400E;font-size:12px;font-weight:700;cursor:pointer;">⚙ 교재비 기본설정</button>
     <button onclick="setTab('billprint')" style="padding:7px 13px;border-radius:var(--rs);border:none;background:#042C53;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 청구표 인쇄</button>
   </div>
@@ -7703,6 +7704,7 @@ function rBillSection(){
       </div>`;
     }
   }
+  if(BILL_SHEET_OPEN)out+=rBillSheetPanel(cy);
   if(BILL_ADD_OPEN){
     const defDate=(tdk()>=cy.start&&tdk()<=cy.end)?tdk():cy.start;
     out+=`<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rs);padding:11px 13px;margin-bottom:12px;">
@@ -7756,6 +7758,206 @@ function rBillSection(){
   out+=`</div>`;
   return out;
 }
+// ── 시트 대조: 원장님이 엑셀로 관리하던 "교재배부 8/20~9/18" 시트를 그대로 옮겨두고, 앱에 입력된 새 책과 비교한다.
+// 시트에만 있는 책은 확인 후 한 번에 청구표에 추가할 수 있다(같은 책은 두 번 추가되지 않음).
+// 형식: 월/일|이름|교재명|담당교사
+const BILL_SHEET_CYCLE_START='2026-08-20';
+const BILL_SHEET_RAW=`8/21|정채원|개념5-2+워크5-2(1)|송미령
+8/21|조유안|아리수2-3|조소연
+8/25|안채은|4-2 워크북3|배남주
+8/26|오서준|4-2 워크북2,3|배남주
+8/26|이서우|4-2 워크북1,2,3|배남주
+8/26|조지훈|아리수2-6|조소연
+8/31|강수민|6-2개념완성+워크북1,2,3|이지현
+8/31|이다인|아리수2-6|조소연
+8/31|김예인|아리수2-4|조소연
+9/1|김태일|수학이 재밌어 1-9|이주영
+9/1|문지완|수학이 재밌어 1-9|이주영
+9/1|장하준|필즈 초급 하|이주영
+9/1|박주안|필즈 초급 하|이주영
+9/1|김우찬|필즈 초급 하|이주영
+9/1|김하진|아리수2-2|조소연
+9/1|안채빈|수학이재밌어0-8|송명진
+9/1|이재아|수학이재밌어0-4|송명진
+9/1|김지호|수학이재밌어2-12|송명진
+9/1|김지안|수학이재밌어2-12|송명진
+9/1|박시환|수학이재밌어2-12|송명진
+9/1|김민서|수학이재밌어2-12|송명진
+9/1|임지운|수학이재밌어2-12|송명진
+9/1|정지환|성냥개비2|송명진
+9/1|강윤후|성냥개비2|송명진
+9/1|심규원|성냥개비2|송명진
+9/1|김하진|성냥개비2|송명진
+9/1|조유안|성냥개비2|송명진
+9/1|장유준|성냥개비2|송명진
+9/1|최지유|수학이재밌어1-9|송명진
+9/1|김서원|수학이재밌어1-9|송명진
+9/1|김다인|수학이재밌어1-9|송명진
+9/1|심규민|4-2 워크북2,3|배남주
+9/1|김예서|4-2 워크북2,3|배남주
+9/1|장유준|아리수2-1|조소연
+9/2|김민주|팩토 1-10|김예진
+9/2|이윤주|개념완성5-1+워크북1,2,3|배남주
+9/2|임지온|개념완성4-2+워크북1,2,3|배남주
+9/3|장하준|팩토 4-1|이주영
+9/3|장하준|4-1 워크북2|조소연
+9/3|김지안|개념완성4-1+워크북1|조소연
+9/4|박서우|쎈1-1|이지현
+9/3|김태린|팩토1-10|송명진
+9/3|최민건|팩토1-10|송명진
+9/3|임윤아|팩토1-10|송명진
+9/3|최태준|팩토2-5|송명진
+9/3|박서은|팩토2-5|송명진
+9/3|안채빈|팩토1-10|송명진
+9/3|심규원|팩토1-10|송명진
+9/3|김지호|팩토2-11|송명진
+9/3|김지안|팩토2-11|송명진
+9/3|김민서|팩토2-11|송명진
+9/3|이연우|팩토2-11|송명진
+9/3|박서아|팩토2-11|송명진
+9/3|정지환|팩토1-10|송명진
+9/3|강윤후|팩토1-10|송명진
+9/3|조유안|팩토1-10|송명진
+9/3|장유준|팩토1-10|송명진
+9/3|김서원|팩토2-5|송명진
+9/7|김도하(소화)|수학이 재밌어 1-9|김예진
+9/7|이준우|수학이 재밌어 1-9|김예진
+9/7|김도하(신풍)|수학이 재밌어 2-7|김예진
+9/7|신아림|수학이 재밌어 2-7|김예진
+9/7|최은지|수학이 재밌어 2-7|김예진
+9/7|김우진|수학이 재밌어 2-7|김예진
+9/7|오하윤|수학이 재밌어 2-7|김예진
+9/7|임지온|필즈 입문 하|김예진
+9/7|서정우|수잼1-6|송명진
+9/7|이다인|수잼1-6|송명진
+9/7|송민성|수잼0-8|송명진
+9/7|여소윤|수잼0-8|송명진
+9/7|정지윤|수잼2-12|송명진
+9/7|조지훈|수잼2-12|송명진
+9/7|조지훈|아리수3-1|조소연
+9/7|최태준|수학이 재밌어 1-6|김예진
+9/7|박유하|수학이 재밌어 1-6|김예진
+9/7|박서은|수학이 재밌어 1-6|김예진
+9/7|여소윤|아리수1-6|조소연
+9/8|조유빈|6-1워크북2,3|이지현
+9/8|김서온|성냥개비 퍼즐 2|이주영
+9/8|이창건|성냥개비 퍼즐 2|이주영
+9/8|김나영|성냥개비 퍼즐 2|이주영
+9/8|조하영|성냥개비 퍼즐 2|이주영
+9/8|송아린|개념완성4-1+워크북1,2,3|배남주
+9/8|최민건|아리수1-4|조소연
+9/8|방소민|아리수1-1|조소연
+9/10|김서온|팩토 2-5|이주영
+9/10|이창건|팩토 2-5|이주영
+9/10|박준수|팩토 2-5|이주영
+9/10|강지후|팩토 2-5|이주영
+9/10|박시환|팩토 3-6|이주영
+9/10|유지아|팩토 3-6|이주영
+9/10|김세아|아이비츠3-1|조소연
+9/10|안채빈|아리수2-3|조소연
+9/11|박태하|개념완성4-1+워크북1,2,3|배남주
+9/11|이서하|개념완성4-1+워크북1,2,3|배남주
+9/14|김도하|개념원리4-1|조소연
+9/14|서정우|아이비츠3-2|조소연
+9/14|김도하(소화)|아리수2-5|조소연
+9/14|박유하|아이비츠3-2|조소연
+9/15|장유준|아리수2-2|조소연
+9/16|김시온|아리수2-6|조소연
+9/17|조유안|아리수2-4|조소연
+9/17|김세아|아이비츠3-1|조소연
+9/17|문지완|아이비츠3-2|조소연
+9/17|박준수|아이비츠3-1|조소연
+9/17|안채은|개념완성5-1+워크북1,2,3|배남주`;
+const BILL_SAGO_BRANDS=['수학이재밌어','팩토','필즈','성냥개비'];
+// 시트의 교재명 한 줄을 (브랜드, 제목) 낱개 목록으로 쪼갠다 — 세트("개념완성+워크북1,2,3")는 앱과 똑같이 본책·워크북을 각각 한 건씩.
+function parseBillSheetBook(raw){
+  const s=String(raw).replace(/\s+/g,' ').trim(); let m;
+  const wbs=(base,nums,subj)=>String(nums).split(',').filter(Boolean).map(n=>({subject:subj,title:`${base} 워크북${n}`,kind:'wb'}));
+  if((m=s.match(/^(\d+-\d+)\s*개념완성\+워크북([\d,]+)$/)))return[{subject:'개념완성',title:`개념완성${m[1]}`,kind:'main'},...wbs(`개념완성${m[1]}`,m[2],'개념완성')];
+  if((m=s.match(/^개념완성(\d+-\d+)\+워크북([\d,]+)$/)))return[{subject:'개념완성',title:`개념완성${m[1]}`,kind:'main'},...wbs(`개념완성${m[1]}`,m[2],'개념완성')];
+  if((m=s.match(/^개념(\d+-\d+)\+워크(\d+-\d+)\((\d+)\)$/)))return[{subject:'개념완성',title:`개념완성${m[1]}`,kind:'main'},...wbs(`개념완성${m[1]}`,m[3],'개념완성')];
+  if((m=s.match(/^(\d+-\d+)\s*워크북([\d,]+)$/)))return wbs(m[1],m[2],'기타');
+  if((m=s.match(/^(?:수학이\s*재밌어|수잼)\s*(\d+-\d+)$/)))return[{subject:'수학이재밌어',title:`수학이재밌어 ${m[1]}`,kind:'main'}];
+  if((m=s.match(/^팩토\s*(\d+-\d+)$/)))return[{subject:'팩토',title:`팩토 ${m[1]}`,kind:'main'}];
+  if((m=s.match(/^필즈\s*(.+)$/)))return[{subject:'필즈',title:`필즈 ${m[1]}`,kind:'main'}];
+  if((m=s.match(/^성냥개비(?:\s*퍼즐)?\s*(\d+)$/)))return[{subject:'성냥개비',title:`성냥개비 ${m[1]}`,kind:'main'}];
+  if((m=s.match(/^(아리수|아이비츠|쎈|개념원리)\s*(\d+-\d+)$/)))return[{subject:m[1],title:`${m[1]}${m[2]}`,kind:'main'}];
+  return[{subject:'',title:s,kind:'main'}];
+}
+function resolveBillSid(name,subject){
+  const c=(D.S||[]).filter(x=>x&&(x.id===name||dispStuName(x.id)===name));
+  if(!c.length)return null;
+  const wantSago=BILL_SAGO_BRANDS.includes(subject);
+  const pref=c.filter(x=>((x.group||'저학년')==='사고력')===wantSago);
+  return (pref[0]||c[0]).id;
+}
+function billSheetComponents(){
+  const out=[];
+  BILL_SHEET_RAW.split('\n').forEach((line,i)=>{
+    const [md,name,book,teacher]=line.split('|'); if(!name)return;
+    const [mo,d]=md.split('/').map(Number);
+    const date=`2026-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    parseBillSheetBook(book).forEach(cmp=>out.push({row:i+1,date,name,book,teacher,subject:cmp.subject,title:cmp.title,kind:cmp.kind,sid:resolveBillSid(name,cmp.subject)}));
+  });
+  return out;
+}
+function billSheetManualKey(c){ return `m|sh|${c.date}|${c.sid}|${c.title}`; }
+// 시트 ↔ 앱 비교: 같은 학생·같은 브랜드(워크북은 번호까지)·날짜 차이 7일 이내면 같은 책으로 본다(1:1로만 짝지음)
+function billSheetCompare(cy){
+  const comps=billSheetComponents();
+  const appAll=[...collectBillEntries(cy,'전체'),...collectBillEntries(cy,'전체',true)];
+  const used=new Set();
+  const kindOf=e=>String(e.title).includes('워크북')?'wb':'main';
+  const wbNo=t=>(String(t).match(/워크북(\d+)/)||[])[1]||'';
+  const dayDiff=(a,b)=>Math.abs((new Date(a)-new Date(b))/86400000);
+  const matched=[],sheetOnly=[],unresolved=[];
+  comps.forEach(c=>{
+    if(!c.sid){unresolved.push(c);return;}
+    const hit=appAll.findIndex((e,i)=>!used.has(i)&&dispStuName(e.sid)===c.name&&dayDiff(e.date,c.date)<=7&&kindOf(e)===c.kind&&(c.kind==='wb'?wbNo(e.title)===wbNo(c.title):((e.subject||'')===c.subject||(!e.subject&&BILL_SAGO_BRANDS.includes(c.subject)&&e.grp==='사고력'))));
+    if(hit>=0){used.add(hit);matched.push({c,e:appAll[hit]});}else sheetOnly.push(c);
+  });
+  const appOnly=appAll.filter((e,i)=>!used.has(i)&&!e.manual);
+  return{comps,matched,sheetOnly,unresolved,appOnly};
+}
+let BILL_SHEET_OPEN=false;
+function addBillSheetOnly(){
+  const cy=billCycle(); const r=billSheetCompare(cy); let n=0;
+  if(!D.bookBillOv)D.bookBillOv={};
+  r.sheetOnly.forEach(c=>{
+    const key=billSheetManualKey(c); if(D.bookBillOv[key])return; // 이미 추가했거나 삭제한 건은 다시 만들지 않음
+    D.bookBillOv[key]={manual:true,sid:c.sid,date:c.date,title:c.title,subject:c.subject,price:null,by:c.teacher+'(시트)',note:'시트에서 옮김',_u:Date.now()};
+    n++;
+  });
+  SD();renderAll();toast(n?`시트에만 있던 ${n}건을 청구표에 추가했습니다`:'추가할 새 건이 없습니다');
+}
+function rBillSheetPanel(cy){
+  if(cy.start!==BILL_SHEET_CYCLE_START)return `<div style="background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--muted);">시트 대조는 8/20 ~ 9/19 기간(26.10월 교재비 청구)에서만 사용할 수 있어요. ◀ ▶로 그 기간으로 이동해주세요.</div>`;
+  const r=billSheetCompare(cy);
+  const fmtC=c=>`<span style="white-space:nowrap;color:var(--muted);">${c.date.slice(5).replace('-','/')}</span> <b>${esc(c.name)}</b> ${esc(c.title)} <span style="color:var(--muted);font-size:10.5px;">(${esc(c.teacher)})</span>`;
+  const already=r.sheetOnly.filter(c=>c.sid&&(D.bookBillOv||{})[billSheetManualKey(c)]).length;
+  const todo=r.sheetOnly.length-already;
+  return `<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--rs);padding:11px 13px;margin-bottom:12px;">
+    <div style="font-size:13px;font-weight:800;color:#1E3A8A;margin-bottom:3px;">📄 시트 대조 — 교재배부 8/20~9/18 (시트 ${BILL_SHEET_RAW.split('\n').length}줄 → 낱권 ${r.comps.length}건)</div>
+    <div style="font-size:11px;color:#1E3A8A;margin-bottom:8px;line-height:1.55;">시트에 적힌 책을 앱에 입력된 새 책과 비교했어요. 세트(예: 개념완성+워크북1,2,3)는 본책·워크북을 각각 한 건으로 셌습니다. <b>시트에만 있는 책</b>은 확인 후 아래 버튼으로 청구표에 추가하세요(같은 책은 두 번 추가되지 않아요).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;">
+      <span style="background:#DCFCE7;border-radius:10px;padding:3px 10px;">✅ 시트=앱 일치 <b>${r.matched.length}</b></span>
+      <span style="background:#FEF3C7;border-radius:10px;padding:3px 10px;">📝 시트에만 있음 <b>${r.sheetOnly.length}</b></span>
+      <span style="background:#FEE2E2;border-radius:10px;padding:3px 10px;">❓ 앱에만 있음 <b>${r.appOnly.length}</b></span>
+      ${r.unresolved.length?`<span style="background:#FCE7F3;border-radius:10px;padding:3px 10px;">학생 못 찾음 <b>${r.unresolved.length}</b></span>`:''}
+    </div>
+    <details open style="margin-bottom:6px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;">📝 시트에만 있는 책 ${r.sheetOnly.length}건${already?` (이미 추가 ${already}건)`:''}</summary>
+      <div style="max-height:260px;overflow:auto;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;margin-top:5px;font-size:12px;line-height:1.9;">${r.sheetOnly.map(c=>`<div>${fmtC(c)}${c.sid&&(D.bookBillOv||{})[billSheetManualKey(c)]?' <span style="color:#166534;font-size:10.5px;">✔ 추가됨</span>':''}</div>`).join('')||'없음'}</div>
+      ${todo>0?`<button onclick="if(confirm('시트에만 있는 ${todo}건을 청구표에 추가할까요?\\n(교재비는 기본설정 가격으로 자동 계산돼요)'))addBillSheetOnly()" style="margin-top:6px;padding:8px 16px;border:none;border-radius:var(--rs);background:#1D4ED8;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">시트에만 있는 ${todo}건 청구표에 추가</button>`:''}
+    </details>
+    <details style="margin-bottom:6px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;">❓ 앱에만 있는 책 ${r.appOnly.length}건 — 시트에는 없는 새 책 기록</summary>
+      <div style="max-height:200px;overflow:auto;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;margin-top:5px;font-size:12px;line-height:1.9;">${r.appOnly.map(e=>`<div><span style="color:var(--muted);">${e.date.slice(5).replace('-','/')}</span> <b>${esc(dispStuName(e.sid))}</b> ${esc(e.title)} <span style="color:var(--muted);font-size:10.5px;">(${esc(e.by||e.guessBy||'')}${e.excluded?' · 청구제외':''})</span></div>`).join('')||'없음'}</div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:4px;">시트에 없다면 잘못 입력된 새 책일 수 있어요. 위 청구 내역 표에서 "청구 제외"나 삭제로 정리하세요.</div>
+    </details>
+    ${r.unresolved.length?`<details><summary style="cursor:pointer;font-size:12px;font-weight:700;">학생 못 찾음 ${r.unresolved.length}건</summary><div style="font-size:12px;line-height:1.9;margin-top:4px;">${r.unresolved.map(fmtC).join('<br>')}</div></details>`:''}
+    <details><summary style="cursor:pointer;font-size:12px;font-weight:700;">✅ 시트와 앱이 일치하는 책 ${r.matched.length}건</summary>
+      <div style="max-height:200px;overflow:auto;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;margin-top:5px;font-size:12px;line-height:1.9;">${r.matched.map(m=>`<div>${fmtC(m.c)} <span style="color:var(--muted);font-size:10.5px;">↔ 앱: ${esc(m.e.title)} (${esc(m.e.by||m.e.guessBy||'-')})</span></div>`).join('')}</div></details>
+  </div>`;
+}
 // 교재비 기본설정: 브랜드별 기본 가격 + (필요하면) 교재명별 예외 가격. 여기에 입력해두면 새 책이 나갈 때마다 그 값으로 자동 채워진다.
 function rBillPriceSettings(list){
   const brands=new Set(); Object.keys(getBookInv()).forEach(b=>brands.add(b));
@@ -7800,12 +8002,17 @@ function rBillPrintPage(){
   const td='border:1px solid #CBD5E1;padding:4px 5px;';
   return `<div class="no-print" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="setTab('admin')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
+    ${['전체','저학년','고학년','사고력'].map(g=>`<button onclick="BILL_GROUP='${g}';renderAll()" style="padding:6px 13px;border-radius:20px;border:1px solid var(--bdr);background:${BILL_GROUP===g?'var(--pri)':'#fff'};color:${BILL_GROUP===g?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;">${g}</button>`).join('')}
     <button onclick="window.print()" style="margin-left:auto;padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
   </div>
   <div style="background:#fff;padding:16px 18px;max-width:900px;margin:0 auto;">
     <div style="text-align:center;font-size:18px;font-weight:800;margin-bottom:3px;">브레이닝 수학학원 · ${cy.billMonthLabel} 청구 내역</div>
     <div style="text-align:center;font-size:11px;color:#666;margin-bottom:12px;">${cy.label} 배부분 · ${cy.billLabel} · ${esc(BILL_GROUP)} · 총 ${list.length}권 ${sum.students.length}명 · 합계 ${billMoney(sum.total)}</div>
-    <div style="font-size:13px;font-weight:800;margin:8px 0 5px;">학생별 청구 합계</div>
+    <div style="font-size:13px;font-weight:800;margin:8px 0 5px;">교재별 합계</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}">교재(브랜드)</th><th style="${th}width:14%">권수</th><th style="${th}width:20%">금액</th></tr></thead><tbody>
+    ${(()=>{const m={}; list.forEach(e=>{const k=e.subject||'(브랜드 없음)'; const g=(m[k]=m[k]||{n:0,t:0}); g.n++; if(e._price!=null)g.t+=e._price;}); return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0],'ko')).map(([k,g])=>`<tr><td style="${td}">${esc(k)}</td><td style="${td}text-align:right;">${g.n}</td><td style="${td}text-align:right;">${billMoney(g.t)}</td></tr>`).join('');})()}
+    </tbody></table>
+    <div style="font-size:13px;font-weight:800;margin:14px 0 5px;">학생별 청구 합계</div>
     <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}width:16%">이름</th><th style="${th}">교재</th><th style="${th}width:16%">청구 금액</th></tr></thead><tbody>
     ${sum.students.map(g=>`<tr><td style="${td}font-weight:700;">${esc(dispStuName(g.sid))}</td><td style="${td}">${g.items.map(i=>esc(i.title)+(i._price!=null?' ('+Number(i._price).toLocaleString('ko-KR')+')':' (미설정)')).join(' / ')}</td><td style="${td}text-align:right;font-weight:700;">${billMoney(g.total)}</td></tr>`).join('')}
     <tr><td style="${td}font-weight:800;background:#F8FAFC;" colspan="2">합계</td><td style="${td}text-align:right;font-weight:800;background:#F8FAFC;">${billMoney(sum.total)}</td></tr>
