@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-hist-card-align'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-me-range-sheet'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1727,7 +1727,9 @@ function LD(){
     // 팩토(상세 성적표) 시험지 템플릿(사고력 전용, 공용) — 레벨·권별로 문항 구성·회원평균을
     // 한 번 만들어두면 재사용. 여러 선생님이 각자 템플릿을 추가할 수 있어 id 기준으로 병합.
     scoreTemplates:JSON.parse(localStorage.getItem('br5_score_tpl')||'[]'),
-  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[]};}
+    // 월말평가 범위표(저학년·고학년): { 'YYYY-MM': { 학생id: {_u, subs:{교재:{unit,custom}}, note, skip} } }
+    meRanges:JSON.parse(localStorage.getItem('br5_me_ranges')||'{}'),
+  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[],meRanges:{}};}
 }
 let D=LD();
 
@@ -2620,7 +2622,18 @@ function getTodayBooksList(r,s,date,slotId){
 // ═══ DATALIST ════════════════════════════
 function updateDL(listId,subject){
   const dl=document.getElementById(listId);if(!dl)return;
-  const opts=CURR_OPTS[subject]||[];
+  // 📌 기본 목록(CURR_OPTS)에 더해 교재관리(재고현황)에 등록된 이 브랜드의 책들도 전부 선택지로
+  // 보여준다 — "새 책 시작"과 같은 형식(브랜드+항목, 예: 아리수2-1)이라 기본교재로 골라둔 책이
+  // 새 책 시작에서도 그대로 이어진다.
+  const opts=[...(CURR_OPTS[subject]||[])];
+  const invBrand=subject?resolveEmInvBrand(subject):'';
+  if(invBrand){
+    const seen=new Set(opts);
+    Object.keys(getBookInv()[invBrand]||{}).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true})).forEach(k=>{
+      const v=subject+k;
+      if(!seen.has(v)){seen.add(v);opts.push(v);}
+    });
+  }
   dl.innerHTML=opts.map(o=>`<option value="${esc(o)}">`).join('');
 }
 function onSessSubjChange(){
@@ -2990,7 +3003,7 @@ function renderAll(){
 
   try{
     document.getElementById('main').innerHTML=
-      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='mereport'?rMEReportPage():TAB==='gtsm'?rGtsm():rHov();
+      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='mereport'?rMEReportPage():TAB==='merange'?rMERangePage():TAB==='gtsm'?rGtsm():rHov();
   }catch(renderErr){
     // ⚠ 화면 렌더링 중 하나라도 오류가 나면(예: 예상 못한 데이터 모양) 그냥 조용히 이전 화면이
     // 그대로 남아있게 되어("학생이 분명 등록됐는데 시간표엔 안 보인다"처럼) 사용자가 원인을 알 수 없는
@@ -7775,6 +7788,8 @@ function renameStudent(oldName,newName){
   });
   // 시간표 수정 추적(scMeta)
   if(D.scMeta&&D.scMeta[oldName]){D.scMeta[newName]=D.scMeta[oldName];delete D.scMeta[oldName];}
+  // 월말평가 범위표
+  Object.keys(D.meRanges||{}).forEach(ym=>{ if(D.meRanges[ym][oldName]){D.meRanges[ym][newName]=D.meRanges[ym][oldName];delete D.meRanges[ym][oldName];} });
   // 삭제된 보충(dismissedMakeups) / 보충 목록
   (D.dismissedMakeups||[]).forEach(x=>{if(x.sid===oldName)x.sid=newName;});
   (D.makeups||[]).forEach(m=>{if(m.studentId===oldName)m.studentId=newName;});
@@ -9781,8 +9796,192 @@ function rGrade(){
   if(!D.tomaDist)D.tomaDist={};
   if(!GRADE_DIST_MONTH)GRADE_DIST_MONTH=tdk().slice(0,7);
   if(GRADE_TEST==='DIST')return rGradeDist();
+  if(GRADE_TEST==='RANGE')return rGradeRange();
   if(GRADE_SID)return GRADE_TEST==='ME'?rGradeDetME(GRADE_SID):GRADE_TEST==='FACTO'?rGradeDetFacto(GRADE_SID):rGradeDet(GRADE_SID);
   return rGradeList();
+}
+
+// ═══ 월말평가 범위표 (성적관리 > 📋 월말평가 범위) ══════════════════════
+// 아이들이 지금 나가고 있는 진도(수업기록의 "오늘 교재/진도" → 없으면 학생관리의 기본교재)를 읽어서
+// 월말평가 범위를 자동으로 잡아준다. 규칙:
+//  · 아리수처럼 "다 끝낸 권까지"가 범위인 교재 → 지금 나가는 권의 바로 앞 권까지 (아리수 1-5 진행 → 아리수 1-4)
+//  · 그 외(아이비츠·개념유형·개념완성 등) → 지금 나가는 권까지 자동, 단원은 선생님이 직접 선택
+// 선생님이 자동 범위 대신 직접 적은 값(custom)이 있으면 그것이 항상 우선한다.
+let RANGE_MONTH=null, RANGE_RETURN_TAB='grade';
+const ME_RANGE_PREV_VOL_BRANDS=['아리수'];
+const ME_RANGE_UNIT_OPTS=['','1단원','2단원','3단원','4단원','5단원','6단원','7단원','8단원','9단원','10단원','전체'];
+function rangeYm(){ if(!RANGE_MONTH)RANGE_MONTH=tdk().slice(0,7); return RANGE_MONTH; }
+function shiftRangeMonth(delta){
+  const [y,m]=rangeYm().split('-').map(Number);
+  const dt=new Date(y,m-1+delta,1);
+  RANGE_MONTH=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+  renderAll();
+}
+function mergeMeRanges(local,server){
+  const out={};
+  const yms=new Set([...Object.keys(local||{}),...Object.keys(server||{})]);
+  yms.forEach(ym=>{
+    out[ym]={};
+    const l=(local||{})[ym]||{}, s=(server||{})[ym]||{};
+    new Set([...Object.keys(l),...Object.keys(s)]).forEach(sid=>{
+      const a=l[sid], b=s[sid];
+      out[ym][sid]=!a?b:!b?a:((b._u||0)>(a._u||0)?b:a);
+    });
+  });
+  return out;
+}
+function getMeRangeRec(ym,sid){ return (D.meRanges&&D.meRanges[ym]&&D.meRanges[ym][sid])||null; }
+function setMeRangeField(ym,sid,subject,field,val){
+  if(!D.meRanges)D.meRanges={};
+  if(!D.meRanges[ym])D.meRanges[ym]={};
+  const rec=D.meRanges[ym][sid]||{subs:{},note:'',skip:false};
+  if(!rec.subs)rec.subs={};
+  if(subject){
+    rec.subs[subject]=Object.assign({unit:'',custom:''},rec.subs[subject]||{});
+    rec.subs[subject][field]=val;
+  } else rec[field]=val;
+  rec._u=Date.now();
+  D.meRanges[ym][sid]=rec;
+  SD();
+}
+// 지금 이 학생이 이 교재의 어디를 나가고 있는지 — 아리수는 학생관리의 진도가 "지금 위치"를 계속 갱신하므로
+// 그쪽을 먼저, 그 외 교재는 가장 최근 수업기록의 진도를 먼저 본다(없으면 학생관리 기본교재 진도).
+function meRangeCurrentProg(s,subject){
+  const fromStu=()=>{ const it=stuSubjects(s).find(x=>x.subject===subject); return (it&&it.curriculum)||''; };
+  const fromR=()=>{
+    const today=tdk();
+    const dates=Object.keys(D.R||{}).filter(d=>d<=today).sort().reverse();
+    for(const d of dates){
+      const r=D.R[d]&&D.R[d][s.id]; if(!r)continue;
+      if(r.sessionSubject===subject&&r.curriculum)return r.curriculum;
+      if(r.slotData)for(const k of Object.keys(r.slotData)){
+        const sd=r.slotData[k];
+        if(sd&&sd.sessionSubject===subject&&sd.curriculum)return sd.curriculum;
+      }
+    }
+    return '';
+  };
+  return ME_RANGE_PREV_VOL_BRANDS.includes(subject)?(fromStu()||fromR()):(fromR()||fromStu());
+}
+function meRangeAuto(subject,curr){
+  const c=String(curr||'').trim();
+  if(!c)return{base:'',kind:'none',needsUnit:false};
+  const m=c.match(/(\d+)\s*-\s*(\d+)/);
+  if(!m)return{base:c.startsWith(subject)?c:`${subject} ${c}`,kind:'raw',needsUnit:true};
+  const a=+m[1], b=+m[2];
+  if(ME_RANGE_PREV_VOL_BRANDS.includes(subject)){
+    if(b>1)return{base:`${subject} ${a}-${b-1}`,kind:'prev',needsUnit:false};
+    if(a>1)return{base:`${subject} ${a-1}-6`,kind:'prev',needsUnit:false};
+    return{base:'',kind:'first',needsUnit:false};
+  }
+  return{base:`${subject} ${a}-${b}`,kind:'cur',needsUnit:true};
+}
+// 이 학생의 이번 달 범위 목록: [{subject,curr,auto,unit,custom,text}]
+function meRangeRows(ym,s){
+  const rec=getMeRangeRec(ym,s.id)||{};
+  return stuSubjects(s).filter(x=>x&&x.subject).map(x=>{
+    const curr=meRangeCurrentProg(s,x.subject);
+    const auto=meRangeAuto(x.subject,curr);
+    const sub=(rec.subs&&rec.subs[x.subject])||{};
+    const custom=(sub.custom||'').trim();
+    const unit=sub.unit||'';
+    const text=custom||((auto.base||'')+(auto.base&&unit?' '+unit:'')).trim()||(auto.kind==='first'?'':(unit||''));
+    return{subject:x.subject,curr,auto,unit,custom,text};
+  });
+}
+function meRangePills(active){
+  const btn=(key,label,color)=>`<button onclick="GRADE_TEST='${key}';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${active===key?color:'var(--bdr)'};background:${active===key?color:'#fff'};color:${active===key?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">${label}</button>`;
+  return `<div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">${btn('ME','🏆 월말평가','#1E40AF')}${btn('TOMA','🏅 TOMA','#0C447C')}${btn('FACTO','📝 팩토시험','#7C3AED')}${btn('RANGE','📋 월말평가 범위','#B45309')}${btn('DIST','📄 시험지 배부','#059669')}</div>`;
+}
+function meRangeCollect(ym){
+  const gOrder=['07','1','2','3','4','5','6','m1','m2','m3','h1','h2','h3'];
+  const stus=curS().filter(isActiveStu).slice().sort((a,b)=>(gOrder.indexOf(a.grade)-gOrder.indexOf(b.grade))||a.id.localeCompare(b.id,'ko'));
+  const items=stus.map(s=>{
+    const rec=getMeRangeRec(ym,s.id)||{};
+    return{s,rec,rows:meRangeRows(ym,s),skip:!!rec.skip,note:rec.note||''};
+  });
+  // 시험지 범위별 인원 — 같은 범위끼리 묶어서 "이 범위 시험지가 몇 장 필요한지" 한눈에
+  const byRange={};
+  items.filter(it=>!it.skip).forEach(it=>{
+    it.rows.forEach(r=>{ if(!r.text)return; (byRange[r.text]=byRange[r.text]||[]).push(it.s.id); });
+  });
+  return{items,byRange,gOrder};
+}
+function rGradeRange(){
+  const ym=rangeYm(); const [y,m]=ym.split('-').map(Number);
+  const head=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
+  </div>`;
+  if(ActiveGroup==='사고력')return head+meRangePills('RANGE')+`<div class="empty"><i class="ti ti-info-circle"></i>월말평가 범위표는 저학년·고학년 탭에서 사용합니다. (사고력은 팩토시험을 사용해요)</div>`;
+  const {items,byRange,gOrder}=meRangeCollect(ym);
+  const stepBtn=(d,ic)=>`<button onclick="shiftRangeMonth(${d})" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--bdr);background:#fff;cursor:pointer;"><i class="ti ${ic}"></i></button>`;
+  let out=head+meRangePills('RANGE');
+  out+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+    ${stepBtn(-1,'ti-chevron-left')}<div style="font-size:14px;font-weight:700;">${y}년 ${m}월 월말평가 범위</div>${stepBtn(1,'ti-chevron-right')}
+    <button onclick="RANGE_RETURN_TAB='grade';setTab('merange')" style="margin-left:auto;padding:8px 16px;background:#042C53;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 범위표 인쇄</button>
+  </div>
+  <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 12px;font-size:11.5px;color:#92400E;margin-bottom:12px;line-height:1.6;">
+    💡 아이들이 지금 나가는 진도를 보고 범위를 자동으로 잡아줘요. <b>아리수</b>는 지금 나가는 권의 바로 앞 권까지(예: 1-5 진행 → 아리수 1-4), <b>그 외 교재</b>(아이비츠·개념유형 등)는 지금 나가는 권까지 자동이고 <b>단원은 직접 선택</b>합니다. 자동 범위가 맞지 않으면 "직접 입력"칸에 적으면 그 값이 우선 적용돼요.
+  </div>`;
+  if(!items.length)return out+`<div class="empty"><i class="ti ti-search"></i>재원생이 없습니다</div>`;
+  gOrder.forEach(g=>{
+    const gl=items.filter(it=>it.s.grade===g); if(!gl.length)return;
+    out+=`<div style="font-size:11px;font-weight:700;color:var(--muted);margin:12px 0 6px;">${GL[g]||g}</div>`;
+    gl.forEach(it=>{
+      const sid=it.s.id;
+      out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:9px 12px;margin-bottom:6px;${it.skip?'opacity:.5;':''}">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:${it.rows.length?6:0}px;">
+          <span style="font-size:13px;font-weight:700;">${esc(dispStuName(sid))}</span>
+          <label style="margin-left:auto;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" ${it.skip?'checked':''} onchange="setMeRangeField('${ym}','${esc(sid)}','','skip',this.checked);renderAll()"> 이번 달 제외</label>
+        </div>
+        ${it.rows.length?it.rows.map(r=>`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed #EEE;">
+          <span class="badge ${sC(r.subject)}" style="font-size:10px;">${esc(r.subject)}</span>
+          <span style="font-size:11px;color:var(--muted);">현재 ${r.curr?esc(r.curr):'<i>진도 미입력</i>'}</span>
+          <span style="font-size:11px;color:var(--pri2);font-weight:600;">→ 자동 ${r.auto.base?esc(r.auto.base):(r.auto.kind==='first'?'첫 권(범위 없음)':'-')}</span>
+          <select class="fsel" style="width:auto;padding:3px 6px;font-size:11px;" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','unit',this.value);renderAll()">${ME_RANGE_UNIT_OPTS.map(u=>`<option value="${u}"${u===r.unit?' selected':''}>${u||(r.auto.needsUnit?'단원 선택':'단원(선택)')}</option>`).join('')}</select>
+          <input class="fi" style="width:150px;padding:3px 7px;font-size:11px;" placeholder="직접 입력(우선 적용)" value="${escAttr(r.custom)}" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','custom',this.value);renderAll()">
+          <span style="font-size:12px;font-weight:800;color:#B45309;">범위: ${r.text?esc(r.text):'-'}</span>
+        </div>`).join(''):`<div style="font-size:11px;color:var(--muted);">기본교재가 설정돼 있지 않습니다 (학생관리에서 설정)</div>`}
+        <div style="margin-top:5px;"><input class="fi" style="width:100%;padding:3px 7px;font-size:11px;" placeholder="비고 (예: 화요일 진도 별도, 숙제 없음 등)" value="${escAttr(it.note)}" onchange="setMeRangeField('${ym}','${esc(sid)}','','note',this.value)"></div>
+      </div>`;
+    });
+  });
+  const ranges=Object.keys(byRange).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+  out+=`<div style="font-size:13px;font-weight:700;color:var(--pri2);margin:16px 0 6px;">📄 시험지 범위별 인원 (${ranges.length}종류)</div>`;
+  out+=ranges.length?`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);overflow:hidden;">${ranges.map(r=>`<div style="display:flex;gap:10px;padding:7px 12px;border-top:1px solid #F1F5F9;font-size:12px;"><b style="min-width:130px;">${esc(r)}</b><span style="color:var(--muted);flex-shrink:0;">${byRange[r].length}명</span><span style="color:var(--muted);">${byRange[r].map(x=>esc(dispStuName(x))).join(', ')}</span></div>`).join('')}</div>`:`<div class="empty" style="padding:14px;">범위가 정해진 학생이 아직 없습니다</div>`;
+  return out;
+}
+function rMERangePage(){
+  const ym=rangeYm(); const [y,m]=ym.split('-').map(Number);
+  const {items,byRange,gOrder}=meRangeCollect(ym);
+  const shown=items.filter(it=>!it.skip);
+  let out=`<div class="no-print" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+    <button onclick="setTab(RANGE_RETURN_TAB||'grade')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
+    <button onclick="window.print()" style="margin-left:auto;padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
+  </div>
+  <div style="background:#fff;padding:16px 18px;max-width:900px;margin:0 auto;">
+    <div style="text-align:center;font-size:18px;font-weight:800;margin-bottom:4px;">브레이닝 수학학원 · ${y}년 ${m}월 월말평가 범위표</div>
+    <div style="text-align:center;font-size:11px;color:#666;margin-bottom:12px;">${esc(groupLabel(ActiveGroup))} · 총 ${shown.length}명</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      <thead><tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;width:70px;">이름</th><th style="border:1px solid #CBD5E1;padding:5px;width:46px;">학년</th><th style="border:1px solid #CBD5E1;padding:5px;">교재 / 현재 진도</th><th style="border:1px solid #CBD5E1;padding:5px;">월말평가 범위</th><th style="border:1px solid #CBD5E1;padding:5px;width:22%;">비고</th></tr></thead><tbody>`;
+  gOrder.forEach(g=>{
+    shown.filter(it=>it.s.grade===g).forEach(it=>{
+      const rs=it.rows.length?it.rows:[null];
+      rs.forEach((r,i)=>{
+        out+=`<tr>${i===0?`<td rowspan="${rs.length}" style="border:1px solid #CBD5E1;padding:4px 5px;font-weight:700;">${esc(dispStuName(it.s.id))}</td><td rowspan="${rs.length}" style="border:1px solid #CBD5E1;padding:4px 5px;text-align:center;">${esc(GL[g]||g)}</td>`:''}
+          <td style="border:1px solid #CBD5E1;padding:4px 5px;">${r?`${esc(r.subject)}${r.curr?' · '+esc(r.curr):''}`:'-'}</td>
+          <td style="border:1px solid #CBD5E1;padding:4px 5px;font-weight:700;">${r&&r.text?esc(r.text):'-'}</td>
+          ${i===0?`<td rowspan="${rs.length}" style="border:1px solid #CBD5E1;padding:4px 5px;color:#555;">${esc(it.note)}</td>`:''}</tr>`;
+      });
+    });
+  });
+  out+=`</tbody></table>`;
+  const ranges=Object.keys(byRange).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+  out+=`<div style="font-size:13px;font-weight:800;margin:16px 0 6px;">시험지 범위별 인원</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="background:#F1F5F9;"><th style="border:1px solid #CBD5E1;padding:5px;width:26%;">범위</th><th style="border:1px solid #CBD5E1;padding:5px;width:50px;">인원</th><th style="border:1px solid #CBD5E1;padding:5px;">학생</th></tr></thead><tbody>
+    ${ranges.map(r=>`<tr><td style="border:1px solid #CBD5E1;padding:4px 5px;font-weight:700;">${esc(r)}</td><td style="border:1px solid #CBD5E1;padding:4px 5px;text-align:center;">${byRange[r].length}</td><td style="border:1px solid #CBD5E1;padding:4px 5px;">${byRange[r].map(x=>esc(dispStuName(x))).join(', ')}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  return out;
 }
 
 // TOMA 시험지 배부일(매월 20일)과 시험일(매월 마지막 일요일) 계산
@@ -9828,6 +10027,7 @@ function rGradeDist(){
   <div style="display:flex;gap:5px;margin-bottom:12px;">
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
     <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
+    <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid #059669;background:#059669;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;">
@@ -10217,6 +10417,7 @@ function rGradeList(){
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='ME'?'#1E40AF':'var(--bdr)'};background:${GRADE_TEST==='ME'?'#1E40AF':'#fff'};color:${GRADE_TEST==='ME'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
     <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='TOMA'?'var(--pri2)':'var(--bdr)'};background:${GRADE_TEST==='TOMA'?'var(--pri2)':'#fff'};color:${GRADE_TEST==='TOMA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
     <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='FACTO'?'#7C3AED':'var(--bdr)'};background:${GRADE_TEST==='FACTO'?'#7C3AED':'#fff'};color:${GRADE_TEST==='FACTO'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
+    <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
   </div>`;
 
@@ -14328,6 +14529,9 @@ function startCloudListen() {
     if (data.highClassNames && Object.keys(data.highClassNames).length > 0) {
       D.highClassNames = Object.assign({}, data.highClassNames, D.highClassNames || {});
     }
+    // 월말평가 범위표: 달+학생 단위로 "더 최근에 수정된(_u) 쪽"을 통째로 신뢰 (항목을 지우는 게 아니라
+    // skip/빈 값으로 덮어쓰는 구조라 되살아나는 문제가 없음)
+    if (data.meRanges) D.meRanges = mergeMeRanges(D.meRanges, data.meRanges);
     if (data.acadSessions) D.acadSessions = data.acadSessions;
     if (data.parentConsult) D.parentConsult = mergeArrById(D.parentConsult, data.parentConsult, null, D.tombstones?.parentConsult);
     if (data.tomaScores) D.tomaScores = mergeArrById(D.tomaScores, data.tomaScores, null, D.tombstones?.tomaScores);
@@ -14474,7 +14678,7 @@ function startCloudListen() {
 // 남겨둬서 다시 연결값을 붙여넣을 필요는 없게 한다.
 function resetLocalCacheAndReload(){
   if(!confirm('이 기기에 저장된 캐시(학생·시간표·수업기록 등)를 지우고 서버에서 최신 데이터를 다시 받아옵니다.\n\n⚠ 클라우드(서버)에 저장된 데이터는 전혀 지워지지 않습니다 — 이 기기의 로컬 사본만 지우고 새로고침합니다.\n\n계속할까요?'))return;
-  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_score_tpl'];
+  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_score_tpl','br5_me_ranges'];
   keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   toast('🔄 캐시를 지웠습니다 — 서버에서 새로 받아옵니다');
   setTimeout(()=>location.reload(),400);
@@ -14556,6 +14760,7 @@ function buildCoursePayload(){
     tombstones: D.tombstones||{},
     recentRemovals: D.recentRemovals||[],
     highClassNames: D.highClassNames||{},
+    meRanges: D.meRanges||{},
     slots: SLOTS_LEGACY,
     slotsAug: SLOTS_AUG,
     // ⚠ 사고력↔저학년/고학년 이름 겹침 별칭(SAGO_ID_ALIAS)은 예전엔 이 기기의 localStorage에만
@@ -14596,6 +14801,12 @@ function pushCloudNow() {
     const scMetaBySid=payload.scMeta||{}, dayDefsBySid=payload.dayDefs||{};
     delete payload.scMeta;
     delete payload.dayDefs;
+    // 월말평가 범위표도 달+학생별 경로로 쪼개서 올린다 (통째로 올리면 이 기기가 모르는 다른 학생 항목이 지워질 수 있음)
+    const meRangesByYm=payload.meRanges||{};
+    delete payload.meRanges;
+    Object.entries(meRangesByYm).forEach(([ym,bySid])=>{
+      Object.entries(bySid||{}).forEach(([sid,rec])=>{ payload['meRanges/'+ym+'/'+fbEscapeKey(sid)]=fbSanitizeForWrite(rec); });
+    });
     Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=fbSanitizeForWrite(v); });
     Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=fbSanitizeForWrite(v); });
     // ⚠ R(수업 기록)도 scMeta/dayDefs와 똑같은 이유로 날짜+학생 id별 경로로 쪼개서 올려야 한다.
@@ -14744,6 +14955,7 @@ function SD() {
   localStorage.setItem('br5_book_levels', JSON.stringify(D.bookLevelConfig||null));
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
   localStorage.setItem('br5_score_tpl', JSON.stringify(D.scoreTemplates||[]));
+  localStorage.setItem('br5_me_ranges', JSON.stringify(D.meRanges||{}));
   // 사고력 그룹 데이터는 별도의 사고력 전용 클라우드(braining_sagoryeok)로도 함께 보냄.
   // 기본 클라우드(braining)에는 지금까지처럼 전체가 저장되므로, 어느 한쪽이 끊겨도 데이터가 유실되지 않음.
   scheduleSagoPush();
@@ -14779,6 +14991,7 @@ function SD_local() {
   localStorage.setItem('br5_book_levels', JSON.stringify(D.bookLevelConfig||null));
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
   localStorage.setItem('br5_score_tpl', JSON.stringify(D.scoreTemplates||[]));
+  localStorage.setItem('br5_me_ranges', JSON.stringify(D.meRanges||{}));
 }
 
 // Auto-reconnect on init
@@ -15501,7 +15714,7 @@ function init(){
     if(!s.impNotes)s.impNotes=[];
     if(!s.progress)s.progress={series:'',level:'',unit:''};
   });
-  if(!D.notices)D.notices=[];if(!D.makeups)D.makeups=[];if(!D.dismissedMakeups)D.dismissedMakeups=[];if(!D.closureDays)D.closureDays=[];if(!D.dayDefs)D.dayDefs={};if(!D.recentRemovals)D.recentRemovals=[];if(!D.tomaDist)D.tomaDist={};if(!D.pendingMoves)D.pendingMoves=[];if(!D.scMeta)D.scMeta={};if(!D.highClassNames)D.highClassNames={};
+  if(!D.notices)D.notices=[];if(!D.makeups)D.makeups=[];if(!D.dismissedMakeups)D.dismissedMakeups=[];if(!D.closureDays)D.closureDays=[];if(!D.dayDefs)D.dayDefs={};if(!D.recentRemovals)D.recentRemovals=[];if(!D.tomaDist)D.tomaDist={};if(!D.pendingMoves)D.pendingMoves=[];if(!D.scMeta)D.scMeta={};if(!D.highClassNames)D.highClassNames={};if(!D.meRanges)D.meRanges={};
   if(!D.bookLevelConfig)D.bookLevelConfig=JSON.parse(JSON.stringify(DEFAULT_BOOK_LEVELS));
   applyDuePendingMoves();
   // 🔧 학생 ID 중복 제거: 같은 id가 여러 개 있으면(예: 과거 데이터 병합 과정에서 생성됨),
