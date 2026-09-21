@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-his-search-no-back'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-range-uses-latest-prog'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -9854,8 +9854,8 @@ function setMeRangeField(ym,sid,subject,field,val){
   D.meRanges[ym][sid]=rec;
   SD();
 }
-// 지금 이 학생이 이 교재의 어디를 나가고 있는지 — 아리수는 학생관리의 진도가 "지금 위치"를 계속 갱신하므로
-// 그쪽을 먼저, 그 외 교재는 가장 최근 수업기록의 진도를 먼저 본다(없으면 학생관리 기본교재 진도).
+// 지금 이 학생이 이 교재의 어디를 나가고 있는지 — 학생관리 기본교재 진도와 가장 최근 수업기록 진도 중
+// 권 번호가 더 앞선 쪽(둘 중 하나만 있으면 그것).
 function meRangeCurrentProg(s,subject){
   const fromStu=()=>{ const it=stuSubjects(s).find(x=>x.subject===subject); return (it&&it.curriculum)||''; };
   const fromR=()=>{
@@ -9871,7 +9871,13 @@ function meRangeCurrentProg(s,subject){
     }
     return '';
   };
-  return ME_RANGE_PREV_VOL_BRANDS.includes(subject)?(fromStu()||fromR()):(fromR()||fromStu());
+  // 학생관리의 기본교재 진도(새 책 시작이 자동 반영해주는 값)와 최근 수업기록 진도가 서로 다르면
+  // "권 번호가 더 앞으로 나간 쪽"을 현재 진도로 본다(진도는 뒤로 가지 않으므로) — 예전엔 수업기록을
+  // 먼저 봐서, 학생관리에는 3-2로 바뀌었는데 범위표에는 예전 3-1이 그대로 보이는 문제가 있었다.
+  const stuV=fromStu(), rV=fromR();
+  const vol=t=>{const m=String(t||'').match(/(\d+)\s*-\s*(\d+)/);return m?(+m[1])*100+(+m[2]):-1;};
+  if(stuV&&rV)return vol(stuV)>=vol(rV)?stuV:rV;
+  return stuV||rV;
 }
 function meRangeAuto(subject,curr){
   const c=String(curr||'').trim();
