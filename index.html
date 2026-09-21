@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-course-sago-isolation-v2'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-book-billing'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1729,7 +1729,10 @@ function LD(){
     scoreTemplates:JSON.parse(localStorage.getItem('br5_score_tpl')||'[]'),
     // 월말평가 범위표(저학년·고학년): { 'YYYY-MM': { 학생id: {_u, subs:{교재:{unit,custom}}, note, skip} } }
     meRanges:JSON.parse(localStorage.getItem('br5_me_ranges')||'{}'),
-  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[],meRanges:{}};}
+    // 교재비 청구: 교재/브랜드별 기본 가격표({키:{p,_u}})와, 새 책 기록 건별로 선생님이 손본 가격·메모({키:{price,note,_u}})
+    bookPrices:JSON.parse(localStorage.getItem('br5_book_prices')||'{}'),
+    bookBillOv:JSON.parse(localStorage.getItem('br5_book_bill_ov')||'{}'),
+  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[],meRanges:{},bookPrices:{},bookBillOv:{}};}
 }
 let D=LD();
 
@@ -2999,14 +3002,16 @@ function renderAll(){
   // 📌 월말평가 범위표의 "직접 입력"·비고 칸(mr-*)도 동일 — 타이핑 도중 클라우드 동기화로 renderAll()이
   // 걸리면 칸이 다시 그려지며 커서가 사라지던 문제
   const isRangeInput=active&&active.id&&active.id.startsWith('mr-')&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
-  const preserveFocus=isSearchInput||isMkNoteInput||isGtsmInput||isClassInput||isBoInput||isRangeInput;
+  // 교재비 청구 화면(bl-*)의 가격·메모 입력칸도 동일
+  const isBillInput=active&&active.id&&active.id.startsWith('bl-')&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
+  const preserveFocus=isSearchInput||isMkNoteInput||isGtsmInput||isClassInput||isBoInput||isRangeInput||isBillInput;
   const savedId=active?.id;
   const savedVal=active?.value||'';
   const savedSel=active?.selectionStart||0;
 
   try{
     document.getElementById('main').innerHTML=
-      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='mereport'?rMEReportPage():TAB==='merange'?rMERangePage():TAB==='gtsm'?rGtsm():rHov();
+      TAB==='sch'?rSch():TAB==='ovr'?rOvr():TAB==='full'?rFullSch():TAB==='his'?rHis():TAB==='uni'?rUni():TAB==='mku'?rMku():TAB==='book'?rBook():TAB==='pct'?rPct():TAB==='grade'?rGrade():TAB==='admin'?rAdmin():TAB==='report'?rReport():TAB==='scorereport'?rScoreReport():TAB==='mereport'?rMEReportPage():TAB==='merange'?rMERangePage():TAB==='billprint'?rBillPrintPage():TAB==='gtsm'?rGtsm():rHov();
   }catch(renderErr){
     // ⚠ 화면 렌더링 중 하나라도 오류가 나면(예: 예상 못한 데이터 모양) 그냥 조용히 이전 화면이
     // 그대로 남아있게 되어("학생이 분명 등록됐는데 시간표엔 안 보인다"처럼) 사용자가 원인을 알 수 없는
@@ -4289,7 +4294,7 @@ function toggleBookUnit(sid,brand,level,unit){
       sR(today,sid,'sagoUnit',unitLabel);
       sR(today,sid,'sessionSubject',brand);
       sR(today,sid,'curriculum',unitLabel);
-      sR(today,sid,'newBook',{subject:brand,title:unitLabel});
+      sR(today,sid,'newBook',{subject:brand,title:unitLabel,by:getTeacherName()||'이름 미설정',at:Date.now()});
     }
     // 📌 학생관리(관리>학생관리)의 "기본교재 옆 교과진행" 칸도 지금 막 체크한 책/단원 기준으로
     // 함께 갱신 — 여기서 갱신해두면 수업입력·한눈에보기의 progStr() 표시도 자동으로 같이 맞춰짐
@@ -4671,6 +4676,7 @@ function rAdmin(){
     {key:'hwsms',label:'숙제 문자 발송'},
     {key:'inv',label:'교재관리'},
     {key:'newbook',label:'새책'},
+    {key:'bill',label:'💰 교재비 청구'},
     {key:'wa',label:'오답풀이 상태'},
     {key:'closure',label:'휴원일·세션'},
     {key:'hw',label:'숙제 기록 정리'},
@@ -4708,6 +4714,8 @@ function rAdmin(){
     out+=rBookInvSection();
   } else if(ADMIN_TAB==='newbook'){
     out+=rNewBookSection();
+  } else if(ADMIN_TAB==='bill'){
+    out+=rBillSection();
   } else if(ADMIN_TAB==='hw'){
     out+=rHwSearchSection();
   }
@@ -5815,7 +5823,7 @@ function saveSpNewBook(date,sid,r,s){
     }
   });
   if(!addedEntries.length)return; // 전부 이미 체크된 단원이라 실제로 추가된 게 없으면 여기서 끝
-  sR(date,sid,'newBook',[...nbArr(r.newBook),...addedEntries]);
+  sR(date,sid,'newBook',[...nbArr(r.newBook),...stampNewBookBy(addedEntries,[])]);
   // 📌 새 책 시작 → 학생관리의 "기본 교재" 목록에도 자동 반영 (저학년·고학년의 em 모달과 동일한
   // 이유 — 학생을 검색했을 때 지금 무슨 교재를 하고 있는지 기본 교재 칸만 봐도 알 수 있게 함)
   if(s){
@@ -6439,7 +6447,10 @@ function saveRec(){
   {
     const cmp=arr=>JSON.stringify(arr.map(x=>({subject:x.subject,title:x.title})));
     const nbChanged=cmp(prevNewBookArr)!==cmp(newNewBookArr);
-    sR(date,sid,'newBook',newNewBookArr.length?newNewBookArr:null);
+    // 📌 새 책을 입력한 선생님 이름(by)·시각(at)을 책마다 남긴다 — 교재비 청구 때 교재가 잘못 설정됐으면
+    // 누구한테 물어볼지 알 수 있게. 이전에 이미 저장돼 있던 책은 원래 입력자를 그대로 유지한다.
+    const stampedNb=stampNewBookBy(newNewBookArr,prevNewBookArr);
+    sR(date,sid,'newBook',stampedNb.length?stampedNb:null);
     if(nbChanged){
       prevNewBookArr.forEach(nb=>restoreNewBookStock(nb)); // 바뀐 거면 이전 교재들은 취소된 셈
       newNewBookArr.forEach(nb=>deductNewBookStock(nb));
@@ -7453,7 +7464,7 @@ function collectNewBookRecords(search){
       if(!arr.length)return;
       const st=gS(sid);if(st&&(st.group||'저학년')!==ActiveGroup)return;
       if(search&&!korSearch(sid,search))return;
-      arr.forEach((nb,idx)=>{ if(nb.title)out.push({sid,date,idx,subject:nb.subject||'',title:nb.title}); });
+      arr.forEach((nb,idx)=>{ if(nb.title)out.push({sid,date,idx,subject:nb.subject||'',title:nb.title,by:nb.by||''}); });
     });
   });
   return out;
@@ -7492,12 +7503,209 @@ function rNewBookSection(){
         <div style="font-size:13px;font-weight:700;">${esc(x.sid)}</div>
         <div style="font-size:12px;color:#14532D;font-weight:600;margin-top:2px;line-height:1.4;">📚 ${esc(x.title)}${x.subject?` <span style="color:var(--muted);font-weight:400;">(${esc(x.subject)})</span>`:''}</div>
       </div>
-      <div style="font-size:11px;color:var(--muted);white-space:nowrap;text-align:right;">${x.date}</div>
+      <div style="font-size:11px;color:var(--muted);white-space:nowrap;text-align:right;">${x.date}${x.by?`<div style="font-weight:700;color:#166534;">${esc(x.by)}</div>`:''}</div>
       <button onclick="clearNewBookRecord('${esc(x.sid)}','${x.date}',${x.idx})" style="font-size:10px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:14px;padding:5px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">삭제</button>
     </div>`;
   });
   out+=`</div>`;
   return out;
+}
+// ═══ 💰 교재비 청구 (관리 도구 > 교재비 청구) ═══════════════════════════════
+// 새 책 시작 기록(r.newBook)을 저학년·고학년·사고력 전부 한꺼번에 모아서, 학원 규칙대로
+// "전달 20일 ~ 이달 19일"까지 나간 책을 한 묶음(청구 주기)으로 보여주고 20일에 학부모께 청구한다.
+// 교재비는 교재별/브랜드별 기본 가격표에서 자동으로 채워지고, 건별로 직접 고칠 수도 있다.
+// 새 책을 입력한 선생님 이름(nb.by)이 함께 나와서, 교재가 잘못 설정됐을 때 누구한테 물어볼지 알 수 있다.
+let BILL_CYCLE_START=null, BILL_GROUP='전체', BILL_SHOW_PRICES=false;
+function mergeKeyedByU(local,server){
+  const out=Object.assign({},local||{});
+  Object.entries(server||{}).forEach(([k,v])=>{ const a=out[k]; if(!a||((v&&v._u)||0)>((a&&a._u)||0))out[k]=v; });
+  return out;
+}
+// 이 새 책 기록에 입력자(by)·시각(at)을 붙인다. 같은 책(브랜드+제목)이 이전 배열에 이미 있으면 그 입력자를 유지.
+function stampNewBookBy(arr,prevArr){
+  const prev=prevArr||[];
+  return (arr||[]).map(nb=>{
+    if(!nb)return nb;
+    const o=prev.find(p=>p&&p.by&&p.subject===nb.subject&&p.title===nb.title);
+    if(o)return Object.assign({},nb,{by:o.by,at:o.at||nb.at});
+    if(nb.by)return nb;
+    return Object.assign({},nb,{by:getTeacherName()||'이름 미설정',at:Date.now()});
+  });
+}
+function billFmt(dt){ return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`; }
+// 날짜가 속한 청구 주기: 20일 이상이면 이번 달 20일~다음 달 19일, 19일 이하면 지난 달 20일~이번 달 19일
+function billCycleOf(dateStr){
+  const [y,m,d]=dateStr.split('-').map(Number);
+  let sy=y, sm=d>=20?m:m-1;
+  if(sm<1){sm=12;sy--;}
+  return billCycleFromStart(billFmt(new Date(sy,sm-1,20)));
+}
+function billCycleFromStart(startStr){
+  const [y,m]=startStr.split('-').map(Number);
+  const e=new Date(y,m,19); // 다음 달 19일
+  const billDay=new Date(y,m,20);
+  return{start:startStr,end:billFmt(e),billDate:billFmt(billDay),label:`${m}/20 ~ ${e.getMonth()+1}/19`,billLabel:`${billDay.getMonth()+1}월 20일 청구`};
+}
+function billCycle(){ if(!BILL_CYCLE_START)BILL_CYCLE_START=billCycleOf(tdk()).start; return billCycleFromStart(BILL_CYCLE_START); }
+function shiftBillCycle(delta){
+  const [y,m]=billCycle().start.split('-').map(Number);
+  BILL_CYCLE_START=billFmt(new Date(y,m-1+delta,20));
+  renderAll();
+}
+function billEntryKey(e){ return `${e.date}|${e.sid}|${e.subject}|${e.title}`; }
+function billTitleKey(e){ return `t:${e.subject}|${e.title}`; }
+function billBrandKey(subject){ return `b:${subject}`; }
+function billUnitPrice(e){
+  const ov=(D.bookBillOv||{})[billEntryKey(e)];
+  if(ov&&ov.price!=null&&ov.price!=='')return{p:Number(ov.price),src:'건별'};
+  const t=(D.bookPrices||{})[billTitleKey(e)];
+  if(t&&t.p!=null)return{p:Number(t.p),src:'교재별'};
+  const b=e.subject?(D.bookPrices||{})[billBrandKey(e.subject)]:null;
+  if(b&&b.p!=null)return{p:Number(b.p),src:'기본'};
+  return{p:null,src:''};
+}
+function setBillPrice(key,val){
+  if(!D.bookPrices)D.bookPrices={};
+  const n=String(val).replace(/[^\d]/g,'');
+  D.bookPrices[key]={p:n===''?null:Number(n),_u:Date.now()};
+  SD();renderAll();
+}
+function setBillOv(key,field,val){
+  if(!D.bookBillOv)D.bookBillOv={};
+  const cur=Object.assign({price:null,note:''},D.bookBillOv[key]||{});
+  if(field==='price'){ const n=String(val).replace(/[^\d]/g,''); cur.price=n===''?null:Number(n); }
+  else cur[field]=val;
+  cur._u=Date.now();
+  D.bookBillOv[key]=cur;
+  SD();renderAll();
+}
+function collectBillEntries(cy,groupFilter){
+  const out=[];
+  Object.keys(D.R||{}).sort().forEach(date=>{
+    if(date<cy.start||date>cy.end)return;
+    Object.entries(D.R[date]||{}).forEach(([sid,r])=>{
+      nbArr(r&&r.newBook).forEach((nb,idx)=>{
+        if(!nb||!nb.title)return;
+        const st=gS(sid); const grp=st?(st.group||'저학년'):'저학년';
+        if(groupFilter&&groupFilter!=='전체'&&grp!==groupFilter)return;
+        out.push({date,sid,idx,grp,grade:st?st.grade:'',subject:nb.subject||'',title:nb.title,by:nb.by||'',guessBy:nb.by?'':(r._lastEditedBy||'')});
+      });
+    });
+  });
+  out.sort((a,b)=>a.date.localeCompare(b.date)||a.sid.localeCompare(b.sid,'ko'));
+  return out;
+}
+function billMoney(n){ return n==null?'-':Number(n).toLocaleString('ko-KR')+'원'; }
+function billSummarize(list){
+  let total=0,unset=0; const bySid={};
+  list.forEach(e=>{
+    const up=billUnitPrice(e); e._price=up.p; e._src=up.src;
+    if(up.p==null)unset++; else total+=up.p;
+    const g=(bySid[e.sid]=bySid[e.sid]||{sid:e.sid,grp:e.grp,grade:e.grade,items:[],total:0,unset:0});
+    g.items.push(e); if(up.p==null)g.unset++; else g.total+=up.p;
+  });
+  const students=Object.values(bySid).sort((a,b)=>a.sid.localeCompare(b.sid,'ko'));
+  return{total,unset,students};
+}
+function rBillSection(){
+  const cy=billCycle();
+  const list=collectBillEntries(cy,BILL_GROUP);
+  const sum=billSummarize(list);
+  const chip=(g)=>`<button onclick="BILL_GROUP='${g}';renderAll()" style="padding:6px 13px;border-radius:20px;border:1px solid var(--bdr);background:${BILL_GROUP===g?'var(--pri)':'#fff'};color:${BILL_GROUP===g?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;">${g}</button>`;
+  const nav=(d,ic)=>`<button onclick="shiftBillCycle(${d})" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--bdr);background:#fff;cursor:pointer;"><i class="ti ${ic}"></i></button>`;
+  let out=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+    ${nav(-1,'ti-chevron-left')}<div style="font-size:14px;font-weight:800;">${cy.label} <span style="font-size:11px;font-weight:600;color:var(--muted);">(${cy.billLabel})</span></div>${nav(1,'ti-chevron-right')}
+    <button onclick="BILL_SHOW_PRICES=!BILL_SHOW_PRICES;renderAll()" style="margin-left:auto;padding:7px 13px;border-radius:var(--rs);border:1px solid #FDE68A;background:#FFFBEB;color:#92400E;font-size:12px;font-weight:700;cursor:pointer;">⚙ 교재비 기본설정</button>
+    <button onclick="setTab('billprint')" style="padding:7px 13px;border-radius:var(--rs);border:none;background:#042C53;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 청구표 인쇄</button>
+  </div>
+  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">${['전체','저학년','고학년','사고력'].map(chip).join('')}</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <div style="flex:1;min-width:110px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:var(--rs);padding:8px 11px;"><div style="font-size:10px;color:var(--muted);">새 책</div><div style="font-size:16px;font-weight:800;">${list.length}권 <span style="font-size:11px;font-weight:600;">· ${sum.students.length}명</span></div></div>
+    <div style="flex:1;min-width:110px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rs);padding:8px 11px;"><div style="font-size:10px;color:var(--muted);">청구 합계</div><div style="font-size:16px;font-weight:800;color:#166534;">${billMoney(sum.total)}</div></div>
+    <div style="flex:1;min-width:110px;background:${sum.unset?'#FEF2F2':'#F8FAFC'};border:1px solid ${sum.unset?'#FCA5A5':'var(--bdr)'};border-radius:var(--rs);padding:8px 11px;"><div style="font-size:10px;color:var(--muted);">교재비 미설정</div><div style="font-size:16px;font-weight:800;color:${sum.unset?'#B91C1C':'inherit'};">${sum.unset}건</div></div>
+  </div>`;
+  if(BILL_SHOW_PRICES)out+=rBillPriceSettings(list);
+  if(!list.length){
+    return out+`<div class="empty"><i class="ti ti-book-off"></i>이 기간(${cy.label})에 새 책으로 기록된 교재가 없습니다.</div>`;
+  }
+  out+=`<div style="font-size:12px;font-weight:700;color:var(--pri2);margin:4px 0 6px;">📚 교재 배부 내역 (날짜순)</div>
+  <div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px;">
+    <thead><tr style="background:#F1F5F9;color:var(--muted);text-align:left;"><th style="padding:7px 8px;">날짜</th><th style="padding:7px 4px;">반/학년</th><th style="padding:7px 4px;">이름</th><th style="padding:7px 4px;">교재명</th><th style="padding:7px 4px;">교재비</th><th style="padding:7px 4px;">입력한 선생님</th><th style="padding:7px 4px;"></th></tr></thead><tbody>`;
+  list.forEach(e=>{
+    const key=billEntryKey(e); const ov=(D.bookBillOv||{})[key]||{};
+    const isOv=ov.price!=null&&ov.price!=='';
+    const byCell=e.by?`<b>${esc(e.by)}</b>`:(e.guessBy?`<span style="color:var(--muted);" title="이 기능이 생기기 전 기록이라 새 책 입력자를 정확히 알 수 없어, 그날 기록을 마지막으로 저장한 선생님을 보여줍니다">${esc(e.guessBy)} <span style="font-size:10px;">(기록자)</span></span>`:'<span style="color:var(--muted);">-</span>');
+    out+=`<tr style="border-top:1px solid #F1F5F9;">
+      <td style="padding:6px 8px;white-space:nowrap;">${e.date.slice(5).replace('-','/')}</td>
+      <td style="padding:6px 4px;white-space:nowrap;"><span style="font-size:10px;color:var(--muted);">${esc(e.grp)}</span> ${esc(GL[e.grade]||e.grade||'')}</td>
+      <td style="padding:6px 4px;font-weight:700;white-space:nowrap;">${esc(dispStuName(e.sid))}</td>
+      <td style="padding:6px 4px;">${esc(e.title)}${e.subject&&!e.title.startsWith(e.subject)?` <span style="color:var(--muted);font-size:10px;">(${esc(e.subject)})</span>`:''}</td>
+      <td style="padding:4px;white-space:nowrap;"><input id="bl-p-${escAttr(key)}" inputmode="numeric" class="fi" style="width:84px;padding:4px 6px;font-size:12px;text-align:right;${e._price==null?'border-color:#FCA5A5;background:#FEF2F2;':(isOv?'border-color:#F59E0B;':'')}" placeholder="${e._price==null?'미설정':''}" value="${e._price!=null?e._price:''}" onchange="setBillOv('${escAttr(key).replace(/'/g,"\\'")}','price',this.value)"><span style="font-size:10px;color:var(--muted);margin-left:3px;">${isOv?'건별':(e._src||'')}</span></td>
+      <td style="padding:6px 4px;">${byCell}</td>
+      <td style="padding:6px 4px;"><button onclick="clearNewBookRecord('${esc(e.sid)}','${e.date}',${e.idx})" title="이 새 책 기록 삭제(재고 복구)" style="font-size:10px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:12px;padding:3px 8px;cursor:pointer;">삭제</button></td>
+    </tr>`;
+  });
+  out+=`</tbody></table></div>
+  <div style="font-size:10.5px;color:var(--muted);margin:5px 2px 14px;">교재비를 직접 고치면 그 건만 바뀌고(주황 테두리), 비워두면 기본설정 값으로 되돌아갑니다.</div>
+  <div style="font-size:12px;font-weight:700;color:var(--pri2);margin:4px 0 6px;">👨‍👩‍👧 학생별 청구 합계</div>
+  <div style="display:flex;flex-direction:column;gap:6px;">`;
+  sum.students.forEach(g=>{
+    out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="min-width:78px;font-size:13px;font-weight:800;">${esc(dispStuName(g.sid))} <span style="font-size:10px;color:var(--muted);font-weight:500;">${esc(g.grp)}</span></div>
+      <div style="flex:1;min-width:150px;font-size:11.5px;color:#475569;line-height:1.5;">${g.items.map(i=>esc(i.title)).join(' · ')}</div>
+      <div style="font-size:13px;font-weight:800;color:${g.unset?'#B91C1C':'#166534'};white-space:nowrap;">${billMoney(g.total)}${g.unset?` <span style="font-size:10px;">(미설정 ${g.unset})</span>`:''}</div>
+    </div>`;
+  });
+  out+=`</div>`;
+  return out;
+}
+// 교재비 기본설정: 브랜드별 기본 가격 + (필요하면) 교재명별 예외 가격. 여기에 입력해두면 새 책이 나갈 때마다 그 값으로 자동 채워진다.
+function rBillPriceSettings(list){
+  const brands=new Set(); Object.keys(getBookInv()).forEach(b=>brands.add(b));
+  Object.keys(D.bookPrices||{}).forEach(k=>{ if(k.startsWith('b:'))brands.add(k.slice(2)); });
+  list.forEach(e=>{ if(e.subject)brands.add(e.subject); });
+  const brandList=sortBookBrands([...brands].filter(Boolean));
+  const inputStyle='width:88px;padding:4px 6px;font-size:12px;text-align:right;';
+  const titles=[]; const seen=new Set();
+  list.forEach(e=>{ const k=billTitleKey(e); if(!seen.has(k)){seen.add(k);titles.push(e);} });
+  titles.sort((a,b)=>a.subject.localeCompare(b.subject,'ko')||a.title.localeCompare(b.title,'ko',{numeric:true}));
+  const bp=D.bookPrices||{};
+  return `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:800;color:#92400E;margin-bottom:4px;">⚙ 교재비 기본설정</div>
+    <div style="font-size:11px;color:#92400E;margin-bottom:9px;line-height:1.5;">브랜드별 기본 가격을 한 번 입력해두면, 새 책이 나갈 때마다 자동으로 그 가격이 들어갑니다. 특정 교재만 가격이 다르면 아래 "교재명별 예외 가격"에 따로 넣으세요(브랜드 기본가보다 우선).</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-bottom:10px;">
+      ${brandList.map(b=>{ const cur=bp[billBrandKey(b)]; return `<label style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:5px 8px;"><span style="flex:1;font-size:12px;font-weight:600;">${esc(b)}</span><input id="bl-b-${escAttr(b)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span></label>`; }).join('')}
+    </div>
+    ${titles.length?`<details style="background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;">교재명별 예외 가격 (이 기간에 나간 ${titles.length}종)</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px;">
+      ${titles.map(e=>{ const k=billTitleKey(e); const cur=bp[k]; const bdef=e.subject?bp[billBrandKey(e.subject)]:null; return `<label style="display:flex;align-items:center;gap:6px;border:1px solid var(--bdr);border-radius:8px;padding:4px 8px;"><span style="flex:1;font-size:11.5px;">${esc(e.title)}</span><input id="bl-t-${escAttr(k)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="${bdef&&bdef.p!=null?bdef.p:'기본가'}" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(k).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span></label>`; }).join('')}
+      </div></details>`:''}
+  </div>`;
+}
+function rBillPrintPage(){
+  const cy=billCycle();
+  const list=collectBillEntries(cy,BILL_GROUP);
+  const sum=billSummarize(list);
+  const th='border:1px solid #CBD5E1;padding:5px;background:#F1F5F9;';
+  const td='border:1px solid #CBD5E1;padding:4px 5px;';
+  return `<div class="no-print" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+    <button onclick="setTab('admin')" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--pri2);font-size:13px;font-weight:600;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i>뒤로</button>
+    <button onclick="window.print()" style="margin-left:auto;padding:9px 20px;background:#042C53;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="ti ti-printer"></i> 인쇄하기</button>
+  </div>
+  <div style="background:#fff;padding:16px 18px;max-width:900px;margin:0 auto;">
+    <div style="text-align:center;font-size:18px;font-weight:800;margin-bottom:3px;">브레이닝 수학학원 · 교재비 청구 내역</div>
+    <div style="text-align:center;font-size:11px;color:#666;margin-bottom:12px;">${cy.label} 배부분 · ${cy.billLabel} · ${esc(BILL_GROUP)} · 총 ${list.length}권 ${sum.students.length}명 · 합계 ${billMoney(sum.total)}</div>
+    <div style="font-size:13px;font-weight:800;margin:8px 0 5px;">학생별 청구 합계</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}width:16%">이름</th><th style="${th}">교재</th><th style="${th}width:16%">청구 금액</th></tr></thead><tbody>
+    ${sum.students.map(g=>`<tr><td style="${td}font-weight:700;">${esc(dispStuName(g.sid))}</td><td style="${td}">${g.items.map(i=>esc(i.title)+(i._price!=null?' ('+Number(i._price).toLocaleString('ko-KR')+')':' (미설정)')).join(' / ')}</td><td style="${td}text-align:right;font-weight:700;">${billMoney(g.total)}</td></tr>`).join('')}
+    <tr><td style="${td}font-weight:800;background:#F8FAFC;" colspan="2">합계</td><td style="${td}text-align:right;font-weight:800;background:#F8FAFC;">${billMoney(sum.total)}</td></tr>
+    </tbody></table>
+    <div style="font-size:13px;font-weight:800;margin:16px 0 5px;">교재 배부 내역</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr><th style="${th}">배부일</th><th style="${th}">학년</th><th style="${th}">이름</th><th style="${th}">교재명</th><th style="${th}">교재비</th><th style="${th}">입력 교사</th></tr></thead><tbody>
+    ${list.map(e=>`<tr><td style="${td}white-space:nowrap;">${e.date.slice(5).replace('-','/')}</td><td style="${td}">${esc(GL[e.grade]||e.grade||'')}</td><td style="${td}">${esc(dispStuName(e.sid))}</td><td style="${td}">${esc(e.title)}</td><td style="${td}text-align:right;">${e._price!=null?Number(e._price).toLocaleString('ko-KR'):'-'}</td><td style="${td}">${esc(e.by||e.guessBy||'')}</td></tr>`).join('')}
+    </tbody></table>
+  </div>`;
 }
 function removeAllSlots(){
   // 모든 요일·시간에서 완전 제거
@@ -9849,7 +10057,7 @@ function mergeMeRanges(local,server){
 }
 function getMeRangeRec(ym,sid){ return (D.meRanges&&D.meRanges[ym]&&D.meRanges[ym][sid])||null; }
 function setMeRangeField(ym,sid,subject,field,val){
-  if(!D.meRanges)D.meRanges={};
+  if(!D.meRanges)D.meRanges={};if(!D.bookPrices)D.bookPrices={};if(!D.bookBillOv)D.bookBillOv={};
   if(!D.meRanges[ym])D.meRanges[ym]={};
   const rec=D.meRanges[ym][sid]||{subs:{},note:'',skip:false};
   if(!rec.subs)rec.subs={};
@@ -14593,6 +14801,9 @@ function startCloudListen() {
     // 월말평가 범위표: 달+학생 단위로 "더 최근에 수정된(_u) 쪽"을 통째로 신뢰 (항목을 지우는 게 아니라
     // skip/빈 값으로 덮어쓰는 구조라 되살아나는 문제가 없음)
     if (data.meRanges) D.meRanges = mergeMeRanges(D.meRanges, data.meRanges);
+    // 교재비 가격표·건별 조정: 키 단위로 "더 최근에 수정된(_u) 쪽"을 신뢰 (지우는 게 아니라 null로 덮어쓰는 구조)
+    if (data.bookPrices) D.bookPrices = mergeKeyedByU(D.bookPrices, data.bookPrices);
+    if (data.bookBillOv) D.bookBillOv = mergeKeyedByU(D.bookBillOv, data.bookBillOv);
     if (data.acadSessions) D.acadSessions = data.acadSessions;
     if (data.parentConsult) D.parentConsult = mergeArrById(D.parentConsult, data.parentConsult, null, D.tombstones?.parentConsult);
     if (data.tomaScores) D.tomaScores = mergeArrById(D.tomaScores, data.tomaScores, null, D.tombstones?.tomaScores);
@@ -14743,7 +14954,7 @@ function startCloudListen() {
 // 남겨둬서 다시 연결값을 붙여넣을 필요는 없게 한다.
 function resetLocalCacheAndReload(){
   if(!confirm('이 기기에 저장된 캐시(학생·시간표·수업기록 등)를 지우고 서버에서 최신 데이터를 다시 받아옵니다.\n\n⚠ 클라우드(서버)에 저장된 데이터는 전혀 지워지지 않습니다 — 이 기기의 로컬 사본만 지우고 새로고침합니다.\n\n계속할까요?'))return;
-  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_score_tpl','br5_me_ranges'];
+  const keys=['br5_s','br5_sc','br5_r','br5_c','br5_n','br5_m','br5_cl','br5_dd','br5_sessions','br5_sch','br5_pc','br5_toma','br5_me','br5_toma_dist','br5_pending_moves','br5_sc_meta','br5_dismissed_mk','br5_tombstones','br5_rm','br5_book_levels','br5_high_classnames','br5_slots','br5_slots_aug','br5_sago_alias','br5_toma_last','br5_score_tpl','br5_me_ranges','br5_book_prices','br5_book_bill_ov'];
   keys.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   toast('🔄 캐시를 지웠습니다 — 서버에서 새로 받아옵니다');
   setTimeout(()=>location.reload(),400);
@@ -14826,6 +15037,8 @@ function buildCoursePayload(){
     recentRemovals: D.recentRemovals||[],
     highClassNames: D.highClassNames||{},
     meRanges: D.meRanges||{},
+    bookPrices: D.bookPrices||{},
+    bookBillOv: D.bookBillOv||{},
     slots: SLOTS_LEGACY,
     slotsAug: SLOTS_AUG,
     // ⚠ 사고력↔저학년/고학년 이름 겹침 별칭(SAGO_ID_ALIAS)은 예전엔 이 기기의 localStorage에만
@@ -14871,6 +15084,11 @@ function pushCloudNow() {
     delete payload.meRanges;
     Object.entries(meRangesByYm).forEach(([ym,bySid])=>{
       Object.entries(bySid||{}).forEach(([sid,rec])=>{ payload['meRanges/'+ym+'/'+fbEscapeKey(sid)]=fbSanitizeForWrite(rec); });
+    });
+    // 교재비 가격표·건별 조정도 키별 경로로 쪼개서 올린다(통째로 올리면 이 기기가 모르는 다른 항목이 지워질 수 있음)
+    ['bookPrices','bookBillOv'].forEach(f=>{
+      const m=payload[f]||{}; delete payload[f];
+      Object.entries(m).forEach(([k,v])=>{ payload[f+'/'+fbEscapeKey(k)]=fbSanitizeForWrite(v); });
     });
     Object.entries(scMetaBySid).forEach(([sid,v])=>{ payload['scMeta/'+sid]=fbSanitizeForWrite(v); });
     Object.entries(dayDefsBySid).forEach(([sid,v])=>{ payload['dayDefs/'+sid]=fbSanitizeForWrite(v); });
@@ -15021,6 +15239,8 @@ function SD() {
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
   localStorage.setItem('br5_score_tpl', JSON.stringify(D.scoreTemplates||[]));
   localStorage.setItem('br5_me_ranges', JSON.stringify(D.meRanges||{}));
+  localStorage.setItem('br5_book_prices', JSON.stringify(D.bookPrices||{}));
+  localStorage.setItem('br5_book_bill_ov', JSON.stringify(D.bookBillOv||{}));
   // 사고력 그룹 데이터는 별도의 사고력 전용 클라우드(braining_sagoryeok)로도 함께 보냄.
   // 기본 클라우드(braining)에는 지금까지처럼 전체가 저장되므로, 어느 한쪽이 끊겨도 데이터가 유실되지 않음.
   scheduleSagoPush();
@@ -15057,6 +15277,8 @@ function SD_local() {
   localStorage.setItem('br5_high_classnames', JSON.stringify(D.highClassNames||{}));
   localStorage.setItem('br5_score_tpl', JSON.stringify(D.scoreTemplates||[]));
   localStorage.setItem('br5_me_ranges', JSON.stringify(D.meRanges||{}));
+  localStorage.setItem('br5_book_prices', JSON.stringify(D.bookPrices||{}));
+  localStorage.setItem('br5_book_bill_ov', JSON.stringify(D.bookBillOv||{}));
 }
 
 // Auto-reconnect on init
@@ -15785,7 +16007,7 @@ function init(){
     if(!s.impNotes)s.impNotes=[];
     if(!s.progress)s.progress={series:'',level:'',unit:''};
   });
-  if(!D.notices)D.notices=[];if(!D.makeups)D.makeups=[];if(!D.dismissedMakeups)D.dismissedMakeups=[];if(!D.closureDays)D.closureDays=[];if(!D.dayDefs)D.dayDefs={};if(!D.recentRemovals)D.recentRemovals=[];if(!D.tomaDist)D.tomaDist={};if(!D.pendingMoves)D.pendingMoves=[];if(!D.scMeta)D.scMeta={};if(!D.highClassNames)D.highClassNames={};if(!D.meRanges)D.meRanges={};
+  if(!D.notices)D.notices=[];if(!D.makeups)D.makeups=[];if(!D.dismissedMakeups)D.dismissedMakeups=[];if(!D.closureDays)D.closureDays=[];if(!D.dayDefs)D.dayDefs={};if(!D.recentRemovals)D.recentRemovals=[];if(!D.tomaDist)D.tomaDist={};if(!D.pendingMoves)D.pendingMoves=[];if(!D.scMeta)D.scMeta={};if(!D.highClassNames)D.highClassNames={};if(!D.meRanges)D.meRanges={};if(!D.bookPrices)D.bookPrices={};if(!D.bookBillOv)D.bookBillOv={};
   if(!D.bookLevelConfig)D.bookLevelConfig=JSON.parse(JSON.stringify(DEFAULT_BOOK_LEVELS));
   applyDuePendingMoves();
   // 🔧 학생 ID 중복 제거: 같은 id가 여러 개 있으면(예: 과거 데이터 병합 과정에서 생성됨),
