@@ -216,6 +216,9 @@ button,input,textarea,select{font-family:inherit;}
 .hist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px;margin-bottom:14px;}
 .hg-card{background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:9px 11px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:box-shadow .15s;}
 .hg-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1);}
+.hg-card-fixed{flex-direction:column;align-items:stretch;justify-content:space-between;gap:7px;min-height:88px;}
+.hg-card-fixed .hg-top{display:flex;align-items:center;gap:8px;min-width:0;}
+.hg-card-fixed .hg-badges{display:flex;gap:3px;flex-wrap:wrap;align-content:flex-start;min-height:18px;}
 .hg-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
 /* PROFILE */
 .sp-card{background:#fff;border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-bottom:13px;}
@@ -1254,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-18-fieldclears-tombstone-fix'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-hist-card-align'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -4883,15 +4886,16 @@ function rHisSrch(){
       const sessAtt=monStats.attended;
       const sessPct=targetS?Math.min(100,Math.round(sessAtt/targetS*100)):0;
       const sessDone=targetS>0&&sessAtt>=targetS;
-      out+=`<div class="hg-card" onclick="HSid='${s.id}';renderAll()">
-        <div class="hg-av" style="background:${bg};color:${c};">${s.id[0]}</div>
-        <div style="min-width:0;flex:1;">
-          <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(dispStuName(s.id))}${isLinkedSid(s.id)?' <span style="font-size:9px;font-weight:700;padding:0 5px;border-radius:9px;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;vertical-align:1px;">🔗연동</span>':''}</div>
-          <div style="font-size:10px;color:var(--muted);">총 ${cnt}회${targetS?` · 이번달 ${sessAtt}/${targetS}일`+(!sessDone?'':' ✅'):''}
+      out+=`<div class="hg-card hg-card-fixed" onclick="HSid='${s.id}';renderAll()">
+        <div class="hg-top">
+          <div class="hg-av" style="background:${bg};color:${c};">${s.id[0]}</div>
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(dispStuName(s.id))}${isLinkedSid(s.id)?' <span style="font-size:9px;font-weight:700;padding:0 5px;border-radius:9px;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;vertical-align:1px;">🔗연동</span>':''}</div>
+            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">총 ${cnt}회${targetS?` · 이번달 ${sessAtt}/${targetS}일`+(!sessDone?'':' ✅'):''}</div>
+            <div style="background:${targetS?'#F1F5F9':'transparent'};border-radius:99px;height:4px;margin-top:3px;overflow:hidden;">${targetS?`<div style="height:100%;width:${sessPct}%;background:${sessDone?'#10B981':'#3B82F6'};border-radius:99px;"></div>`:''}</div>
           </div>
-          ${targetS?`<div style="background:#F1F5F9;border-radius:99px;height:4px;margin-top:3px;overflow:hidden;"><div style="height:100%;width:${sessPct}%;background:${sessDone?'#10B981':'#3B82F6'};border-radius:99px;"></div></div>`:''}
         </div>
-        <span style="display:flex;gap:2px;flex-shrink:0;">${stuSubjects(s).map(x=>`<span class="badge ${sC(x.subject)}" style="font-size:9px;padding:1px 4px;">${esc(x.subject.substring(0,3))}</span>`).join('')}</span>
+        <div class="hg-badges">${stuSubjects(s).map(x=>`<span class="badge ${sC(x.subject)}" style="font-size:9px;padding:1px 4px;">${esc(x.subject.substring(0,3))}</span>`).join('')}</div>
       </div>`;
     });
     out+=`</div>`;
