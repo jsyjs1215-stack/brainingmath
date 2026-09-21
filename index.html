@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-range-input-focus'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-range-restore-choisang'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -9826,8 +9826,6 @@ function rGrade(){
 // 선생님이 자동 범위 대신 직접 적은 값(custom)이 있으면 그것이 항상 우선한다.
 let RANGE_MONTH=null, RANGE_RETURN_TAB='grade';
 const ME_RANGE_PREV_VOL_BRANDS=['아리수'];
-// 월말평가를 보지 않는 교재 — 범위표에서 아예 제외한다(최상위는 시험 대상이 아님)
-const ME_RANGE_EXCLUDE_BRANDS=['최상위','최상위수학'];
 const ME_RANGE_UNIT_OPTS=['','1단원','2단원','3단원','4단원','5단원','6단원','7단원','8단원','9단원','10단원','전체'];
 function rangeYm(){ if(!RANGE_MONTH)RANGE_MONTH=tdk().slice(0,7); return RANGE_MONTH; }
 function shiftRangeMonth(delta){
@@ -9904,7 +9902,7 @@ function meRangeAuto(subject,curr){
 // 이 학생의 이번 달 범위 목록: [{subject,curr,auto,unit,custom,text}]
 function meRangeRows(ym,s){
   const rec=getMeRangeRec(ym,s.id)||{};
-  return stuSubjects(s).filter(x=>x&&x.subject&&!ME_RANGE_EXCLUDE_BRANDS.includes(x.subject)).map(x=>{
+  return stuSubjects(s).filter(x=>x&&x.subject).map(x=>{
     const curr=meRangeCurrentProg(s,x.subject);
     const auto=meRangeAuto(x.subject,curr);
     const sub=(rec.subs&&rec.subs[x.subject])||{};
@@ -9971,7 +9969,7 @@ function rGradeRange(){
           <select class="fsel" style="width:auto;padding:3px 6px;font-size:11px;" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','unit',this.value);renderAll()">${ME_RANGE_UNIT_OPTS.map(u=>`<option value="${u}"${u===r.unit?' selected':''}>${u||(r.auto.needsUnit?'단원 선택':'단원(선택)')}</option>`).join('')}</select>
           <input id="mr-c-${escAttr(sid)}-${escAttr(r.subject)}" class="fi" style="width:150px;padding:3px 7px;font-size:11px;" placeholder="직접 입력(우선 적용)" value="${escAttr(r.custom)}" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','custom',this.value);renderAll()">
           <span style="font-size:12px;font-weight:800;color:#B45309;">범위: ${r.text?esc(r.text):'-'}</span>
-        </div>`).join(''):`<div style="font-size:11px;color:var(--muted);">${stuSubjects(it.s).length?'월말평가 대상 교재가 없습니다 (최상위 등은 제외)':'기본교재가 설정돼 있지 않습니다 (학생관리에서 설정)'}</div>`}
+        </div>`).join(''):`<div style="font-size:11px;color:var(--muted);">기본교재가 설정돼 있지 않습니다 (학생관리에서 설정)</div>`}
         <div style="margin-top:5px;"><input id="mr-n-${escAttr(sid)}" class="fi" style="width:100%;padding:3px 7px;font-size:11px;" placeholder="비고 (예: 화요일 진도 별도, 숙제 없음 등)" value="${escAttr(it.note)}" onchange="setMeRangeField('${ym}','${esc(sid)}','','note',this.value)"></div>
       </div>`;
     });
