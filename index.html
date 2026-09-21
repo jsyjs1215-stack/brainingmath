@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-makeup-done-sticky'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-range-input-focus'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2996,7 +2996,10 @@ function renderAll(){
   // "세션/용도" 등 입력칸이 통째로 다시 그려지면서 포커스와 커서가 사라져, 타이핑 중 스페이스를
   // 누르는 순간 하필 동기화가 겹치면 커서가 없어지는 것처럼 느껴졌음.
   const isBoInput=active&&active.id&&active.id.startsWith('bo-');
-  const preserveFocus=isSearchInput||isMkNoteInput||isGtsmInput||isClassInput||isBoInput;
+  // 📌 월말평가 범위표의 "직접 입력"·비고 칸(mr-*)도 동일 — 타이핑 도중 클라우드 동기화로 renderAll()이
+  // 걸리면 칸이 다시 그려지며 커서가 사라지던 문제
+  const isRangeInput=active&&active.id&&active.id.startsWith('mr-')&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA');
+  const preserveFocus=isSearchInput||isMkNoteInput||isGtsmInput||isClassInput||isBoInput||isRangeInput;
   const savedId=active?.id;
   const savedVal=active?.value||'';
   const savedSel=active?.selectionStart||0;
@@ -9966,10 +9969,10 @@ function rGradeRange(){
           <span style="font-size:11px;color:var(--muted);">현재 ${r.curr?esc(r.curr):'<i>진도 미입력</i>'}</span>
           <span style="font-size:11px;color:var(--pri2);font-weight:600;">→ 자동 ${r.auto.base?esc(r.auto.base):(r.auto.kind==='first'?'첫 권(범위 없음)':'-')}</span>
           <select class="fsel" style="width:auto;padding:3px 6px;font-size:11px;" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','unit',this.value);renderAll()">${ME_RANGE_UNIT_OPTS.map(u=>`<option value="${u}"${u===r.unit?' selected':''}>${u||(r.auto.needsUnit?'단원 선택':'단원(선택)')}</option>`).join('')}</select>
-          <input class="fi" style="width:150px;padding:3px 7px;font-size:11px;" placeholder="직접 입력(우선 적용)" value="${escAttr(r.custom)}" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','custom',this.value);renderAll()">
+          <input id="mr-c-${escAttr(sid)}-${escAttr(r.subject)}" class="fi" style="width:150px;padding:3px 7px;font-size:11px;" placeholder="직접 입력(우선 적용)" value="${escAttr(r.custom)}" onchange="setMeRangeField('${ym}','${esc(sid)}','${esc(r.subject)}','custom',this.value);renderAll()">
           <span style="font-size:12px;font-weight:800;color:#B45309;">범위: ${r.text?esc(r.text):'-'}</span>
         </div>`).join(''):`<div style="font-size:11px;color:var(--muted);">${stuSubjects(it.s).length?'월말평가 대상 교재가 없습니다 (최상위 등은 제외)':'기본교재가 설정돼 있지 않습니다 (학생관리에서 설정)'}</div>`}
-        <div style="margin-top:5px;"><input class="fi" style="width:100%;padding:3px 7px;font-size:11px;" placeholder="비고 (예: 화요일 진도 별도, 숙제 없음 등)" value="${escAttr(it.note)}" onchange="setMeRangeField('${ym}','${esc(sid)}','','note',this.value)"></div>
+        <div style="margin-top:5px;"><input id="mr-n-${escAttr(sid)}" class="fi" style="width:100%;padding:3px 7px;font-size:11px;" placeholder="비고 (예: 화요일 진도 별도, 숙제 없음 등)" value="${escAttr(it.note)}" onchange="setMeRangeField('${ym}','${esc(sid)}','','note',this.value)"></div>
       </div>`;
     });
   });
