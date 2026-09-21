@@ -7691,11 +7691,11 @@ function rBillSection(){
   // ⚠ 가격 점검 — 같은 브랜드인데 가격이 서로 다른 건이 섞여 있으면(교재별 예외·건별 수정 때문) 눈에 띄게 알려준다.
   {
     const bySubj={};
-    list.forEach(e=>{ if(e._price==null||!e.subject)return; const g=(bySubj[e.subject]=bySubj[e.subject]||{}); (g[e._price]=g[e._price]||[]).push(e); });
+    list.forEach(e=>{ if(e._price==null||!e.subject)return; const gk=e.subject+(String(e.title).includes('워크북')?' 워크북':''); const g=(bySubj[gk]=bySubj[gk]||{}); (g[e._price]=g[e._price]||[]).push(e); });
     const warns=Object.entries(bySubj).filter(([s,g])=>Object.keys(g).length>1);
     if(warns.length){
       out+=`<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:var(--rs);padding:9px 12px;margin-bottom:12px;font-size:12px;line-height:1.6;">
-        <div style="font-weight:800;color:#92400E;">⚠ 같은 브랜드인데 가격이 다른 책이 있어요 — 의도한 게 맞는지 확인해주세요</div>
+        <div style="font-weight:800;color:#92400E;">⚠ 같은 종류의 책인데 가격이 다른 건이 있어요 — 의도한 게 맞는지 확인해주세요</div>
         ${warns.map(([s,g])=>{
           const prices=Object.keys(g).map(Number).sort((a,b)=>b-a);
           return `<div style="margin-top:4px;"><b>${esc(s)}</b>: ${prices.map(p=>`${Number(p).toLocaleString('ko-KR')}원 ${g[p].length}권`).join(' / ')} <span style="color:#92400E;">— 다른 가격: ${prices.slice(1).map(p=>g[p].slice(0,4).map(e=>`${esc(dispStuName(e.sid))} ${esc(e.title)}(${e._src==='건별'?'건별 수정':e._src==='교재별'?'교재별 예외':e._src||'기본'})`).join(', ')+(g[p].length>4?' 외':'')).join(' · ')}</span></div>`;
