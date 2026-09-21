@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-range-restore-choisang'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-course-sago-isolation-v2'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13930,6 +13930,35 @@ function mergeSlotDataField(baseSlot,otherSlot,field){
   const oEmpty=(oVal==null||oVal==='');
   return !bEmpty?bVal:(!oEmpty?oVal:bVal);
 }
+// 사고력 전용 교재 브랜드/필드 — 저학년·고학년 수업기록(코스 클라우드)에는 절대 들어가면 안 되는 내용.
+// (사고력 → 저학년 방향의 sanitizeSagoRec와 대칭)
+const SAGO_ONLY_BRAND_PREFIX=['수학이재밌어','팩토','필즈','영재사고력','완자공부력','브레이닝수학','팩토타임키즈','소마셈'];
+function isSagoBrandValue(v){ return typeof v==='string'&&SAGO_ONLY_BRAND_PREFIX.some(b=>v.startsWith(b)); }
+function stripSagoContentInPlace(rec){
+  if(!rec||typeof rec!=='object')return rec;
+  // 수업 과목이 사고력 교재였다면, 그 옆의 진도 값("1단계 9번" 같은 브랜드명 없는 진도)도 사고력 것이므로 함께 지운다
+  const sagoSess=isSagoBrandValue(rec.sessionSubject)||isSagoBrandValue(rec.sagoBook);
+  ['sagoBook','sagoUnit','sagoPage','sagoUnderstand'].forEach(k=>{ if(rec[k])rec[k]=''; });
+  const isCourseCurr=v=>typeof v==='string'&&[...SUBJLIST_LOW,...SUBJLIST_HIGH].some(b=>b!=='기타'&&v.startsWith(b));
+  if(sagoSess){ rec.sessionSubject=''; if(!isCourseCurr(rec.curriculum))rec.curriculum=''; }
+  else if(isSagoBrandValue(rec.curriculum))rec.curriculum='';
+  if(rec.slotData&&typeof rec.slotData==='object'){
+    Object.keys(rec.slotData).forEach(k=>{
+      const sd=rec.slotData[k]; if(!sd||typeof sd!=='object')return;
+      if(isSagoBrandValue(sd.sessionSubject)){ sd.sessionSubject=''; if(!isCourseCurr(sd.curriculum))sd.curriculum=''; }
+      else if(isSagoBrandValue(sd.curriculum))sd.curriculum='';
+      if(isSagoBrandValue(sd.extraSubj)){ sd.extraSubj=''; sd.extraCurr=''; }
+    });
+  }
+  if(rec.newBook){
+    const arr=Array.isArray(rec.newBook)?rec.newBook:[rec.newBook];
+    // 브랜드 없이 사고력식 제목("Lv.2 11번", "1단계 9번")만 남은 새 책 기록도 사고력 것
+    const looksSago=nb=>!nb.subject&&/^(Lv\.\s*\d|\d+\s*단계)/.test(String(nb.title||''));
+    const kept=arr.filter(nb=>nb&&!isSagoBrandValue(nb.subject)&&!isSagoBrandValue(nb.title)&&!looksSago(nb));
+    if(kept.length!==arr.length)rec.newBook=kept.length?(Array.isArray(rec.newBook)?kept:kept[0]):null;
+  }
+  return rec;
+}
 function mergeLessonRecord(localRec,serverRec){
   const localTs=localRec._updatedAt||0, serverTs=serverRec._updatedAt||0;
   let base,other;
@@ -14639,6 +14668,10 @@ function startCloudListen() {
           // 지운 기록이 다른 기기와 동기화되면서 다시 나타나던 문제를 막기 위함.
           const recDelKey = date + '|' + sid;
           if (D.tombstones?.recordDeletes?.[recDelKey] != null) return;
+          // 🛑 저학년·고학년 기록에는 사고력 전용 내용(팩토·수학이재밌어·필즈 진도 등)이 들어가면 안 된다 —
+          // 서버 값과 이 기기가 갖고 있던 값 양쪽에서 모두 걷어낸 뒤 병합(사고력 쪽 sanitizeSagoRec와 대칭).
+          stripSagoContentInPlace(serverRec);
+          stripSagoContentInPlace(localRec);
           if (!localRec) {
             // 로컬에 없으면 서버 값 사용
             if (!D.R[date]) D.R[date] = {};
@@ -14764,7 +14797,7 @@ function buildCoursePayload(){
   const courseR = {};
   Object.entries(D.R||{}).forEach(([date,dayRec])=>{
     const out={};
-    Object.entries(dayRec||{}).forEach(([sid,rec])=>{ if(courseSet.has(sid))out[sid]=rec; });
+    Object.entries(dayRec||{}).forEach(([sid,rec])=>{ if(courseSet.has(sid)){ stripSagoContentInPlace(rec); out[sid]=rec; } });
     if(Object.keys(out).length)courseR[date]=out;
   });
   const courseDayDefs={}, courseScMeta={};
@@ -15455,6 +15488,12 @@ function startSagoListen(){
           if(!rec||typeof rec!=='object')return;
           const sid=sagoIn(rawSid);
           if(!isSagoSid(sid))return;
+          // 🛑 같은 이름의 저학년/고학년 학생이 이 기기에 함께 있으면(=아직 이름 겹침 별칭이 정리되기
+          // 전이라 "조지훈"이 두 명), 이 사고력 기록이 저학년 "조지훈" 기록 쪽으로 섞여 들어갈 수 있다.
+          // 그러면 그 섞인 기록이 그대로 저학년 클라우드로 올라가 "저학년 수업입력에 사고력 수업이
+          // 표시된다"(연동 학생 몇 명만 계속 그러던 원인) — 이름이 모호한 동안엔 병합하지 않고 건너뛴다
+          // (별칭이 정리된 다음 동기화 때 올바른 이름으로 들어온다).
+          if((D.S||[]).some(x=>x&&x.id===sid&&(x.group||'저학년')!=='사고력'))return;
           // ⚠ 코스 클라우드 병합과 동일하게, 이 기록을 방금 삭제했으면(recordDeletes 무덤) 다른
           // 기기의 예전 사본으로 되살아나지 않게 막는다 — 빠져있던 보호를 여기도 맞춰서 추가함.
           const recDelKey=date+'|'+sid;
