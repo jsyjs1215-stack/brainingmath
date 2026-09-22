@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-22-sago-book-list-v17'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-22-course-book-list-v18'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6002,7 +6002,12 @@ function openEdit(sid,slot,date){
   {
     const grpForEM=s?.group||'저학년';
     const emSubjSel=document.getElementById('em-sess-subj');
-    if(emSubjSel)emSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM);
+    // 📌 "오늘 수업 교재"도 "새 책 시작"과 똑같이 교재관리(공용 교재 목록)에 등록된 책을 전부 보여준다
+    // (예전엔 아이비츠·아리수·최상위·자체교재·개념완성·기타 같은 고정 목록만 골라 쓸 수 있었음).
+    if(emSubjSel){
+      const extraBrandsForSess=getExtraInvBrandsForEM(subjListForGroup(grpForEM));
+      emSubjSel.innerHTML='<option value="">교재 선택</option>'+subjOpts('',grpForEM)+extraBrandsForSess.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    }
     // "새 책 시작"의 브랜드 선택지(각 행마다)는 행을 그릴 때(resetEmNbRows→addEmNbRow) EmNbGroup
     // 기준으로 채워지므로, 여기서는 그 기준값만 저장해둔다.
     EmNbGroup=grpForEM;
@@ -7249,7 +7254,8 @@ function resolveEmInvBrand(subj){
 // 교재관리에서 새로 추가한) 브랜드만 골라낸다 — "새 책 시작" 브랜드 선택지 끝에 자동으로 붙임.
 function getExtraInvBrandsForEM(baseList){
   const covered=new Set([...baseList,...Object.values(EM_SUBJ_TO_INV_BRAND)]);
-  return sortBookBrands(Object.keys(getBookInv())).filter(b=>!covered.has(b));
+  // 재고 목록의 구분선용 가짜 브랜드("-----초등교과-----" 등)는 실제 교재가 아니므로 제외
+  return sortBookBrands(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b))).filter(b=>!covered.has(b));
 }
 // r.newBook은 하루에 여러 권을 기록할 수 있어 배열로 저장하지만, 이 기능이 생기기 전 예전 기록은
 // 단일 객체({subject,title,...})로 저장돼있다 — 어느 쪽이든 항상 배열처럼 다룰 수 있게 정규화한다.
