@@ -765,6 +765,25 @@ button,input,textarea,select{font-family:inherit;}
       </div>
     </div>
   </div>
+  <!-- 📝 사고력도 가끔 숙제가 있을 수 있어(팩토/수학이재밌어 워크북 등), 저학년·고학년과 동일한 숙제 확인 UI를 그대로 붙였다 -->
+  <div id="sp-ph-hw" class="ibox ibox-prev" style="display:none;">
+    <div class="ibox-title"><i class="ti ti-history"></i> 직전 수업 숙제 <span id="sp-ph-hw-date" style="font-weight:400;margin-left:3px;font-size:10px;"></span></div>
+    <div class="ibox-val" id="sp-ph-hw-val"></div>
+  </div>
+  <div class="fg"><label class="flbl">직전 숙제 확인</label>
+    <div class="tog-row">
+      <button class="tog" id="sp-t-완료" onclick="setSpHw('완료')">완료</button>
+      <button class="tog" id="sp-t-부분완료" onclick="setSpHw('부분완료')">부분완료</button>
+      <button class="tog" id="sp-t-미이행" onclick="setSpHw('미이행')">미이행</button>
+      <button class="tog" id="sp-t-미제출" onclick="setSpHw('미제출')">미제출</button>
+    </div>
+    <div class="sms-box" id="sp-sms-box">
+      <label><input type="checkbox" id="sp-sms-chk"> 📱 학부모 문자 발송 완료</label>
+    </div>
+  </div>
+  <div class="fg"><label class="flbl">오늘 숙제 <small style="font-weight:400;color:var(--pri2);">→ 다음 수업에 직전숙제로 자동 표시</small></label>
+    <input class="fi" id="sp-hw" placeholder="숙제 없으면 비워두세요" autocomplete="off" oninput="saveSpDraft()">
+  </div>
   <div class="fg"><label class="flbl">수업 태도</label>
     <div class="att-sel">
       <button class="asb" id="sp-as-100" onclick="setSpAttitude(100)">100점<br>PERFECT</button>
@@ -1257,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-tombstone-ts-fix-v15'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-22-sago-book-list-v17'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3268,7 +3287,10 @@ function rSch(){
             if(r.sagoPage)parts.push(`<div class="sc-curr" style="font-size:9.5px;">📄 ${esc(r.sagoPage)}</div>`);
             if(r.sagoUnderstand)parts.push(`<div style="font-size:9.5px;font-weight:700;color:${r.sagoUnderstand==='상'?'var(--ok)':r.sagoUnderstand==='중'?'var(--warn)':'var(--dan)'};">이해도 ${r.sagoUnderstand}</div>`);
             return parts.join('');
-          })():(()=>{
+          })():''}
+          ${(()=>{
+            // 📝 사고력도 숙제가 있을 수 있어(팩토/수학이재밌어 워크북 등), 이전 숙제 미리보기는
+            // 그룹과 상관없이 항상 보여준다 — 예전엔 저학년·고학년만 이 미리보기가 나왔음.
             const hwR=latestHwR(sid,date);
             const hw=hwR?.todayHw||r.prevHwContent||r._ph||'';
             const hwDate=hwR?.date||r._pd||'';
@@ -3276,7 +3298,7 @@ function rSch(){
             const stale=diff>7;
             return hw?`<div class="sc-ph" style="${stale?'color:#F59E0B;font-weight:600;':''}"><i class="ti ti-history" style="font-size:9px;"></i> ${stale?'⏰ ':''}"${esc(hw.substring(0,18))}${hw.length>18?'…':''}"${hwDate?` <span style="opacity:.6;">(${hwDate}${diff>0?`, ${diff}일전`:''})</span>`:''}</div>`:'';
           })()}
-          ${(s.group||'저학년')!=='사고력'&&r.todayHw?`<div style="font-size:10px;color:#1E40AF;margin-bottom:2px;line-height:1.4;"><i class="ti ti-clipboard" style="font-size:9px;"></i> 📋"${esc(r.todayHw.substring(0,20))}${r.todayHw.length>20?'…':''}"</div>`:''}
+          ${r.todayHw?`<div style="font-size:10px;color:#1E40AF;margin-bottom:2px;line-height:1.4;"><i class="ti ti-clipboard" style="font-size:9px;"></i> 📋"${esc(r.todayHw.substring(0,20))}${r.todayHw.length>20?'…':''}"</div>`:''}
           <div class="sc-st">
             <span class="badge b-${r.attend||'출석'}" style="font-size:10px;padding:1px 5px;">${r.attend||'출석'}</span>
             ${(s.group||'저학년')==='사고력'
@@ -5236,8 +5258,8 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
           ?`${x.sagoUnit?`<span style="font-size:12px;color:var(--muted);">${esc(x.sagoUnit)}</span>`:''}${x.sagoPage?`<span style="font-size:11px;color:var(--muted);background:#F1F5F9;border-radius:6px;padding:1px 6px;">${esc(x.sagoPage)}</span>`:''}`
           :(slotCurrHist||x.curriculum)?`<span style="font-size:12px;color:var(--muted);">${esc(slotCurrHist||x.curriculum)}</span>`:''}
       </div>
-      ${!isSagoEntry&&prevHwShow?`<div class="hsc-row"><i class="ti ti-history" style="font-size:11px;"></i> 직전숙제: <span style="color:${(()=>{const d3=prevHwDateHist?Math.round((new Date(x.date)-new Date(prevHwDateHist))/(1000*60*60*24)):0;return d3>7?'#CBD5E1':'#475569';})()};font-weight:600;">${esc(prevHwShow)}</span>${prevHwDateHist?(()=>{const d2=Math.round((new Date(x.date)-new Date(prevHwDateHist))/(1000*60*60*24));return ` <span style="font-size:10px;color:${d2>7?'#CBD5E1':'var(--muted)'};">${prevHwDateHist}${d2>0?` (${d2}일 전)`:''}${prevHwRec?._hwBy?` · ${esc(dispTeacherName(prevHwRec._hwBy))}`:''}</span>`;})():''}</div>`:''}
-      ${!isSagoEntry&&x.todayHw?`<div class="hsc-hw">📋 오늘숙제: ${esc(x.todayHw)}${x._hwBy?` <span style="font-size:10px;font-weight:400;color:var(--muted);">(${esc(dispTeacherName(x._hwBy))})</span>`:''}</div>`:''}
+      ${prevHwShow?`<div class="hsc-row"><i class="ti ti-history" style="font-size:11px;"></i> 직전숙제: <span style="color:${(()=>{const d3=prevHwDateHist?Math.round((new Date(x.date)-new Date(prevHwDateHist))/(1000*60*60*24)):0;return d3>7?'#CBD5E1':'#475569';})()};font-weight:600;">${esc(prevHwShow)}</span>${prevHwDateHist?(()=>{const d2=Math.round((new Date(x.date)-new Date(prevHwDateHist))/(1000*60*60*24));return ` <span style="font-size:10px;color:${d2>7?'#CBD5E1':'var(--muted)'};">${prevHwDateHist}${d2>0?` (${d2}일 전)`:''}${prevHwRec?._hwBy?` · ${esc(dispTeacherName(prevHwRec._hwBy))}`:''}</span>`;})():''}</div>`:''}
+      ${x.todayHw?`<div class="hsc-hw">📋 오늘숙제: ${esc(x.todayHw)}${x._hwBy?` <span style="font-size:10px;font-weight:400;color:var(--muted);">(${esc(dispTeacherName(x._hwBy))})</span>`:''}</div>`:''}
       ${xNbArr.map(nb=>`<div style="font-size:12px;color:#14532D;margin:3px 0;">📚 새 책 시작: <strong>${esc(nb.title)}</strong>${nb.subject?` <span style="color:var(--muted);">(${esc(nb.subject)})</span>`:''}</div>`).join('')}
       ${x.unitTest?`<div class="hsc-ut">📝 ${esc(x.unitTest.type)} ${x.unitTest.level||''} ${x.unitTest.number||''} · 점수: ${esc(x.unitTest.score)||'-'} · ${esc(x.unitTest.pass)||'-'}${x.unitTest.inProgress?' <span style="color:#92400E;font-weight:700;">⏳ 진행중(다음시간에 이어서)</span>':''}</div>`:''}
       ${(()=>{
@@ -5635,9 +5657,10 @@ function saveSpDraft(){
     const unit=document.getElementById('sp-unit')?.value||'';
     const page=document.getElementById('sp-page')?.value||'';
     const note=document.getElementById('sp-note')?.value||'';
+    const hw=document.getElementById('sp-hw')?.value||'';
     const key=spDraftKey(ET.sid,ET.date,ET.slot);
-    if(!book&&!unit&&!page&&!note){localStorage.removeItem(key);return;}
-    try{localStorage.setItem(key,JSON.stringify({book,unit,page,note,ts:Date.now()}));}catch(e){}
+    if(!book&&!unit&&!page&&!note&&!hw){localStorage.removeItem(key);return;}
+    try{localStorage.setItem(key,JSON.stringify({book,unit,page,note,hw,ts:Date.now()}));}catch(e){}
   },400);
 }
 function clearSpDraft(sid,date,slot){
@@ -5648,13 +5671,14 @@ function restoreSpDraftIfAny(sid,date,slot){
   try{draft=JSON.parse(localStorage.getItem(spDraftKey(sid,date,slot))||'null');}catch(e){}
   const bar=document.getElementById('sp-draft-bar');
   if(!draft){if(bar)bar.style.display='none';return;}
-  const bookEl=document.getElementById('sp-book'),unitEl=document.getElementById('sp-unit'),pageEl=document.getElementById('sp-page'),noteEl=document.getElementById('sp-note');
-  const same=draft.book===(bookEl?.value||'')&&draft.unit===(unitEl?.value||'')&&draft.page===(pageEl?.value||'')&&draft.note===(noteEl?.value||'');
+  const bookEl=document.getElementById('sp-book'),unitEl=document.getElementById('sp-unit'),pageEl=document.getElementById('sp-page'),noteEl=document.getElementById('sp-note'),hwEl=document.getElementById('sp-hw');
+  const same=draft.book===(bookEl?.value||'')&&draft.unit===(unitEl?.value||'')&&draft.page===(pageEl?.value||'')&&draft.note===(noteEl?.value||'')&&(draft.hw||'')===(hwEl?.value||'');
   if(same){if(bar)bar.style.display='none';return;}
   if(bookEl&&draft.book)bookEl.value=draft.book;
   if(unitEl&&draft.unit)unitEl.value=draft.unit;
   if(pageEl&&draft.page)pageEl.value=draft.page;
   if(noteEl&&draft.note)noteEl.value=draft.note;
+  if(hwEl&&draft.hw)hwEl.value=draft.hw;
   if(bar)bar.style.display='flex';
 }
 function setSpAtUI(v){['출석','지각','결석','타수업'].forEach(a=>{const b=document.getElementById(`sp-t-${a}`);if(b)b.className=`tog${v===a?' on-'+a:''}`;});}
@@ -5665,6 +5689,9 @@ function setSpAt(v){
   // 🔗 연동 학생이면 같은 날 반대쪽 반 수업도 함께 결석 처리 (되돌리면 함께 되돌아감) — 저학년/고학년과 동일한 로직 재사용
   applyLinkedAttendance(ET.sid,ET.date,v);
 }
+// 숙제 확인 — 저학년·고학년의 setHw/setHwUI와 동일한 방식(누르는 즉시 저장 + SMS 발송칸 표시)
+function setSpHwUI(v){['완료','부분완료','미이행','미제출'].forEach(h=>{const b=document.getElementById(`sp-t-${h}`);if(b)b.className=`tog${v===h?' on-'+h:''}`;});const smsBox=document.getElementById('sp-sms-box');if(smsBox)smsBox.style.display=v!=='완료'?'block':'none';}
+function setSpHw(v){if(ET){sR(ET.date,ET.sid,'hwStatus',v);setSpHwUI(v);}}
 function setSpUnderstandUI(v){['상','중','하'].forEach(u=>{const b=document.getElementById(`sp-u-${u}`);if(b)b.className=`tog${v===u?' on-'+u:''}`;});}
 function setSpUnderstand(v){
   if(!ET)return;
@@ -5726,11 +5753,13 @@ function checkSpConflict(){
   const newUnit=(document.getElementById('sp-unit')?.value||'');
   const newPage=(document.getElementById('sp-page')?.value||'');
   const newNote=(document.getElementById('sp-note')?.value||'');
+  const newHw=(document.getElementById('sp-hw')?.value||'');
   const conflicts=[];
   if((r.sagoBook||'')!==(ET._loadBook||'')&&newBook.trim()!==''&&newBook!==(r.sagoBook||''))conflicts.push({label:'교재',theirs:r.sagoBook||'',mine:newBook});
   if((r.sagoUnit||'')!==(ET._loadUnit||'')&&newUnit.trim()!==''&&newUnit!==(r.sagoUnit||''))conflicts.push({label:'단원',theirs:r.sagoUnit||'',mine:newUnit});
   if((r.sagoPage||'')!==(ET._loadPage||'')&&newPage.trim()!==''&&newPage!==(r.sagoPage||''))conflicts.push({label:'페이지',theirs:r.sagoPage||'',mine:newPage});
   if((r.note||'')!==(ET._loadNote||'')&&newNote.trim()!==''&&newNote!==(r.note||''))conflicts.push({label:'특이사항',theirs:r.note||'',mine:newNote});
+  if((r.todayHw||'')!==(ET._loadHw||'')&&newHw.trim()!==''&&newHw!==(r.todayHw||''))conflicts.push({label:'오늘 숙제',theirs:r.todayHw||'',mine:newHw});
   if(!conflicts.length)return true;
   const detail=conflicts.map(c=>`[${c.label}]\n· 방금 저장된 내용: "${c.theirs||'(비어있음)'}"\n· 지금 내가 입력한 내용: "${c.mine}"`).join('\n\n');
   return confirm(`⚠ 다른 선생님이 방금 이 학생의 이 수업 기록을 이미 수정했어요!\n\n${detail}\n\n이대로 저장하면 방금 저장된 내용이 사라지고 내 내용으로 바뀝니다.\n그래도 저장할까요?`);
@@ -5759,6 +5788,16 @@ function saveSagoProgress(){
       sR(date,sid,'note',domNote);
     }
   }
+  {
+    const domHw=document.getElementById('sp-hw').value;
+    const untouchedHw=(domHw===(ET._loadHw||''));
+    const changedElsewhereHw=((r.todayHw||'')!==(ET._loadHw||''));
+    if(!(untouchedHw&&changedElsewhereHw)){
+      if(domHw!==(r.todayHw||''))r._hwBy=myName;
+      sR(date,sid,'todayHw',domHw);
+    }
+  }
+  sR(date,sid,'smsSent',document.getElementById('sp-sms-chk')?.checked||false);
   saveSpNewBook(date,sid,r,s);
   sR(date,sid,'_lastEditedBy',myName);
   clearSpDraft(sid,date,ET.slot);
@@ -5848,6 +5887,7 @@ function openSagoProgress(sid,slot,date){
   ET._loadUnit=r.sagoUnit||'';
   ET._loadPage=r.sagoPage||'';
   ET._loadNote=r.note||'';
+  ET._loadHw=r.todayHw||'';
   document.getElementById('sp-title').textContent=`${dispStuName(sid)} — ${slotLabel(slot)}`;
   document.getElementById('sp-sub').textContent=`${GL[s?.grade]||''}${s?.level?' · '+s.level+'반':''} · ${date} (${WD[dt0.getDay()]})`;
   // 직전 진행 교재/단원 자동표시 (페이지·이해도는 그날그날 다르므로 여기엔 표시만 하고 입력칸엔 안 이어줌)
@@ -5868,11 +5908,41 @@ function openSagoProgress(sid,slot,date){
     pn.style.display='block';document.getElementById('sp-pn-val').textContent=pNoteRec.note;
     if(pnByEl)pnByEl.textContent=pNoteRec._noteBy?`(${dispTeacherName(pNoteRec._noteBy)})`:'';
   } else { pn.style.display='none';if(pnByEl)pnByEl.textContent=''; }
+  // 직전 숙제 (있을 때만 표시 — 사고력은 숙제가 없는 수업이 더 많으므로)
+  {
+    const hwRec=latestHwR(sid,date);
+    const phHw=document.getElementById('sp-ph-hw');
+    if(hwRec&&hwRec.todayHw){
+      phHw.style.display='block';
+      document.getElementById('sp-ph-hw-val').textContent=hwRec.todayHw;
+      const diff=Math.round((new Date(date)-new Date(hwRec.date))/(1000*60*60*24));
+      document.getElementById('sp-ph-hw-date').textContent=`(${hwRec.date}${diff>0?` · ${diff}일 전`:''})`;
+    } else if(phHw){ phHw.style.display='none'; }
+  }
+  document.getElementById('sp-hw').value=r.todayHw||'';
+  setSpHwUI(r.hwStatus||'완료');
+  {
+    const needSms=r.hwStatus&&r.hwStatus!=='완료';
+    document.getElementById('sp-sms-box').style.display=needSms?'block':'none';
+    document.getElementById('sp-sms-chk').checked=r.smsSent||false;
+  }
   // 오늘 값 채우기 우선순위: ① 이미 저장된 오늘 값 → ② 이 요일·시간대에 정해둔 고정 교재(dayDef,
   // 예: "수요일은 팩토"로 학생관리에서 지정해둔 값) → ③ 직전 실제 진행 교재(다른 요일 포함, 참고용)
   // — dayDef를 직전 기록보다 먼저 확인해야, 요일마다 다른 책을 나가는 학생의 경우 "그저께 다른
   // 요일에 나간 책"이 오늘 정해진 책을 밀어내고 잘못 채워지는 일이 없다.
   const dayDefForSago=getDayDef(sid,ET.day,slot);
+  // 📌 "오늘 진행 교재"는 예전엔 팩토·수학이재밌어·필즈·기타교재 4가지만 골라 쓸 수 있었는데,
+  // 교재관리(모든 그룹 공용 교재 목록)에 새로 등록한 책(예: 완자공부력, 영재사고력 등)은 여기
+  // 목록에 없어서 골라 쓸 수 없었다. "새 책 시작"과 똑같이 교재관리에 있는 브랜드를 전부 보여준다.
+  {
+    const spBookSel=document.getElementById('sp-book');
+    const curVal=r.sagoBook||dayDefForSago?.subject||prevRec?.sagoBook||'';
+    // 재고 목록의 구분선용 가짜 브랜드("-----초등교과-----" 등)는 실제 교재가 아니므로 제외
+    const brands=sortBookBrands(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b)));
+    // 교재관리에 아직 없는(예: 예전 기록에만 남아있는) 값도 목록에서 사라지지 않도록 끝에 추가
+    if(curVal&&!brands.includes(curVal))brands.push(curVal);
+    spBookSel.innerHTML='<option value="">교재 선택</option>'+brands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  }
   document.getElementById('sp-book').value=r.sagoBook||dayDefForSago?.subject||prevRec?.sagoBook||'';
   document.getElementById('sp-unit').value=r.sagoUnit||dayDefForSago?.curriculum||prevRec?.sagoUnit||'';
   document.getElementById('sp-page').value=r.sagoPage||'';
@@ -9717,8 +9787,10 @@ function subjListForGroup(group){ return group==='고학년'?SUBJLIST_HIGH:group
 function teacherListForGroup(group){ return group==='고학년'?TEACHERS_HIGH:group==='사고력'?TEACHERS_SAGO:[]; }
 function subjOpts(val,group){return subjListForGroup(group||ActiveGroup).map(o=>`<option value="${o}"${o===val?' selected':''}>${o}</option>`).join('');}
 function progSeriesOptsFor(group){
+  // 📌 사고력은 "오늘 진행 교재"와 똑같이 교재관리(공용 교재 목록)에 등록된 브랜드를 전부 보여준다
+  // (예전엔 팩토·수학이재밌어·필즈·기타교재 4가지로 고정돼 있어서, 새로 등록한 책은 여기서 고를 수 없었다).
   const keys=group==='고학년'?['쎈','개념원리','RPM','체크체크','개념연산SOS','수학의바이블','개념완성','최상위수학']
-            :group==='사고력'?['팩토','수학이재밌어','필즈','기타교재']
+            :group==='사고력'?sortBookBrands(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b)))
             :['아리수','아이비츠','개념완성','최상위수학','자체교재'];
   return '<option value="">교재 선택</option>'+keys.map(k=>`<option>${k}</option>`).join('');
 }
@@ -10154,7 +10226,8 @@ function togSpNewBook(){
 // 브랜드 선택지는 교재관리(재고현황)에 지금 등록돼있는 브랜드 그대로 채워준다 — 하드코딩된
 // 4개가 아니라, 원장님이 교재관리에서 브랜드를 추가/삭제하는 즉시 여기도 그대로 따라간다.
 function spNbRowHtml(rid){
-  const brands=sortBookBrands(Object.keys(getBookInv()));
+  // 재고 목록의 구분선용 가짜 브랜드("-----초등교과-----" 등)는 실제 교재가 아니므로 제외
+  const brands=sortBookBrands(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b)));
   const brandOpts=`<option value="">브랜드 선택</option>`+brands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');
   return `<div class="sp-nb-row" id="sp-nb-row-${rid}">
     <button type="button" class="sp-nb-row-remove" onclick="removeSpNbRow('${rid}')" title="이 교재 삭제">✕</button>
