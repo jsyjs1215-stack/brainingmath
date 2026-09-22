@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-book-billing-v11'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-sago-strip-fix-v13'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7552,6 +7552,23 @@ function shiftBillCycle(delta){
   BILL_CYCLE_START=billFmt(new Date(y,m-1+delta,20));
   renderAll();
 }
+// ── 청구 마감: 매달 19일 13:00(한국시간)까지 입력한 새 책만 그 달 청구, 이후 입력분은 다음 달로 넘어간다 ──
+// (20일에 19일까지 합산해서 문자를 보내기 때문). 입력 시각(at)이 없는 예전 기록은 날짜로만 판단한다.
+function billCutoffMs(cy){ return new Date(cy.end+'T13:00:00+09:00').getTime(); }
+function billCutoffLabel(cy){ const [,m,d]=cy.end.split('-').map(Number); return `${m}/${d} 13:00`; }
+function billEffStart(date,at){
+  const base=billCycleOf(date);
+  // 입력 시각(at)은 수업 당일~다음날에 실시간으로 입력된 경우에만 믿는다(예전 기록에 나중에 찍힌 시각은 무시)
+  const t=Number(at)||0, d0=new Date(date+'T00:00:00+09:00').getTime();
+  if(t&&t-d0<2*86400000&&t>billCutoffMs(base)){
+    const [y,m]=base.start.split('-').map(Number);
+    return billFmt(new Date(y,m,20));
+  }
+  return base.start;
+}
+function billCutoffMarker(cy){
+  return `여기까지 ${cy.billLabel}합니다 (${billCutoffLabel(cy)} 마감) · 이 줄 이후로 입력한 교재는 다음 달 청구`;
+}
 function billEntryKey(e){ return e.mkey||e.okey||`${e.date}|${e.sid}|${e.subject}|${e.title}`; }
 function billTitleKey(e){ return `t:${e.subject}|${e.title}`; }
 function billBrandKey(subject){ return `b:${subject}`; }
@@ -7640,15 +7657,16 @@ function billSplitWorkbook(ent,hasOv){
   return [Object.assign({},ent,{subject:BILL_WB_BRAND})];
 }
 function collectBillEntries(cy,groupFilter,wantExcluded){
-  const out=[];
+  const out=[]; const prevStart=(()=>{const [y,m]=cy.start.split('-').map(Number);return billFmt(new Date(y,m-2,20));})();
   Object.keys(D.R||{}).sort().forEach(date=>{
-    if(date<cy.start||date>cy.end)return;
+    if(date<prevStart||date>cy.end)return;
     Object.entries(D.R[date]||{}).forEach(([sid,r])=>{
       nbArr(r&&r.newBook).forEach((nb,idx)=>{
         if(!nb||!nb.title)return;
+        if(billEffStart(date,nb.at)!==cy.start)return;
         const st=gS(sid); const grp=st?(st.group||'저학년'):'저학년';
         if(groupFilter&&groupFilter!=='전체'&&grp!==groupFilter)return;
-        const ent={date,sid,idx,grp,grade:st?st.grade:'',subject:nb.subject||'',title:nb.title,by:nb.by||'',guessBy:nb.by?'':(r._lastEditedBy||'')};
+        const ent={date,sid,idx,grp,grade:st?st.grade:'',subject:nb.subject||'',title:nb.title,by:nb.by||'',guessBy:nb.by?'':(r._lastEditedBy||''),at:nb.at||0,carry:date<cy.start};
         ent.origTitle=ent.title;ent.origSubject=ent.subject;ent.okey=`${date}|${sid}|${ent.subject}|${ent.title}`;billApplyTitleOv(ent);
         const ov0=(D.bookBillOv||{})[ent.okey];
         billSplitWorkbook(ent,!!(ov0&&(ov0.title||ov0.subj!=null))).forEach(p=>{ if(billIsExcluded(p)!==!!wantExcluded)return; out.push(p); });
@@ -7749,7 +7767,7 @@ function rBillSection(){
   const chip=(g)=>`<button onclick="BILL_GROUP='${g}';renderAll()" style="padding:6px 13px;border-radius:20px;border:1px solid var(--bdr);background:${BILL_GROUP===g?'var(--pri)':'#fff'};color:${BILL_GROUP===g?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;">${g}</button>`;
   const nav=(d,ic)=>`<button onclick="shiftBillCycle(${d})" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--bdr);background:#fff;cursor:pointer;"><i class="ti ${ic}"></i></button>`;
   let out=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-    ${nav(-1,'ti-chevron-left')}<div style="font-size:14px;font-weight:800;">${cy.label} <span style="font-size:11px;font-weight:600;color:var(--muted);">(${cy.billLabel})</span></div>${nav(1,'ti-chevron-right')}
+    ${nav(-1,'ti-chevron-left')}<div style="font-size:14px;font-weight:800;">${cy.label} <span style="font-size:11px;font-weight:600;color:var(--muted);">(${cy.billLabel})</span> <span style="font-size:11px;font-weight:700;color:#B45309;">· ${billCutoffLabel(cy)}까지 입력한 책만 청구</span></div>${nav(1,'ti-chevron-right')}
     <button onclick="BILL_SHEET_OPEN=!BILL_SHEET_OPEN;renderAll()" style="margin-left:auto;padding:7px 13px;border-radius:var(--rs);border:1px solid #BFDBFE;background:#EFF6FF;color:#1E3A8A;font-size:12px;font-weight:700;cursor:pointer;">📄 시트 대조</button>
     <button onclick="BILL_ADD_OPEN=!BILL_ADD_OPEN;renderAll()" style="padding:7px 13px;border-radius:var(--rs);border:1px solid #BBF7D0;background:#F0FDF4;color:#166534;font-size:12px;font-weight:700;cursor:pointer;">＋ 교재 직접 추가</button>
     <button onclick="BILL_SHOW_PRICES=!BILL_SHOW_PRICES;renderAll()" style="padding:7px 13px;border-radius:var(--rs);border:1px solid #FDE68A;background:#FFFBEB;color:#92400E;font-size:12px;font-weight:700;cursor:pointer;">⚙ 교재비 기본설정</button>
@@ -7805,7 +7823,7 @@ function rBillSection(){
     const isOv=ov.price!=null&&ov.price!=='';
     const byCell=e.by?`<b>${esc(e.by)}</b>`:(e.guessBy?`<span style="color:var(--muted);" title="이 기능이 생기기 전 기록이라 새 책 입력자를 정확히 알 수 없어, 그날 기록을 마지막으로 저장한 선생님을 보여줍니다">${esc(e.guessBy)} <span style="font-size:10px;">(기록자)</span></span>`:'<span style="color:var(--muted);">-</span>');
     out+=`<tr style="border-top:1px solid #F1F5F9;">
-      <td style="padding:6px 8px;white-space:nowrap;">${e.date.slice(5).replace('-','/')}</td>
+      <td style="padding:6px 8px;white-space:nowrap;">${e.date.slice(5).replace("-","/")}${e.carry?`<div style="font-size:10px;color:#B45309;font-weight:700;">전달 마감 후 입력</div>`:""}</td>
       <td style="padding:6px 4px;white-space:nowrap;"><span style="font-size:10px;color:var(--muted);">${esc(e.grp)}</span> ${esc(GL[e.grade]||e.grade||'')}</td>
       <td style="padding:6px 4px;font-weight:700;white-space:nowrap;">${esc(dispStuName(e.sid))}</td>
       <td style="padding:6px 4px;">${billTitleCellHtml(e,false)}</td>
@@ -7815,6 +7833,8 @@ function rBillSection(){
     </tr>`;
   });
   out+=`</tbody></table></div>
+  <div style="margin:8px 0 6px;border:2px dashed #DC2626;background:#FEF2F2;color:#B91C1C;font-weight:800;font-size:13px;text-align:center;padding:10px 12px;border-radius:8px;">✂ ${esc(billCutoffMarker(cy))}</div>
+  ${(()=>{ const nx=billCycleFromStart(billFmt(new Date(Number(cy.start.slice(0,4)),Number(cy.start.slice(5,7)),20))); const c=collectBillEntries(nx,BILL_GROUP).filter(e=>e.carry).length; return c?`<div style="font-size:12px;color:#92400E;margin-bottom:8px;">이 마감(${billCutoffLabel(cy)}) 이후에 입력되어 <b>다음 달 청구로 넘어간 책: ${c}권</b> (다음 기간에서 확인)</div>`:''; })()}
   <div style="font-size:10.5px;color:var(--muted);margin:5px 2px 14px;">교재비를 직접 고치면 그 건만 바뀌고(주황 테두리), 비워두면 기본설정 값으로 되돌아갑니다. 청구하지 않는 책은 "청구 제외"를 누르세요(새 책 기록은 그대로 남아요).</div>`;
   out+=billExcludedHtml(excludedList);
   out+=rBillSummaryBlock(sum,list);
@@ -8171,6 +8191,7 @@ function rBillPrintPage(){
     <table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr><th style="${th}">배부일</th><th style="${th}">학년</th><th style="${th}">이름</th><th style="${th}">교재명</th><th style="${th}">교재비</th><th style="${th}">입력 교사</th></tr></thead><tbody>
     ${list.map(e=>`<tr><td style="${td}white-space:nowrap;">${e.date.slice(5).replace('-','/')}</td><td style="${td}">${esc(GL[e.grade]||e.grade||'')}</td><td style="${td}">${esc(dispStuName(e.sid))}</td><td style="${td}">${esc(e.title)}</td><td style="${td}text-align:right;">${e._price!=null?Number(e._price).toLocaleString('ko-KR'):'-'}</td><td style="${td}">${esc(e.by||e.guessBy||'')}</td></tr>`).join('')}
     </tbody></table>`:''}
+    <div style="margin-top:12px;border:2px dashed #DC2626;color:#B91C1C;font-weight:800;font-size:13px;text-align:center;padding:8px;">${esc(billCutoffMarker(cy))}</div>
   </div>`;
 }
 function removeAllSlots(){
@@ -14604,32 +14625,30 @@ function mergeSlotDataField(baseSlot,otherSlot,field){
   const oEmpty=(oVal==null||oVal==='');
   return !bEmpty?bVal:(!oEmpty?oVal:bVal);
 }
-// 사고력 전용 교재 브랜드/필드 — 저학년·고학년 수업기록(코스 클라우드)에는 절대 들어가면 안 되는 내용.
+// 사고력 전용 필드 — 저학년·고학년 수업기록(코스 클라우드)에는 절대 들어가면 안 되는 내용.
 // (사고력 → 저학년 방향의 sanitizeSagoRec와 대칭)
-const SAGO_ONLY_BRAND_PREFIX=['수학이재밌어','팩토','필즈','영재사고력','완자공부력','브레이닝수학','팩토타임키즈','소마셈'];
-function isSagoBrandValue(v){ return typeof v==='string'&&SAGO_ONLY_BRAND_PREFIX.some(b=>v.startsWith(b)); }
+// ⚠ 예전엔 "수학이재밌어/팩토/필즈/소마셈/브레이닝수학/팩토타임키즈" 같은 브랜드 "이름"으로
+// 사고력 내용인지 판단했는데, 그 뒤 "교재관리(모든 그룹 공용 교재 목록)" 기능이 생기면서 같은
+// 브랜드가 저학년·고학년 학생에게도(예: 필즈 교재를 받는 학생) 정식으로 배정되기 시작했다.
+// 그래서 그 이름 검사만으로 "사고력 것"이라 판단해 지우면, 저학년·고학년 학생이 방금 입력한
+// 진짜 교재(예: 필즈)까지 "사고력 내용"으로 오인해 자동으로 지워버리는 사고(데이터 유실)가
+// 났다 — "새책나갔어요가 자동으로 삭제된다" 신고의 원인. 이제는 사고력 화면 전용 진도 입력칸인
+// sagoBook(브랜드 이름과 무관하게 저학년·고학년 쪽에서는 절대 쓰지 않는 필드)이 실제로 값을
+// 갖고 있을 때만 "이 기록에 사고력 내용이 섞여 들어왔다"고 판단한다. newBook(새 책 나갔어요)은
+// 공용 교재 목록에서 어떤 브랜드를 골라도 저학년·고학년의 정상 입력일 수 있으므로 더 이상
+// 이름으로 지우지 않는다.
 function stripSagoContentInPlace(rec){
   if(!rec||typeof rec!=='object')return rec;
-  // 수업 과목이 사고력 교재였다면, 그 옆의 진도 값("1단계 9번" 같은 브랜드명 없는 진도)도 사고력 것이므로 함께 지운다
-  const sagoSess=isSagoBrandValue(rec.sessionSubject)||isSagoBrandValue(rec.sagoBook);
+  // sagoBook은 사고력 화면에서만 쓰는 진도 입력칸이라, 값이 있다는 것 자체가 사고력 데이터가
+  // 섞여 들어왔다는 확실한 신호다(교재 "이름"과 무관하게 판단 — 위 설명 참고).
+  const sagoSess=!!rec.sagoBook;
   ['sagoBook','sagoUnit','sagoPage','sagoUnderstand'].forEach(k=>{ if(rec[k])rec[k]=''; });
-  const isCourseCurr=v=>typeof v==='string'&&[...SUBJLIST_LOW,...SUBJLIST_HIGH].some(b=>b!=='기타'&&v.startsWith(b));
-  if(sagoSess){ rec.sessionSubject=''; if(!isCourseCurr(rec.curriculum))rec.curriculum=''; }
-  else if(isSagoBrandValue(rec.curriculum))rec.curriculum='';
-  if(rec.slotData&&typeof rec.slotData==='object'){
+  if(sagoSess){ rec.sessionSubject=''; rec.curriculum=''; }
+  if(rec.slotData&&typeof rec.slotData==='object'&&sagoSess){
     Object.keys(rec.slotData).forEach(k=>{
       const sd=rec.slotData[k]; if(!sd||typeof sd!=='object')return;
-      if(isSagoBrandValue(sd.sessionSubject)){ sd.sessionSubject=''; if(!isCourseCurr(sd.curriculum))sd.curriculum=''; }
-      else if(isSagoBrandValue(sd.curriculum))sd.curriculum='';
-      if(isSagoBrandValue(sd.extraSubj)){ sd.extraSubj=''; sd.extraCurr=''; }
+      sd.sessionSubject=''; sd.curriculum=''; sd.extraSubj=''; sd.extraCurr='';
     });
-  }
-  if(rec.newBook){
-    const arr=Array.isArray(rec.newBook)?rec.newBook:[rec.newBook];
-    // 브랜드 없이 사고력식 제목("Lv.2 11번", "1단계 9번")만 남은 새 책 기록도 사고력 것
-    const looksSago=nb=>!nb.subject&&/^(Lv\.\s*\d|\d+\s*단계)/.test(String(nb.title||''));
-    const kept=arr.filter(nb=>nb&&!isSagoBrandValue(nb.subject)&&!isSagoBrandValue(nb.title)&&!looksSago(nb));
-    if(kept.length!==arr.length)rec.newBook=kept.length?(Array.isArray(rec.newBook)?kept:kept[0]):null;
   }
   return rec;
 }
