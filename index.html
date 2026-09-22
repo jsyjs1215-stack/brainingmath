@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-22-course-book-list-v18'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-22-sago-hw-cloud-fix-v19'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -16429,7 +16429,12 @@ function startSagoListen(){
 // 섞여 들어갔는지는 찾지 못했지만, 사고력 진도 입력(saveSagoProgress)은 이 필드들을 전혀 쓰지
 // 않으므로 사고력 클라우드로 나가는 마지막 관문에서 원천적으로 걸러낸다 — 어느 기기에서 왜
 // 섞였든 여기만 지키면 사고력 클라우드 자체는 항상 깨끗하게 유지된다.
-const COURSE_ONLY_R_FIELDS=['unitTest','hwStatus','slotData','todayHw','_af','_afDate','_afText','_ph','_pd','_pn','prevHwContent','monthlyEval','_daylock_unlocked','_hwBy','books'];
+// ⚠ hwStatus·todayHw·_hwBy·monthlyEval는 예전엔 저학년·고학년만 쓰는 필드였지만, 사고력에도
+// 숙제·월말평가 입력을 추가하면서(saveSagoProgress/toggleSpME) 사고력도 정상적으로 쓰는 "공용"
+// 필드가 됐다. 계속 여기 남겨두면 저장하자마자 사고력 클라우드로 나가는 이 관문에서 매번
+// 지워져서, 화면엔 잠깐 보였다가(로컬 메모리) 새로고침하거나 다른 기기에서 보면 사라진 것처럼
+// 되는 사고가 났다("사고력 숙제를 입력해도 바로 삭제된다" 신고의 원인) — 그래서 이 목록에서 뺐다.
+const COURSE_ONLY_R_FIELDS=['unitTest','slotData','_af','_afDate','_afText','_ph','_pd','_pn','prevHwContent','_daylock_unlocked','books'];
 // ⚠ curriculum/sessionSubject는 사고력 진도 입력(saveSagoProgress)도 정상적으로 쓰는 "공용" 필드라
 // COURSE_ONLY_R_FIELDS처럼 무조건 지울 수는 없다 — 다만 그 값 자체가 "아리수1-6"처럼 저학년(교과)
 // 전용 교재 브랜드로 시작하면, 사고력 쪽에서는 절대 나올 수 없는 값이므로 이때만 걸러낸다.
