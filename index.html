@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-sago-strip-fix-v13'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-newbook-tombstone-fix-v14'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2132,23 +2132,25 @@ function sR(date,sid,f,v){
   // 최신 쪽이 비어있으면 예전(서버) 쪽 값을 살려서 보존하는 로직이 있는데, 그게 "지운 것"까지
   // 되살려버리면 안 되므로 지운 기록을 남겨서 병합 시 확실히 비워지도록 함
   // (체크 해제 후 저장 / 단원평가 입력 화면에서 삭제 등 이 필드를 지우는 모든 경로에 공통 적용됨)
-  if(f==='unitTest'&&v==null)markDeleted('utDeletes',date+'|'+sid);
+  if(f==='unitTest'){ if(v==null)markDeleted('utDeletes',date+'|'+sid); else clearDeleted('utDeletes',date+'|'+sid); }
   // 📌 새 책 시작(newBook)도 같은 이유로 무덤을 남긴다 — 선생님이 잘못 입력한 새책을 체크
   // 해제하고 저장해도(v===null), 그 사이 다른 기기가 아직 그 잘못된 값을 갖고 있다가 저장하면
   // "내용성 필드는 최신 쪽이 비어있으면 예전 값을 보존한다"는 병합 규칙 때문에 지운 값이 다시
   // 살아났다("잘못 입력한 새책이 시간이 지나면 다시 살아난다"는 신고의 원인) — 재고 차감·복구가
   // 반복되며 재고 수량이 계속 흔들리는 원인이기도 했다.
-  if(f==='newBook'&&v==null)markDeleted('newBookDeletes',date+'|'+sid);
+  // ⚠ 반대로, 이 무덤을 지운 뒤 그대로 두면 "그 학생·그 날짜"에는 그 뒤로 새책을 다시 입력해도
+  // 영원히 무덤 때문에 지워지는 사고가 났다("새책나갔어요를 입력해도 바로 지워진다" 신고의
+  // 원인) — 그래서 진짜 새 값이 저장되는 순간에는 무덤을 함께 지운다.
+  if(f==='newBook'){ if(v==null)markDeleted('newBookDeletes',date+'|'+sid); else clearDeleted('newBookDeletes',date+'|'+sid); }
   // 📌 위 두 필드(unitTest/newBook) 말고도 "내용성 필드"(ME_MERGE_CONTENT_FIELDS: todayHw, note,
   // monthlyEval, curriculum, sessionSubject, classMove)는 전부 똑같은 병합 규칙(최신 쪽이 비어있으면
   // 예전 값을 보존)을 공유해서, 똑같이 "일부러 지운 게 다시 살아나는" 문제가 생길 수 있다.
   // note/todayHw는 대부분 다른 내용으로 덮어쓰며 이어가는 필드라 지금까지 문제로 보고되지 않았지만,
   // 체크박스/선택지로 "켰다 끄는" monthlyEval·classMove와, 지우고 다시 입력하는 curriculum·
   // sessionSubject는 unitTest/newBook과 똑같은 위험이 있어 같은 방식(무덤)으로 보호한다.
-  if(v==null||v===''){
-    if(['monthlyEval','curriculum','sessionSubject','classMove'].includes(f)){
-      markDeleted('fieldClears',date+'|'+sid+'|'+f);
-    }
+  if(['monthlyEval','curriculum','sessionSubject','classMove'].includes(f)){
+    if(v==null||v==='')markDeleted('fieldClears',date+'|'+sid+'|'+f);
+    else clearDeleted('fieldClears',date+'|'+sid+'|'+f);
   }
   SD();
 }
@@ -14602,6 +14604,15 @@ function markDeleted(field, ids){
   if(!D.tombstones[field])D.tombstones[field]={};
   const now=Date.now();
   (Array.isArray(ids)?ids:[ids]).forEach(id=>{ if(id!=null)D.tombstones[field][id]=now; });
+}
+// markDeleted의 반대 — 지운 뒤에(무덤이 남은 채로) 같은 자리에 새로 값을 입력하면, 그 무덤 때문에
+// 방금 입력한 새 값이 "예전에 지운 값"으로 오인되어 병합 때마다 계속 지워지는 문제가 있었다
+// ("새책나갔어요를 입력해도 바로 지워진다" 신고의 원인 — 그 학생·그 날짜에 예전에 한 번이라도
+// 새책을 지운 적이 있으면, 그 뒤로는 새로 입력해도 무덤이 계속 남아있어서 영원히 지워졌다).
+// 그래서 "지운 게 다시 살아나지 않게" 하는 무덤은, 같은 자리에 실제 새 값이 저장되는 순간에는
+// 이제 더 이상 필요 없으므로 함께 지워서 다음 입력이 막히지 않게 한다.
+function clearDeleted(field, id){
+  if(D.tombstones?.[field]?.[id]!=null)delete D.tombstones[field][id];
 }
 
 // ⚠ 같은 학생·같은 날짜의 수업 기록(D.R[date][sid])을 두 선생님이 거의 동시에
