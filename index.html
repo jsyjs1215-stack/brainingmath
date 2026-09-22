@@ -1257,7 +1257,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-21-newbook-tombstone-fix-v14'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-21-tombstone-ts-fix-v15'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -15334,27 +15334,40 @@ function startCloudListen() {
           // 다시 살아나고, 기기마다 하나씩 다시 눌러줘야 한다"는 신고의 실제 원인이었다.
           // 📌 단원평가(unitTest)를 지운 기록(utDeletes tombstone)이 있으면, 서버·로컬 양쪽에 아직
           // 남아있는 예전 값으로 되살아나지 않도록 병합 전에 미리 제거
+          // ⚠ 무덤은 지운 "그 시점"의 기록에만 적용해야 한다. 무덤을 남긴 뒤 선생님이 다시 그
+          // 자리에 새로 값을 입력해서 저장하면(그 저장의 _updatedAt이 무덤 시각보다 새로움),
+          // 그 새 값까지 "예전에 지운 값"으로 오인해서 계속 지워버리는 사고가 났다("새로 입력해도
+          // 바로 사라진다" 신고의 원인) — 특히 다른 기기가 무덤을 아직 못 지운 예전 사본을 통째로
+          // 다시 올리면(합집합 병합) 이 기기에서 방금 지운 무덤도 되살아날 수 있어서, 무덤을
+          // "지우는 것"만으로는 완전히 막을 수 없었다. 그래서 무덤 자체가 남아있어도, 그 시각보다
+          // "더 나중에" 저장된(= _updatedAt이 더 최신인) 기록은 이미 그 삭제 이후에 다시 입력된
+          // 새 값이라고 보고 더 이상 지우지 않는다.
+          const tombWins=(rec,tombTs)=>tombTs!=null&&tombTs>=(rec?._updatedAt||0);
           const utDelKey = date + '|' + sid;
-          if (D.tombstones?.utDeletes?.[utDelKey] != null) {
-            if (serverRec && serverRec.unitTest != null) serverRec.unitTest = null;
-            if (localRec && localRec.unitTest != null) localRec.unitTest = null;
+          const utTombTs = D.tombstones?.utDeletes?.[utDelKey];
+          if (utTombTs != null) {
+            if (serverRec && serverRec.unitTest != null && tombWins(serverRec,utTombTs)) serverRec.unitTest = null;
+            if (localRec && localRec.unitTest != null && tombWins(localRec,utTombTs)) localRec.unitTest = null;
           }
           // 📌 새 책 시작(newBook)도 동일 — 방금 체크 해제해서 지운 기록(newBookDeletes tombstone)이
           // 있으면, 서버·로컬 양쪽에 아직 남아있는 예전(잘못 입력한) 값으로 되살아나지 않도록
           // 병합 전에 미리 제거한다.
           const nbDelKey = date + '|' + sid;
-          if (D.tombstones?.newBookDeletes?.[nbDelKey] != null) {
-            if (serverRec && serverRec.newBook != null) serverRec.newBook = null;
-            if (localRec && localRec.newBook != null) localRec.newBook = null;
+          const nbTombTs = D.tombstones?.newBookDeletes?.[nbDelKey];
+          if (nbTombTs != null) {
+            if (serverRec && serverRec.newBook != null && tombWins(serverRec,nbTombTs)) serverRec.newBook = null;
+            if (localRec && localRec.newBook != null && tombWins(localRec,nbTombTs)) localRec.newBook = null;
           }
           // 📌 monthlyEval·curriculum·sessionSubject·classMove — unitTest/newBook과 같은 이유로
-          // 지운 기록(fieldClears tombstone)이 있으면 서버·로컬 양쪽 다 미리 비운다.
+          // 지운 기록(fieldClears tombstone)이 있으면 서버·로컬 양쪽 다 미리 비운다(단, 무덤보다
+          // 더 나중에 저장된 값은 위와 같은 이유로 보존).
           if (D.tombstones?.fieldClears) {
             ['monthlyEval','curriculum','sessionSubject','classMove'].forEach(f => {
               const key = date + '|' + sid + '|' + f;
-              if (D.tombstones.fieldClears[key] != null) {
-                if (serverRec && serverRec[f] != null && serverRec[f] !== '') serverRec[f] = null;
-                if (localRec && localRec[f] != null && localRec[f] !== '') localRec[f] = null;
+              const fcTombTs = D.tombstones.fieldClears[key];
+              if (fcTombTs != null) {
+                if (serverRec && serverRec[f] != null && serverRec[f] !== '' && tombWins(serverRec,fcTombTs)) serverRec[f] = null;
+                if (localRec && localRec[f] != null && localRec[f] !== '' && tombWins(localRec,fcTombTs)) localRec[f] = null;
               }
             });
           }
@@ -16225,18 +16238,24 @@ function startSagoListen(){
           // "서버에서 지웠는데 새로고침하면 다시 나타난다"는 신고의 진짜 원인이었다. 그래서 무덤이
           // 있으면 rec든 localRec든 그 필드를 먼저 똑같이 비워서, 병합 로직이 "둘 다 원래 없었다"고
           // 보게 만든다.
+          // ⚠ 여기도 코스 클라우드와 동일하게, 무덤 시각보다 "더 나중에" 저장된(= _updatedAt이 더
+          // 최신인) 기록은 무덤을 남긴 뒤 다시 입력한 새 값이므로 지우지 않는다 — 안 그러면 무덤이
+          // 남아있는 한 그 자리에 다시 입력해도 계속 지워진다.
+          const sagoTombWins=(rr,tombTs)=>tombTs!=null&&tombTs>=(rr?._updatedAt||0);
           const nbDelKey=date+'|'+sid;
-          if(D.tombstones?.newBookDeletes?.[nbDelKey]!=null){
-            if(rec&&rec.newBook!=null)rec.newBook=null;
-            if(D.R[date][sid]&&D.R[date][sid].newBook!=null)D.R[date][sid].newBook=null;
+          const nbTombTs2=D.tombstones?.newBookDeletes?.[nbDelKey];
+          if(nbTombTs2!=null){
+            if(rec&&rec.newBook!=null&&sagoTombWins(rec,nbTombTs2))rec.newBook=null;
+            if(D.R[date][sid]&&D.R[date][sid].newBook!=null&&sagoTombWins(D.R[date][sid],nbTombTs2))D.R[date][sid].newBook=null;
           }
           // 📌 curriculum·sessionSubject·classMove도 코스 클라우드와 동일하게 fieldClears 무덤으로 보호
           if(D.tombstones?.fieldClears){
             ['monthlyEval','curriculum','sessionSubject','classMove'].forEach(f=>{
               const key=date+'|'+sid+'|'+f;
-              if(D.tombstones.fieldClears[key]!=null){
-                if(rec&&rec[f]!=null&&rec[f]!=='')rec[f]=null;
-                if(D.R[date][sid]&&D.R[date][sid][f]!=null&&D.R[date][sid][f]!=='')D.R[date][sid][f]=null;
+              const fcTombTs2=D.tombstones.fieldClears[key];
+              if(fcTombTs2!=null){
+                if(rec&&rec[f]!=null&&rec[f]!==''&&sagoTombWins(rec,fcTombTs2))rec[f]=null;
+                if(D.R[date][sid]&&D.R[date][sid][f]!=null&&D.R[date][sid][f]!==''&&sagoTombWins(D.R[date][sid],fcTombTs2))D.R[date][sid][f]=null;
               }
             });
           }
