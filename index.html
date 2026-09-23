@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-23-tombstone-audit-v23'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-23-facto-quick-detail-v24'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11746,6 +11746,7 @@ function saveFactoScore(){
   if(!retest)delete entry.retestScore;
   D._factoLastMonth=Number(month);
   D._factoLastRound=round?Number(round):null;
+  const isNew=!FACTO_SCORE_EDIT_ID;
   if(FACTO_SCORE_EDIT_ID){
     const idx=D.tomaScores.findIndex(x=>x.id===FACTO_SCORE_EDIT_ID);
     if(idx>=0)D.tomaScores[idx]=entry;
@@ -11753,6 +11754,10 @@ function saveFactoScore(){
     D.tomaScores.push(entry);
   }
   SD();closeM('facto-score-modal');GRADE_SID=sid;renderAll();
+  // 📌 아이 이름 → 성적추가 → 저장 → (따로 찾아서) 상세 성적표 작성, 이렇게 단계가 나뉘어 있어서
+  // 번거롭다는 요청으로, 새로 입력한 경우에는 저장하자마자 상세 성적표 작성 화면으로 바로 이어서
+  // 연다 — 기존에 있던 성적을 고치는 경우(수정)는 원래대로 목록으로 돌아간다.
+  if(isNew){ openMEReportEditor(entry.id); return; }
   toast(FACTO_SCORE_EDIT_ID?'수정되었습니다':`${month}월 팩토시험 성적 저장 ✓`);
 }
 
