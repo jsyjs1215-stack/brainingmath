@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-23-tpl-sort-v21'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-23-gtsm-hide-empty-v22'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13765,13 +13765,30 @@ function gtsmRenderPreview(){
 
   const p1=document.getElementById('gtsm-previewSection1');
   const parsed1=gtsmParseContent(s1);
-  if(parsed1){p1.innerHTML=parsed1;p1.classList.remove('gtsm-empty-tag');}
-  else{p1.textContent='내용을 입력하면 여기에 표시됩니다.';p1.classList.add('gtsm-empty-tag');}
+  // 📌 이 아이는 개별 평가결과·학습내용을 굳이 안 적어도 되는 경우가 있어(예: 특별히 전할 말이
+  // 없는 달), 비워두면 편집 화면에도, 인쇄·다운로드에도 이 섹션 전체(제목·평가범위·내용)가 아예
+  // 안 보이게 한다 — 예전엔 "내용을 입력하면 여기에 표시됩니다"라는 안내 문구가 그대로 인쇄까지
+  // 나가서 부모님이 보시기에 이상했다.
+  const s1Section=document.getElementById('gtsm-s1Title')?.closest('.gtsm-section');
+  if(parsed1){
+    p1.innerHTML=parsed1;p1.classList.remove('gtsm-empty-tag');
+    if(s1Section)s1Section.style.display='';
+  } else {
+    p1.textContent='';p1.classList.remove('gtsm-empty-tag');
+    if(s1Section)s1Section.style.display='none';
+  }
 
   const p3=document.getElementById('gtsm-previewSection3');
   const parsed3=gtsmParseContent(s3);
-  if(parsed3){p3.innerHTML=parsed3;p3.classList.remove('gtsm-empty-tag');}
-  else{p3.textContent='내용을 입력하면 여기에 표시됩니다.';p3.classList.add('gtsm-empty-tag');}
+  // 📌 마무리 말씀도 같은 이유 — 비워두면 인쇄에서 "마무리 말씀" 제목까지 통째로 빠진다
+  // (서명 "브레이닝수학학원 드림"은 마무리 말씀 유무와 무관하게 항상 남겨둠).
+  if(parsed3){
+    p3.innerHTML=parsed3;p3.classList.remove('gtsm-empty-tag');
+    if(closingEl)closingEl.style.display='';
+  } else {
+    p3.textContent='';p3.classList.remove('gtsm-empty-tag');
+    if(closingEl)closingEl.style.display='none';
+  }
 }
 function gtsmDownloadHtml(){
   const sheetEl=document.getElementById('gtsm-sheet');
