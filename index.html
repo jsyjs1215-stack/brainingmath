@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-22-full-audit-v20'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-23-tpl-sort-v21'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -12413,6 +12413,14 @@ function getMEReport(m){
 }
 // ═══ 상세 성적표 템플릿 (레벨·책 권마다 문항 구성·회원평균이 고정되어 있어, 한 번 만들어두고 재사용) ═══
 function getScoreTemplates(){ if(!Array.isArray(D.scoreTemplates))D.scoreTemplates=[]; return D.scoreTemplates; }
+// ⚠ 목록/선택창에 "보여줄 때"만 쓰는 이름순 정렬 사본 — 예전엔 만든 순서 그대로 나와서 템플릿이
+// 늘어날수록 원하는 걸 찾기 어려웠다("입력한 순서대로 나온다"는 신고의 원인). 실제 저장 배열은
+// getScoreTemplates()가 그대로 반환하므로, 여기서 새로 만든 사본에 push/수정을 해도 저장되지
+// 않는다 — 그래서 저장·수정·삭제 쪽은 반드시 getScoreTemplates()(원본)를 그대로 쓰고, 화면에
+// 목록을 그릴 때만 이 함수를 쓴다.
+function getScoreTemplatesSorted(){
+  return [...getScoreTemplates()].sort((a,b)=>String(a?.name||'').localeCompare(String(b?.name||''),'ko',{numeric:true}));
+}
 function applyScoreTemplate(){
   const sel=document.getElementById('mer-tpl-select');
   const tid=sel?.value;
@@ -12579,7 +12587,7 @@ function deleteScoreTplInManager(id){
 function renderScoreTplManager(){
   const body=document.getElementById('score-tpl-body');if(!body)return;
   if(!SCORE_TPL_DRAFT){
-    const list=getScoreTemplates();
+    const list=getScoreTemplatesSorted();
     let h=`<button type="button" onclick="newScoreTpl()" style="width:100%;padding:10px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;"><i class="ti ti-plus"></i> 새 템플릿 만들기</button>`;
     if(!list.length){
       h+=`<div class="empty"><i class="ti ti-file-off"></i>아직 저장된 템플릿이 없어요.<br><span style="font-size:12px;color:var(--muted);">레벨·권마다 하나씩 만들어두면 성적표 작성이 훨씬 빨라져요.</span></div>`;
@@ -12781,8 +12789,8 @@ function renderMEReportEditor(){
   const mLabel=m.testName||(m.round?`제${m.round}회 팩토시험`:(m.month?m.month+'월 팩토시험':'팩토시험'));
   let h=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${esc(m.sid)} · ${esc(mLabel)}</div>`;
   // 📌 시험지 템플릿: 같은 레벨·같은 책(권)의 시험은 문항 구성·UNIT·회원평균이 항상 같으므로,
-  // 한 번 저장해두면 다음부터는 학생 득점만 입력하면 되게 함.
-  const tpls=getScoreTemplates();
+  // 한 번 저장해두면 다음부터는 학생 득점만 입력하면 되게 함. 목록은 이름순으로 보여줘서 찾기 쉽게 함.
+  const tpls=getScoreTemplatesSorted();
   h+=`<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:var(--rs);padding:10px 11px;margin-bottom:12px;">
     <div style="font-size:11px;font-weight:700;color:#0369A1;margin-bottom:6px;">📋 시험지 템플릿 <small style="font-weight:400;color:var(--muted);">(레벨·권별로 저장해두고 재사용 — 회원평균·문항 구성이 자동으로 채워져요)</small></div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;">
