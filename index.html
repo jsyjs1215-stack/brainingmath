@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-22-sago-hw-cloud-fix-v19'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-22-full-audit-v20'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -16442,17 +16442,26 @@ const COURSE_ONLY_BRANDS=['아리수','최상위수학','최상위','아이비�
 function isCourseOnlyBrandValue(v){ return typeof v==='string'&&COURSE_ONLY_BRANDS.some(b=>v.startsWith(b)); }
 function sanitizeSagoRec(rec){
   const out={};
+  // ⚠ 교재관리(공용 교재 목록) 확장으로 사고력 화면의 "오늘 진행 교재"에서도 이제 아리수·쎈처럼
+  // 원래 저학년·고학년 전용이던 브랜드를 고를 수 있게 됐다 — 그래서 curriculum/sessionSubject/
+  // newBook 값이 그 브랜드로 시작한다고 해서 무조건 "잘못 섞여 들어온 저학년 내용"이라고 단정해
+  // 지우면, 선생님이 사고력 화면에서 진짜로 그 브랜드를 골라 입력한 것까지 저장하자마자
+  // 지워버리는 사고가 난다. 진짜 오염(다른 학생의 저학년 기록이 병합 충돌로 섞여 들어온 경우)은
+  // 항상 COURSE_ONLY_R_FIELDS(unitTest·slotData 등, 사고력 화면이 절대 쓰지 않는 필드)도 함께
+  // 실려 있으므로, 그 필드가 하나라도 있었을 때만 브랜드 검사를 추가로 적용한다.
+  const hadCourseOnlyField=Object.keys(rec||{}).some(k=>COURSE_ONLY_R_FIELDS.includes(k)&&rec[k]!=null&&rec[k]!=='');
   Object.keys(rec||{}).forEach(k=>{ if(!COURSE_ONLY_R_FIELDS.includes(k))out[k]=rec[k]; });
-  if(isCourseOnlyBrandValue(out.curriculum))delete out.curriculum;
-  if(isCourseOnlyBrandValue(out.sessionSubject))delete out.sessionSubject;
-  // ⚠ newBook(새 책 시작)도 같은 이유로 걸러야 한다 — 배열(nbArr 정규화 대상)이거나 예전 방식의
-  // 단일 객체일 수 있어 두 모양 다 처리한다. 저학년 전용 브랜드로 시작하는 항목만 제거하고,
-  // 사고력 책(팩토·수학이재밌어·필즈·기타교재)은 그대로 둔다.
-  if(out.newBook){
-    const arr=Array.isArray(out.newBook)?out.newBook:[out.newBook];
-    const filtered=arr.filter(nb=>nb&&!isCourseOnlyBrandValue(nb.subject)&&!isCourseOnlyBrandValue(nb.title));
-    if(!filtered.length)delete out.newBook;
-    else out.newBook=Array.isArray(out.newBook)?filtered:filtered[0];
+  if(hadCourseOnlyField){
+    if(isCourseOnlyBrandValue(out.curriculum))delete out.curriculum;
+    if(isCourseOnlyBrandValue(out.sessionSubject))delete out.sessionSubject;
+    // newBook(새 책 시작)도 같은 이유로 걸러야 한다 — 배열(nbArr 정규화 대상)이거나 예전 방식의
+    // 단일 객체일 수 있어 두 모양 다 처리한다.
+    if(out.newBook){
+      const arr=Array.isArray(out.newBook)?out.newBook:[out.newBook];
+      const filtered=arr.filter(nb=>nb&&!isCourseOnlyBrandValue(nb.subject)&&!isCourseOnlyBrandValue(nb.title));
+      if(!filtered.length)delete out.newBook;
+      else out.newBook=Array.isArray(out.newBook)?filtered:filtered[0];
+    }
   }
   return out;
 }
