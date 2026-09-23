@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-23-gtsm-hide-empty-v22'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-23-tombstone-audit-v23'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -15479,10 +15479,16 @@ function startCloudListen() {
           // 취소한 그 슬롯만 서버·로컬 양쪽의 _extraSlots 배열에서 제거해서, 다른 필드를 편집하다가
           // _updatedAt이 새로 갱신된 예전(스테일) 기기의 _extraSlots 통째 교체 때문에 방금 취소한
           // 임시 추가가 다시 살아나지 않도록 한다("보충 지웠는데 계속 살아나요" 신고의 원인).
+          // ⚠ 단, 취소한 뒤 그 같은 슬롯에 다시 새로 추가한 경우(= 그 기록이 무덤 시각보다 더
+          // 나중에 저장됨)까지 매번 다시 지워버리면 안 된다 — 안 그러면 한 번이라도 취소한 적
+          // 있는 슬롯은 그 뒤로 다시 추가해도 저장하자마자 계속 지워진다(같은 원리의 사고).
           if (D.tombstones?.extraSlotDeletes) {
             const stripDeletedSlots = (rec) => {
               if (!rec || !Array.isArray(rec._extraSlots)) return;
-              rec._extraSlots = rec._extraSlots.filter(x => D.tombstones.extraSlotDeletes[date + '|' + sid + '|' + x.slot] == null);
+              rec._extraSlots = rec._extraSlots.filter(x => {
+                const ts = D.tombstones.extraSlotDeletes[date + '|' + sid + '|' + x.slot];
+                return ts == null || !tombWins(rec, ts);
+              });
             };
             stripDeletedSlots(serverRec);
             stripDeletedSlots(localRec);
@@ -15490,8 +15496,16 @@ function startCloudListen() {
           // ⚠ 이 학생의 이 날짜 기록 자체를 방금 삭제했으면(recordDeletes tombstone), 로컬에
           // 없다고 해서 서버의 예전 기록으로 되살리지 않는다 — deleteRecord/전체 초기화로
           // 지운 기록이 다른 기기와 동기화되면서 다시 나타나던 문제를 막기 위함.
+          // ⚠ 단, 무덤을 남긴 뒤 그 학생·그 날짜에 다시 새로 입력한 기록(= 무덤 시각보다 더 나중에
+          // 저장된 것)까지 영원히 막아버리면 안 된다 — 그러면 한 번이라도 그 날짜 기록을 지운 적이
+          // 있는 학생은 그 뒤로 다시 입력해도 "다른 기기·새로고침에서는 안 보인다"가 된다(이 기기
+          // 로컬에는 남아있어서 당장은 안 지워진 것처럼 보이지만, 서버에서 받은 사본이 다른 모든
+          // 기기·새로고침에는 절대 반영되지 않는다) — 새책·숙제 등 필드 하나짜리 무덤과 같은 이유로
+          // 같은 방식(시각 비교)으로 고친다. 로컬에 이미 다시 입력해둔 기록이 있으면(localRec) 그건
+          // 항상 존중하고, 서버 값(serverRec)이 무덤보다 더 나중에 저장된 경우도 정상적으로 받아들인다.
           const recDelKey = date + '|' + sid;
-          if (D.tombstones?.recordDeletes?.[recDelKey] != null) return;
+          const recDelTs = D.tombstones?.recordDeletes?.[recDelKey];
+          if (recDelTs != null && !localRec && !(serverRec && (serverRec._updatedAt||0) > recDelTs)) return;
           // 🛑 저학년·고학년 기록에는 사고력 전용 내용(팩토·수학이재밌어·필즈 진도 등)이 들어가면 안 된다 —
           // 서버 값과 이 기기가 갖고 있던 값 양쪽에서 모두 걷어낸 뒤 병합(사고력 쪽 sanitizeSagoRec와 대칭).
           stripSagoContentInPlace(serverRec);
@@ -16331,8 +16345,11 @@ function startSagoListen(){
           if((D.S||[]).some(x=>x&&x.id===sid&&(x.group||'저학년')!=='사고력'))return;
           // ⚠ 코스 클라우드 병합과 동일하게, 이 기록을 방금 삭제했으면(recordDeletes 무덤) 다른
           // 기기의 예전 사본으로 되살아나지 않게 막는다 — 빠져있던 보호를 여기도 맞춰서 추가함.
+          // ⚠ 단, 무덤을 남긴 뒤 그 학생·그 날짜에 다시 새로 입력한 기록(무덤 시각보다 더 나중에
+          // 저장된 것)까지 영원히 막지 않도록, 코스 클라우드와 동일하게 시각으로 비교한다.
           const recDelKey=date+'|'+sid;
-          if(D.tombstones?.recordDeletes?.[recDelKey]!=null)return;
+          const recDelTs=D.tombstones?.recordDeletes?.[recDelKey];
+          if(recDelTs!=null&&!D.R[date][sid]&&!(rec&&(rec._updatedAt||0)>recDelTs))return;
           // 📌 새 책 시작을 체크 해제해서 지운 기록(newBookDeletes 무덤)도 코스 클라우드와 동일하게
           // 서버의 예전(잘못 입력한) 값으로 되살아나지 않도록 병합 전에 미리 제거한다.
           // ⚠ 무덤(tombstone) 보호는 반드시 "들어오는 값(rec)"과 "이 기기가 이미 갖고 있던 값
@@ -16365,10 +16382,15 @@ function startSagoListen(){
           }
           // 📌 보충/시간변동 등 "임시 추가"를 취소한 기록(extraSlotDeletes 무덤)도 동일 — 취소한
           // 슬롯만 rec·localRec 양쪽 _extraSlots에서 제거해서 다시 살아나지 않게 한다.
+          // ⚠ 코스 클라우드와 동일하게, 취소한 뒤 다시 그 슬롯을 추가한(= 기록이 무덤보다 더 나중에
+          // 저장된) 경우까지 매번 지우지 않도록 시각으로 비교한다.
           if(D.tombstones?.extraSlotDeletes){
             const stripDeletedSlots=(r2)=>{
               if(!r2||!Array.isArray(r2._extraSlots))return;
-              r2._extraSlots=r2._extraSlots.filter(x=>D.tombstones.extraSlotDeletes[date+'|'+sid+'|'+x.slot]==null);
+              r2._extraSlots=r2._extraSlots.filter(x=>{
+                const ts=D.tombstones.extraSlotDeletes[date+'|'+sid+'|'+x.slot];
+                return ts==null||!sagoTombWins(r2,ts);
+              });
             };
             stripDeletedSlots(rec);
             stripDeletedSlots(D.R[date][sid]);
