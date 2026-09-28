@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-28-me-retest-fix-v28'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-28-retest-score-v29'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11450,6 +11450,10 @@ function rGradeDetME(sid){
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
         ${m.score?`<span style="font-size:20px;font-weight:700;color:${hasTier?tier.color:'#1E40AF'};">${m.score}점</span>`:''}
         ${m.pass?`<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:${passBg};color:${passColor};">${m.pass}</span>`:''}
+        ${m.pass==='재시험'?(m.retestScore
+          ?`<span style="font-size:13px;font-weight:700;color:var(--ok);">→ 재시험 ${esc(String(m.retestScore))}점</span><button onclick="saveMERetestScore('${esc(m.id)}')" style="font-size:10px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 8px;cursor:pointer;">수정</button>`
+          :`<button onclick="saveMERetestScore('${esc(m.id)}')" style="font-size:11px;font-weight:700;color:#fff;background:var(--dan);border:none;border-radius:10px;padding:3px 10px;cursor:pointer;">🔄 재시험 점수 입력</button>`
+        ):''}
       </div>
     </div>`;
   });
@@ -11483,6 +11487,10 @@ function rGradeDetME(sid){
           ${u.score!==''&&u.score!==undefined?`<span style="font-size:20px;font-weight:700;color:${hasScore?'#6B21A8':'var(--muted)'};">${esc(String(u.score))}${hasScore?'점':''}</span>`:''}
           ${u.pass?`<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:${passBg2};color:${passColor2};">${esc(u.pass)}</span>`:''}
           ${u.inProgress?`<span style="font-size:11px;font-weight:700;color:#92400E;">⏳ 진행중</span>`:''}
+          ${u.pass==='재시험'?(u.retestScore
+            ?`<span style="font-size:13px;font-weight:700;color:var(--ok);">→ 재시험 ${esc(String(u.retestScore))}점</span><button onclick="saveUTRetestScore('${esc(sid)}','${esc(u.date)}')" style="font-size:10px;color:var(--pri2);background:var(--pri-l);border:1px solid #93C5FD;border-radius:10px;padding:2px 8px;cursor:pointer;">수정</button>`
+            :`<button onclick="saveUTRetestScore('${esc(sid)}','${esc(u.date)}')" style="font-size:11px;font-weight:700;color:#fff;background:var(--dan);border:none;border-radius:10px;padding:3px 10px;cursor:pointer;">🔄 재시험 점수 입력</button>`
+          ):''}
         </div>
       </div>`;
     });
@@ -11792,6 +11800,21 @@ function deleteMEScore(sid, meMonth, date){
   markDeleted('meScores',removedIds);
   D.meScores=(D.meScores||[]).filter(m=>!(m.sid===sid&&m.meMonth===Number(meMonth)&&(date?m.date===date:true)));
   SD();renderAll();toast('삭제되었습니다');
+}
+// 🔄 월말평가 재시험 점수 — 단원평가와 동일한 패턴. 원래 점수는 그대로 두고 재시험 점수를 따로
+// 기록해서 월간리포트에 "40점 → 재시험 80점"처럼 같이 보여준다. 점수를 입력하면 재시험이 끝난
+// 것이므로, 그 날짜의 수업 기록에 남아있는 재시험 대상 표시(_retest)도 함께 완료 처리한다.
+function saveMERetestScore(id){
+  const m=(D.meScores||[]).find(x=>x.id===id);
+  if(!m){toast('월말평가 기록을 찾을 수 없습니다');return;}
+  const newScore=prompt('재시험 점수를 입력하세요',m.retestScore||'');
+  if(newScore===null)return;
+  m.retestScore=newScore.trim();
+  m._updatedAt=Date.now();
+  if(m.date&&D.R[m.date]&&D.R[m.date][m.sid]){
+    sR(m.date,m.sid,'_retestDone',true);
+  }
+  SD();renderAll();toast('재시험 점수 저장 ✓');
 }
 // 이미 수업입력에서 "오늘 월말평가 봤어요"로 체크했지만 아직 점수가 입력되지 않은
 // 가장 최근 수업 기록의 날짜를 찾음. 성적관리의 "날짜" 필드를 그냥 기본값(오늘)으로
@@ -12125,6 +12148,20 @@ function deleteUTGrade(sid,date){
   sR(date,sid,'unitTest',null);
   renderAll();
   toast('단원평가 기록이 삭제되었습니다');
+}
+// 🔄 단원평가 재시험 점수 — "재시험"으로 저장된 기록에, 재시험을 본 뒤 그 점수를 이어서 입력할 수
+// 있게 함(원래 점수는 그대로 두고 옆에 재시험 점수를 따로 기록 — 월간리포트에 "40점 → 재시험
+// 80점"처럼 같이 표시됨). 점수를 입력하면 재시험이 끝난 것이므로 재시험 대상 표시도 함께 끈다.
+function saveUTRetestScore(sid,date){
+  const r=D.R[date]?.[sid];
+  if(!r||!r.unitTest){toast('단원평가 기록을 찾을 수 없습니다');return;}
+  const newScore=prompt('재시험 점수를 입력하세요',r.unitTest.retestScore||'');
+  if(newScore===null)return;
+  const ut=Object.assign({},r.unitTest,{retestScore:newScore.trim()});
+  sR(date,sid,'unitTest',ut);
+  sR(date,sid,'_retestDone',true);
+  toast('재시험 점수 저장 ✓');
+  renderAll();
 }
 
 let TOMA_EDIT_ID=null;
@@ -13239,7 +13276,7 @@ function buildMonthlyReport(sid,session){
     const slotMe=(x.slotData&&x.slot&&x.slotData[x.slot]?.monthlyEval)||(!x.slotData?x.monthlyEval:null);
     const dateScore=meScoresDedup.find(m=>m.date===x.date)||null;
     const notTaken=slotMe.notTaken||dateScore?.notTaken;
-    return {date:x.date,score:slotMe.score||dateScore?.score||'',pass:slotMe.pass||dateScore?.pass||'',notTaken,reason:slotMe.reason||dateScore?.reason||''};
+    return {date:x.date,score:slotMe.score||dateScore?.score||'',pass:slotMe.pass||dateScore?.pass||'',notTaken,reason:slotMe.reason||dateScore?.reason||'',retestScore:dateScore?.retestScore||slotMe.retestScore||''};
   }).sort((a,b)=>a.date.localeCompare(b.date));
   // 단원평가: 이 기간의 수업 기록 중 unitTest가 있는 날짜 모두
   const utDatesInPeriod=entries.filter(x=>x.unitTest).map(x=>({date:x.date,...x.unitTest})).sort((a,b)=>a.date.localeCompare(b.date));
@@ -13332,8 +13369,8 @@ function buildMonthlyReport(sid,session){
       </tr></thead>
       <tbody>`;
     const evalRows=[
-      ...meDatesInPeriod.map(m=>({date:m.date,kind:'🏆 월말평가',kindColor:'#1E40AF',detail:'-',score:m.score,pass:m.pass,inProgress:false,notTaken:!!m.notTaken,reason:m.reason||''})),
-      ...utDatesInPeriod.map(u=>({date:u.date,kind:'📝 단원평가',kindColor:'#6B21A8',detail:`${esc(u.type||'')} ${esc(u.level||'')} ${esc(u.number||'')}`.trim(),score:u.score,pass:u.pass,inProgress:!!u.inProgress,notTaken:false,reason:''})),
+      ...meDatesInPeriod.map(m=>({date:m.date,kind:'🏆 월말평가',kindColor:'#1E40AF',detail:'-',score:m.score,pass:m.pass,retestScore:m.retestScore||'',inProgress:false,notTaken:!!m.notTaken,reason:m.reason||''})),
+      ...utDatesInPeriod.map(u=>({date:u.date,kind:'📝 단원평가',kindColor:'#6B21A8',detail:`${esc(u.type||'')} ${esc(u.level||'')} ${esc(u.number||'')}`.trim(),score:u.score,pass:u.pass,retestScore:u.retestScore||'',inProgress:!!u.inProgress,notTaken:false,reason:''})),
     ].sort((a,b)=>a.date.localeCompare(b.date));
     evalRows.forEach(row=>{
       if(row.notTaken){
@@ -13349,7 +13386,7 @@ function buildMonthlyReport(sid,session){
         <td style="padding:6px 5px;border:1px solid var(--bdr);white-space:nowrap;">${row.date}</td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);font-weight:600;color:${row.kindColor};">${row.kind}</td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);">${row.detail||'-'}${row.inProgress?' <span style="color:#92400E;font-weight:700;">⏳ 진행중(다음시간 이어서)</span>':''}</td>
-        <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;font-weight:700;color:${tier.label?tier.color:'var(--txt)'};">${row.score?esc(row.score)+'점':'-'}${tier.label?` <span style="font-size:9px;">${tier.icon||''}</span>`:''}</td>
+        <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;font-weight:700;color:${tier.label?tier.color:'var(--txt)'};">${row.score?esc(row.score)+'점':'-'}${tier.label?` <span style="font-size:9px;">${tier.icon||''}</span>`:''}${row.retestScore?` <span style="color:var(--ok);">→ 재시험 ${esc(row.retestScore)}점</span>`:''}</td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${row.pass?esc(row.pass):'-'}</td>
       </tr>`;
     });
