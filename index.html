@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-28-retest-fix-v27'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-28-me-retest-fix-v28'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6589,6 +6589,8 @@ function saveRec(){
   // 공통 monthlyEval: 이 슬롯만 월말평가면 공통도 세팅, 없으면 다른 슬롯 확인
   const anySlotME=Object.values(D.R[date][sid].slotData||{}).some(sd=>sd.monthlyEval);
   sR(date,sid,'monthlyEval',anySlotME?(meVal||Object.values(D.R[date][sid].slotData).find(sd=>sd.monthlyEval)?.monthlyEval):null);
+  // 📌 월말평가 합격여부를 "재시험"으로 저장하면(단원평가와 동일하게) 재시험 표시를 자동으로 켠다.
+  if(meVal&&meVal.pass==='재시험'){sR(date,sid,'_retest',true);sR(date,sid,'_retestDone',false);}
   // 📝 오답풀이: 월말평가를 체크하고 저장했는데, "이 날짜"로는 아직 한 번도 오답풀이 사이클을
   // 시작한 적이 없으면 새로 등록. (완료 처리했더라도 같은 날짜를 다시 저장한다고 해서
   // 또 "대기중"으로 되돌아가지 않도록 — 어떤 날짜가 마지막으로 이 사이클을 만들었는지 별도 기록)
@@ -12026,6 +12028,11 @@ function saveMEGrade(){
     }
     r.monthlyEval=meVal;
     r._updatedAt=Date.now();
+    // 📌 월말평가 합격여부를 "재시험"으로 저장하면, 단원평가와 동일하게 수업입력·한눈에보기에
+    // 재시험 표시가 자동으로 뜨고 완료 처리도 할 수 있게 한다("성적입력에서 재시험을 눌렀는데
+    // 표시가 안 보인다" 신고의 원인 — 예전엔 이 성적관리 화면의 재시험 선택이 수업기록의 재시험
+    // 표시(_retest)와 전혀 연결돼 있지 않았다).
+    if(pass==='재시험'){ r._retest=true; r._retestDone=false; }
   }
   SD();closeM('me-grade-modal');
   GRADE_TEST='ME';GRADE_SID=sid;
