@@ -522,13 +522,18 @@ button,input,textarea,select{font-family:inherit;}
       <span style="font-size:11px;color:#3B82F6;margin-left:4px;">점수·합격여부는 성적관리 탭에서 입력</span>
     </label>
   </div>
-  <!-- 월말평가 섹션: 재시험 버튼 -->
+  <!-- 월말평가 섹션 (숨김 입력값 보관용) -->
   <div id="em-me-section" style="display:none;padding:6px 11px 4px;">
     <input type="hidden" id="em-me-score">
     <input type="hidden" id="em-me-pass">
     <input type="hidden" id="em-me-note">
     <input type="hidden" id="em-me-month">
-    <div style="display:flex;align-items:center;gap:8px;">
+  </div>
+  <!-- 🔄 재시험 — 월말평가·단원평가 성적을 "재시험"으로 저장하면(성적관리 탭 포함) 자동으로 여기 뜬다.
+       예전엔 "오늘 월말평가 봤어요"를 체크해야만 보여서, 성적관리에서 재시험으로 입력한 경우엔
+       수업입력·한눈에보기 어디에도 표시가 안 되고, 완료 처리할 곳도 못 찾는 문제가 있었다. -->
+  <div id="em-retest-box" style="display:none;margin-bottom:8px;padding:6px 11px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:5px 10px;border-radius:var(--rs);border:1px solid var(--dan-b);background:var(--dan-l);color:var(--dan);">
         <input type="checkbox" id="em-retest-chk" onchange="togRetest()" style="width:14px;height:14px;accent-color:var(--dan);cursor:pointer;">
         🔄 재시험 대상
@@ -1276,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-28-attend-cap-v26'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-28-retest-fix-v27'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2703,13 +2708,9 @@ function togEMME(){
   const meChkEl=document.getElementById('me-chk');
   const meDetailEl=document.getElementById('me-detail');
   if(meChkEl){meChkEl.checked=chk;if(meDetailEl)meDetailEl.style.display=chk?'block':'none';}
-  if(!chk){
-    // 월말평가 해제 시 재시험도 해제
-    const retestChk=document.getElementById('em-retest-chk');
-    if(retestChk)retestChk.checked=false;
-    const retestDone=document.getElementById('em-retest-done-area');
-    if(retestDone)retestDone.style.display='none';
-  }
+  // ⚠ 재시험 체크칸은 이제 월말평가 체크와 무관하게 항상 따로 떠 있는 칸이라(성적관리에서
+  // "재시험"으로 저장한 것도 여기서 바로 보이고 완료 처리할 수 있어야 하므로), 월말평가를
+  // 체크 해제해도 재시험 표시는 그대로 둔다.
 }
 function togRetest(){
   const chk=document.getElementById('em-retest-chk')?.checked;
@@ -3401,6 +3402,12 @@ function rOvr(){
       const hasWrongAnswerOvr=s.subject!=='아리수'&&!!s._wrongAnswerPending&&(!s._wrongAnswerSourceDate||date>s._wrongAnswerSourceDate);
       // ⏳ 단원평가 진행중 (카드뷰와 동일한 학생 단위 플래그)
       const hasUtPendingOvr=!!s._utPending&&(!s._utPendingDate||date>s._utPendingDate);
+      // 🔄 재시험 (카드뷰와 동일한 로직 — 성적관리에서 "재시험"으로 저장해도 여기 뜨도록 함)
+      const hasRetestOvr=r._retestDone?false:(r._retest?true:(()=>{
+        const prevDates=Object.keys(D.R).filter(d=>d<date).sort().reverse();
+        for(const pd of prevDates){const pr=D.R[pd]?.[sid];if(pr&&pr._retest&&!pr._retestDone)return true;if(pr&&pr._retestDone)return false;}
+        return false;
+      })());
       // 📌 월말평가 보충 필요 (카드뷰와 동일한 학생 단위 플래그) — 모든 선생님이 공유해서 볼 수 있게
       const hasReinforceNeededOvr=!!s._reinforceNeeded;
       const rowBg=absent?'background:#FFF5F5;':isOtherClass?'background:#F5F3FF;':hasWrongAnswerOvr?'background:#FEF2F2;':hasReinforceNeededOvr?'background:#F5F3FF;':activeImpNotes.length>0?'background:#FFFBEB;':hasN?'background:#F0F9FF;':'';
@@ -3465,7 +3472,8 @@ function rOvr(){
           ${meRec?(meRec.notTaken?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🚫 월말평가 미응시${meRec.reason?' · '+esc(meRec.reason):''}</div>`:`<div style="font-size:11px;color:#075985;font-weight:600;line-height:1.4;white-space:nowrap;">🏆 월말평가${meRec.score?' · '+esc(meRec.score):''}${meRec.pass?' · '+esc(meRec.pass):''}</div>`):''}
           ${r.unitTest?`<div style="font-size:11px;color:#6B21A8;font-weight:600;line-height:1.4;white-space:nowrap;">📝 단원평가${r.unitTest.number?' '+esc(r.unitTest.number):''}${r.unitTest.score?' · '+esc(r.unitTest.score)+'점':''}${r.unitTest.pass?' · '+esc(r.unitTest.pass):''}${r.unitTest.inProgress?' <span style="color:#92400E;font-weight:700;">⏳진행중</span>':''}</div>`:(hasUtPendingOvr?`<div style="font-size:11px;color:#92400E;font-weight:700;line-height:1.4;white-space:nowrap;">⏳ 단원평가 진행중${s._utPendingNumber?' · '+esc(s._utPendingNumber):''}</div>`:'')}
           ${hasReinforceNeededOvr?`<div style="font-size:11px;color:#7C3AED;font-weight:700;line-height:1.4;white-space:nowrap;" title="${escAttr(s._reinforceNote||'')}">📌 보충 필요${s._reinforceNote?' · '+esc(s._reinforceNote):''}</div>`:''}
-          ${!newBookArrOvr.length&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
+          ${hasRetestOvr?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🔄 재시험 대상</div>`:''}
+          ${!newBookArrOvr.length&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr&&!hasRetestOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
         </td>
         <td>
           ${hasWrongAnswerOvr?'<span style="background:#DC2626;color:#fff;border:1px solid #B91C1C;border-radius:20px;font-size:10px;padding:2px 7px;font-weight:800;animation:waBadgeBlink 1.4s ease-in-out infinite;display:inline-block;">📝 필요</span>':(r._wrongAnswerCompletedHere?'<span style="background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;border-radius:20px;font-size:10px;padding:2px 7px;font-weight:800;display:inline-block;">✅ 완료</span>':'<span style="color:var(--muted);font-size:11px;font-style:italic;">-</span>')}
@@ -6176,8 +6184,12 @@ function openEdit(sid,slot,date){
   }
   const retestChk=document.getElementById('em-retest-chk');
   const doneArea=document.getElementById('em-retest-done-area');
+  const retestBox=document.getElementById('em-retest-box');
   if(retestChk)retestChk.checked=isRetest&&!isRetestDone;
   if(doneArea)doneArea.style.display=(isRetest&&!isRetestDone)?'flex':'none';
+  // 재시험 칸은 항상 보여준다 — 월말평가·단원평가 성적을 "재시험"으로 저장하면 자동으로
+  // 체크되어 여기서 바로 확인·완료 처리할 수 있어야 하기 때문(더 이상 월말평가 체크와 연동 안 함).
+  if(retestBox)retestBox.style.display='block';
   // 오답풀이 상태 로드: 학생 단위 플래그로 판단 (완료 전까지는 모든 날짜에서 동일하게 표시)
   // 단, 월말평가를 "본 날짜" 및 그 이전 날짜에는 아직 오답을 확인할 수 없으므로 표시하지 않고,
   // 그 다음 수업부터 표시되도록 함 (당일엔 "월말평가 봤어요" 체크만으로 충분히 확인 가능)
@@ -6545,6 +6557,10 @@ function saveRec(){
   const utChk=document.getElementById('ut-chk')?.checked;
   const utInProgress=utChk&&(document.getElementById('ut-inprogress-chk')?.checked||false);
   sR(date,sid,'unitTest',utChk?{type:document.getElementById('ut-type').value,level:document.getElementById('ut-level').value,number:document.getElementById('ut-num').value,score:document.getElementById('ut-score').value,pass:document.getElementById('ut-pass').value,note:document.getElementById('ut-note').value,inProgress:utInProgress}:null);
+  // 📌 단원평가 통과여부를 "재시험"으로 저장하면, 위쪽 재시험 체크칸을 따로 체크하지 않았어도
+  // 자동으로 재시험 대상으로 표시한다 — 예전엔 이 값만 저장하고 넘어가면 수업입력·한눈에보기
+  // 어디에도 재시험 표시가 안 뜨고, 완료 처리할 방법도 없었다("재시험이 안 보인다" 신고의 원인).
+  if(utChk&&document.getElementById('ut-pass').value==='재시험'){sR(date,sid,'_retest',true);sR(date,sid,'_retestDone',false);}
   // 📝 단원평가 진행중 상태: 학생 단위 플래그로 관리 (오답풀이와 동일한 패턴)
   // — "다 못 풀어서 다음 시간에 이어서" 체크하고 저장하면 켜지고, 완료(체크 해제하고 저장)하면 꺼짐
   if(utChk&&utInProgress){
@@ -12088,6 +12104,9 @@ function saveUTGrade(){
     sR(UT_EDIT_CTX.date,UT_EDIT_CTX.sid,'unitTest',null);
   }
   sR(date,sid,'unitTest',{type,level,number,score,pass,note,inProgress:false});
+  // 📌 성적관리 탭에서 지난 단원평가를 "재시험"으로 입력해도, 수업입력·한눈에보기에 재시험
+  // 표시가 뜨고 완료 처리도 할 수 있도록 자동으로 재시험 대상 표시를 켠다.
+  if(pass==='재시험'){sR(date,sid,'_retest',true);sR(date,sid,'_retestDone',false);}
   UT_EDIT_CTX=null;
   closeM('ut-grade-modal');
   GRADE_SID=sid;
