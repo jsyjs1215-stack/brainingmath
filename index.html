@@ -1276,7 +1276,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-23-facto-quick-detail-v24'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-28-attend-count-fix-v25'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13133,18 +13133,23 @@ function rReport(){
 }
 function getSessionExpectedCount(sid,session){
   const today=tdk();
-  const midDate=session.start;
-  const sc=getSCForDate(midDate);
-  const period=activeSlotPeriod(midDate);
-  const slots=slotsForPeriod(period);
-  const schedDays=DAYS.filter(d=>slots.some(sl=>(sc[d]?.[sl.id]||[]).includes(sid)));
+  // ⚠ 예전엔 세션 시작일(session.start) 하루만 기준으로 그 학생의 요일 배정을 한 번 구해서
+  // 세션 전체 기간에 그대로 적용했다. 그런데 시간표 체계 개편(반 이름 방식 → G1~G7 방식,
+  // SLOT_CUTOVER)이 학생 전체가 아니라 일부 반만 먼저 옮겨간 상태라, 세션 시작일 쪽 체계에는
+  // 이 학생의 배정 요일이 일부만(또는 전혀) 없을 수 있어서 "총수업"이 실제보다 적게 잡히고,
+  // 그 결과 출석률이 200%처럼 100%를 넘는 이상한 값으로 나왔다("총수업 4일인데 출석 8일" 신고의
+  // 원인). 날짜(cutover)만으로 딱 한 체계를 고르면, 아직 새 체계로 안 옮겨간 학생은 그 날짜
+  // 이후로 계속 0으로 잡혀서 오히려 더 나쁜 값이 나온다 — 그래서 그날 두 체계(legacy·aug) 중
+  // 이 학생이 실제로 등록돼 있는 쪽을 그대로 인정한다(어느 체계든 배정돼 있으면 그 날은 수업일).
   const startD=new Date(session.start+'T00:00:00'),endD=new Date(session.end+'T00:00:00');
   let cnt=0;
   for(let dt=new Date(startD);dt<=endD;dt.setDate(dt.getDate()+1)){
     const dateStr=dk(dt);
     if(dateStr>today)break;
+    if(isClosure(dateStr))continue;
+    const sc=getSCForDate(dateStr);
     const dayName=WD[dt.getDay()];
-    if(schedDays.includes(dayName)&&!isClosure(dateStr))cnt++;
+    if(allSlotDefs().some(sl=>(sc[dayName]?.[sl.id]||[]).includes(sid)))cnt++;
   }
   return cnt;
 }
