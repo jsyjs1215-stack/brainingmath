@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-28-retest-score-v29'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-29-hw-rate-v30'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13239,7 +13239,11 @@ function buildMonthlyReport(sid,session){
   // ⚠ hwDone/hwPart를 전체 entries에서 세면, 결석했는데도 hwStatus가 기본값('완료')으로
   // 남아있는 기록까지 분자에 포함되어 분모(결석 제외)보다 커져서 100%를 넘는 경우가 있었음.
   // 반드시 hwBase(결석 제외)를 기준으로만 세야 함.
-  const hwBase=entries.filter(x=>x.attend!=='결석');
+  // ⚠ 또한 hwStatus 필드 자체가 없는 기록(선생님이 "직전 숙제 확인" 버튼을 아예 안 누른 날 —
+  // 예: 사고력↔교과 연동 이동(classMove) 등 특수 경로로 만들어진 기록)까지 분모에 넣으면
+  // "확인 안 한 날"이 "숙제 안 한 날"로 둔갑해 이행률이 실제보다 낮게 나온다. hwStatus가
+  // 실제로 기록된 날짜만 분모로 삼는다.
+  const hwBase=entries.filter(x=>x.attend!=='결석'&&x.hwStatus);
   const hwDone=hwBase.filter(x=>x.hwStatus==='완료').length;
   const hwPart=hwBase.filter(x=>x.hwStatus==='부분완료').length;
   const hwRate=hwBase.length?Math.min(100,Math.round((hwDone+hwPart*0.5)/hwBase.length*100)):0;
