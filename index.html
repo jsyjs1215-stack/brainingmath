@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-29-hw-rate-v30'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-29-attend-assume-v31'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13233,7 +13233,25 @@ function buildMonthlyReport(sid,session){
       .filter(([date,dr])=>date>=start&&date<=end&&date<=today&&dr[msid]&&isRealLesson(date,msid,dr[msid]))
       .map(([date,dr])=>({date,_sid:msid,...dr[msid]}))
   ).sort((a,b)=>a.date.localeCompare(b.date)||a._sid.localeCompare(b._sid));
-  const attendCnt=entries.filter(x=>x.attend!=='결석').length;
+  // 📌 시간표상 수업이 예정된 날인데 기록 자체가 아예 없는 경우(결석으로 표시된 적도 없음 —
+  // 예: 저학년+고학년 이중등록 학생의 한쪽 반 수업 기록이 통째로 누락된 경우)는 "결석"이 아니므로
+  // 출석으로 간주한다. 실제 기록이 있는 날은 그 기록을 그대로 쓰고(숙제/진도 등 다른 통계에는
+  // 영향 없음 — entries는 그대로 실제 기록 기준), 기록이 아예 없는 예정일만 출석 카운트에 더한다.
+  let missingScheduledAttend=0;
+  sidList.forEach(msid=>{
+    const startD2=new Date(start+'T00:00:00'),endD2=new Date(end+'T00:00:00');
+    for(let dt=new Date(startD2);dt<=endD2;dt.setDate(dt.getDate()+1)){
+      const dateStr=dk(dt);
+      if(dateStr>today)break;
+      if(isClosure(dateStr))continue;
+      const sc=getSCForDate(dateStr);
+      const dayName=WD[dt.getDay()];
+      if(!allSlotDefs().some(sl=>(sc[dayName]?.[sl.id]||[]).includes(msid)))continue;
+      const rec=D.R[dateStr]?.[msid];
+      if(!rec||!isRealLesson(dateStr,msid,rec))missingScheduledAttend++;
+    }
+  });
+  const attendCnt=entries.filter(x=>x.attend!=='결석').length+missingScheduledAttend;
   const absentCnt=entries.filter(x=>x.attend==='결석').length;
   const target=sidList.reduce((sum,msid)=>sum+getSessionExpectedCount(msid,session),0);
   // ⚠ hwDone/hwPart를 전체 entries에서 세면, 결석했는데도 hwStatus가 기본값('완료')으로
