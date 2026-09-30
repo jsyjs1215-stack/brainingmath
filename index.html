@@ -645,6 +645,10 @@ button,input,textarea,select{font-family:inherit;}
   <!-- 중요내용: 특이사항과 별도 입력. 확인(✓) 전까지 다음 수업들에도 계속 표시 -->
   <div class="fg"><label class="flbl">📌 중요내용 <small style="font-weight:400;color:var(--muted);">→ 확인 버튼 누르기 전까지 다음 수업들에도 계속 표시</small></label>
     <textarea class="fta" id="em-imp-input" placeholder="예) 어머니 전화번호 변경됨 / 다음달 이사 예정 / 구구단 집중 지도 필요..."></textarea>
+    <label style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;color:#92400E;font-weight:600;cursor:pointer;">
+      <input type="checkbox" id="em-imp-star" style="width:15px;height:15px;">
+      ⭐ 강조 — 다른 선생님도 꼭 한번 더 확인했으면 하는 내용이에요
+    </label>
   </div>
   <!-- 수업 이동 -->
   <div class="fg">
@@ -1281,7 +1285,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-30-assumed-rows-v34'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-30-imp-note-star-v35'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3263,7 +3267,7 @@ function rSch(){
             ${hasME?'<span class="b-me">🏆월말</span>':''}
             ${r.newBook?`<span style="background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;border-radius:20px;font-size:10px;padding:1px 5px;">📚새책</span>`:''}
             ${smsNeeded?'<span class="b-sms">📱</span>':''}
-            ${hasUndismissedNotes(sid)?'<span style="color:#F59E0B;font-size:13px;" title="중요내용">📌</span>':''}
+            ${hasImportantUndismissedNotes(sid)?'<span style="color:#DC2626;font-size:13px;" title="강조된 중요내용">⚠️📌</span>':hasUndismissedNotes(sid)?'<span style="color:#F59E0B;font-size:13px;" title="중요내용">📌</span>':''}
           </div>
           ${progStr(s)?`<div class="sc-curr">📖 ${esc(progStr(s))}</div>`:''}
           ${isHighCard
@@ -4059,7 +4063,7 @@ function rMgr(){
           ${esc(dispStuName(s.id))}
           <span class="badge" style="background:#F1F5F9;color:var(--muted);border-color:var(--bdr);">${GL[s.grade]||s.grade}</span>
           ${stuSubjBadgesHtml(s)}
-          ${hasImp?'<span style="color:#F59E0B;font-size:14px;" title="중요내용 있음">📌</span>':''}
+          ${hasImportantUndismissedNotes(s.id)?'<span style="color:#DC2626;font-size:14px;" title="강조된 중요내용 있음">⚠️📌</span>':hasImp?'<span style="color:#F59E0B;font-size:14px;" title="중요내용 있음">📌</span>':''}
           ${isWithdrawn?`<span class="wd-badge">퇴원 ${s.withdrawDate||''}</span><button onclick="event.stopPropagation();openWithdrawDateModal('${esc(s.id)}')" style="border:1px solid var(--bdr);background:#fff;color:var(--pri2);cursor:pointer;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">✏️ 날짜수정</button>`:''}
           ${isLeave?`<span class="lo-badge">🟡 휴원 ${s.leaveDate||''}</span>`:''}
           ${isClassMove?`<span class="badge" style="background:#E0E7FF;color:#3730A3;border-color:#C7D2FE;">🔀 반이동 ${s.classMoveDate||''}</span>`:''}
@@ -5037,7 +5041,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
           ${s.memo?`<div style="font-size:12px;color:var(--warn);padding:0 2px;">⚠️ ${esc(s.memo)}</div>`:''}
         </div>
         ${progStr(s)?`<div style="font-size:12px;color:#075985;margin-top:5px;">📖 현재진도: <strong>${esc(progStr(s))}</strong></div>`:''}
-        ${hasUndismissedNotes(s.id)?`<div style="font-size:12px;color:#92400E;margin-top:3px;">📌 미확인 중요내용 있음</div>`:''}
+        ${hasImportantUndismissedNotes(s.id)?`<div style="font-size:12px;color:#B91C1C;font-weight:700;margin-top:3px;">⚠️📌 강조된 중요내용 있음</div>`:hasUndismissedNotes(s.id)?`<div style="font-size:12px;color:#92400E;margin-top:3px;">📌 미확인 중요내용 있음</div>`:''}
       </div>
     </div>
     <div class="sp-stats">
@@ -5291,7 +5295,8 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
         return `<div class="hsc-me">🏆 월말평가${(scoreTxt||passTxt)?` · 점수: ${esc(scoreTxt)||'-'} · ${esc(passTxt)||'-'}${tierTxt}`:' · <span style="color:var(--warn);">성적관리에서 점수 입력 필요</span>'}</div>`;
       })()}
       ${hasNote?`<div class="hsc-note"><i class="ti ti-alert-triangle"></i> ${esc(x.note)}${x._noteBy?` <span style="font-size:10px;font-weight:400;color:var(--muted);">(${esc(dispTeacherName(x._noteBy))})</span>`:''}</div>`:''}
-      ${impNotesForDate.map(n=>`<div style="margin-top:6px;background:${n.dismissed?'#F8FAFC':'#FFFBEB'};border:1px solid ${n.dismissed?'var(--bdr)':'#FDE047'};border-radius:6px;padding:6px 9px;">
+      ${impNotesForDate.map(n=>`<div style="margin-top:6px;background:${n.important&&!n.dismissed?'#FEF2F2':n.dismissed?'#F8FAFC':'#FFFBEB'};border:${n.important&&!n.dismissed?'1.5px solid #FCA5A5':n.dismissed?'1px solid var(--bdr)':'1px solid #FDE047'};border-radius:6px;padding:6px 9px;">
+        ${n.important&&!n.dismissed?'<div style="font-size:10.5px;font-weight:800;color:#B91C1C;margin-bottom:2px;">⚠️ 강조 — 꼭 한번 더 확인해주세요</div>':''}
         <div style="font-size:12px;color:${n.dismissed?'var(--muted)':'#713F12'};line-height:1.5;white-space:pre-wrap;"><i class="ti ti-pin" style="font-size:11px;"></i> ${esc(n.text)}${n.by?` <span style="font-size:10px;font-weight:400;color:${n.dismissed?'var(--muted)':'#B45309'};">(${esc(dispTeacherName(n.by))})</span>`:''}</div>
         <div style="margin-top:2px;">${n.dismissed?`<span style="font-size:9px;background:#DCFCE7;color:#14532D;border-radius:10px;padding:0 6px;font-weight:600;">확인됨${n.dismissedBy?' · '+esc(dispTeacherName(n.dismissedBy)):''}</span>`:`<span style="font-size:9px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:0 6px;font-weight:600;">미확인</span>`}</div>
       </div>`).join('')}
@@ -6115,9 +6120,11 @@ function openEdit(sid,slot,date){
   // 📌 중요내용: 이 날짜/학생 세션에 연결된 중요내용이 있으면 불러오기 (없으면 빈칸)
   {
     const impInput=document.getElementById('em-imp-input');
+    const impStar=document.getElementById('em-imp-star');
     if(impInput){
       const linked=r._noteImpId?(s?.impNotes||[]).find(n=>n.id===r._noteImpId):null;
       impInput.value=linked?linked.text:'';
+      if(impStar)impStar.checked=!!(linked&&linked.important);
     }
   }
   // 교재 선택 변경 이벤트 (월말평가 섹션 표시 여부 결정, me 없을 때만)
@@ -6496,12 +6503,13 @@ function saveRec(){
   // 📌 중요내용 자동 등록/갱신 (특이사항과 별도 입력, 확인 전까지 다음 수업들에도 계속 표시)
   {
     const impText=(document.getElementById('em-imp-input')?.value||'').trim();
+    const impStarred=!!document.getElementById('em-imp-star')?.checked;
     if(!s.impNotes)s.impNotes=[];
     const linkedId=r._noteImpId;
     if(impText){
       let note=linkedId?s.impNotes.find(n=>n.id===linkedId):null;
-      if(note){note.text=impText;note.dismissed=false;note.date=date;note.by=myName;}
-      else{note={id:Date.now(),text:impText,date,dismissed:false,by:myName};s.impNotes.push(note);r._noteImpId=note.id;}
+      if(note){note.text=impText;note.dismissed=false;note.date=date;note.by=myName;note.important=impStarred;}
+      else{note={id:Date.now(),text:impText,date,dismissed:false,by:myName,important:impStarred};s.impNotes.push(note);r._noteImpId=note.id;}
     } else if(linkedId){
       // 중요내용을 지웠으면 연결된 항목도 함께 제거
       markDeleted('impNotes',linkedId);
@@ -14175,7 +14183,7 @@ function rHov(){
       out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:10px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px;">
         <div style="width:38px;height:38px;border-radius:50%;background:${bg};color:${c};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;">${s.id[0]}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:700;">${esc(dispStuName(s.id))} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span> ${stuSubjBadgesHtml(s,10)}${hasImp?'<span style="color:#F59E0B;margin-left:4px;">📌</span>':''}</div>
+          <div style="font-size:13px;font-weight:700;">${esc(dispStuName(s.id))} <span style="font-size:11px;color:var(--muted);font-weight:400;">${GL[s.grade]||s.grade}</span> ${stuSubjBadgesHtml(s,10)}${hasImportantUndismissedNotes(s.id)?'<span style="color:#DC2626;margin-left:4px;">⚠️📌</span>':hasImp?'<span style="color:#F59E0B;margin-left:4px;">📌</span>':''}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(stuCurrLabel(s))||'-'} ${dys.length?'· '+dys.join('·')+'요일':''}</div>
         </div>
         <button onclick="openHovModal('${s.id}')" style="background:var(--pri);color:#fff;border:none;border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;flex-shrink:0;"><i class="ti ti-file-text"></i> 자료 생성</button>
@@ -14284,9 +14292,10 @@ function buildHovHTML(sid){
   // 중요 내용
   if(impNotes.length>0){
     html+=`<div style="margin-bottom:12px;"><div style="font-size:13px;font-weight:700;color:#92400E;margin-bottom:6px;">📌 중요 내용</div>`;
-    impNotes.forEach(n=>{
-      html+=`<div style="background:#FFFBEB;border:1px solid #FDE047;border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:12px;display:flex;align-items:flex-start;gap:8px;">
+    [...impNotes].sort((a,b)=>(b.important?1:0)-(a.important?1:0)).forEach(n=>{
+      html+=`<div style="background:${n.important?'#FEF2F2':'#FFFBEB'};border:${n.important?'1.5px solid #FCA5A5':'1px solid #FDE047'};border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:12px;display:flex;align-items:flex-start;gap:8px;">
         <div style="flex:1;">
+          ${n.important?'<div style="font-size:10.5px;font-weight:800;color:#B91C1C;margin-bottom:2px;">⚠️ 강조 — 꼭 한번 더 확인해주세요</div>':''}
           <span style="color:#713F12;">${esc(n.text)}</span>
           <span style="font-size:10px;color:#B45309;margin-left:6px;">${n.date}${n.dismissed?' (확인됨)':''}</span>
         </div>
@@ -14630,9 +14639,11 @@ function renderImpNotesInModal(sid) {
     return;
   }
   sec.style.display = 'block';
-  list.innerHTML = active.map(n => `
-    <div class="imp-note">
+  const sorted = [...active].sort((a,b)=>(b.important?1:0)-(a.important?1:0));
+  list.innerHTML = sorted.map(n => `
+    <div class="imp-note"${n.important?' style="background:#FEF2F2;border:1.5px solid #FCA5A5;"':''}>
       <div style="flex:1;">
+        ${n.important?'<div style="font-size:11px;font-weight:800;color:#B91C1C;margin-bottom:2px;">⚠️ 강조 — 꼭 한번 더 확인해주세요</div>':''}
         <div class="imp-note-text">${esc(n.text)}</div>
         <div class="imp-note-meta">${n.date}${n.by?` · <span style="color:var(--muted);font-weight:400;">${esc(dispTeacherName(n.by))}</span>`:''}</div>
       </div>
@@ -14672,6 +14683,10 @@ function deleteImpNote(sid, noteId){
 function hasUndismissedNotes(sid) {
   const s = gS(sid); if (!s || !s.impNotes) return false;
   return s.impNotes.some(n => !n.dismissed);
+}
+function hasImportantUndismissedNotes(sid) {
+  const s = gS(sid); if (!s || !s.impNotes) return false;
+  return s.impNotes.some(n => !n.dismissed && n.important);
 }
 
 // ═══ EXPORT / IMPORT ══════════════════════════════
