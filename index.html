@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-29-attend-assume-v31'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-30-report-att-col-v32'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13338,6 +13338,7 @@ function buildMonthlyReport(sid,session){
     <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;">
       <thead><tr style="background:#F1F5F9;">
         <th style="padding:6px 5px;text-align:left;border:1px solid var(--bdr);">날짜</th>
+        <th style="padding:6px 5px;text-align:center;border:1px solid var(--bdr);">출석</th>
         <th style="padding:6px 5px;text-align:left;border:1px solid var(--bdr);">교재/진도</th>
         ${isSago?`<th style="padding:6px 5px;text-align:center;border:1px solid var(--bdr);">이해도</th>`:`<th style="padding:6px 5px;text-align:left;border:1px solid var(--bdr);">숙제</th>
         <th style="padding:6px 5px;text-align:center;border:1px solid var(--bdr);">이행</th>`}
@@ -13345,8 +13346,11 @@ function buildMonthlyReport(sid,session){
         <th style="padding:6px 5px;text-align:left;border:1px solid var(--bdr);">특이사항</th>
       </tr></thead>
       <tbody>`;
+  const attBadgeStyle={'출석':{bg:'#DCFCE7',fg:'#14532D'},'결석':{bg:'#FEE2E2',fg:'#991B1B'},'지각':{bg:'#FEF3C7',fg:'#92400E'},'타수업':{bg:'#E0E7FF',fg:'#3730A3'}};
   entries.forEach(x=>{
     const isAbs=x.attend==='결석';
+    const attVal=x.attend||'출석';
+    const attStyle=attBadgeStyle[attVal]||attBadgeStyle['출석'];
     const curr=isSago
       ?[x.sagoBook,x.sagoUnit].filter(Boolean).join(' · ')||(x.slotData&&x.slot&&x.slotData[x.slot]?.curriculum)||x.curriculum||x.sessionSubject||s.subject||'-'
       :(x.slotData&&x.slot&&x.slotData[x.slot]?.curriculum)||x.curriculum||x.sessionSubject||s.subject||'-';
@@ -13358,7 +13362,8 @@ function buildMonthlyReport(sid,session){
     const extraBadge=extraEntry?`<br><span style="font-size:9px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:1px 5px;font-weight:700;">${extraLabelMap[extraEntry.type]||'🔄 보강'}</span>`:'';
     out+=`<tr style="${isAbs?'background:#FEF2F2;':''}">
         <td style="padding:6px 5px;border:1px solid var(--bdr);white-space:nowrap;">${x.date.slice(5)}${extraBadge}</td>
-        <td style="padding:6px 5px;border:1px solid var(--bdr);">${isAbs?'<span style="color:var(--dan);">결석</span>':esc(curr)}</td>
+        <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:9px;background:${attStyle.bg};color:${attStyle.fg};white-space:nowrap;">${esc(attVal)}</span></td>
+        <td style="padding:6px 5px;border:1px solid var(--bdr);">${esc(curr)}</td>
         ${isSago?`<td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${(!isAbs&&x.sagoUnderstand)?(()=>{const c={상:'#10B981',중:'#F59E0B',하:'#EF4444'}[x.sagoUnderstand];return`<span style="font-weight:700;color:${c};">${esc(x.sagoUnderstand)}</span>`;})():'-'}</td>`:`<td style="padding:6px 5px;border:1px solid var(--bdr);">${esc(x.todayHw||'-')}</td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${isAbs?'-':`<span class="badge b-${x.hwStatus||'완료'}" style="font-size:10px;padding:2px 6px;">${esc(x.hwStatus||'완료')}</span>`}</td>`}
         <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">
@@ -13375,7 +13380,7 @@ function buildMonthlyReport(sid,session){
         </td>
       </tr>`;
   });
-  if(!entries.length)out+=`<tr><td colspan="${isSago?5:6}" style="padding:14px;text-align:center;color:var(--muted);border:1px solid var(--bdr);">이 달 수업 기록이 없습니다</td></tr>`;
+  if(!entries.length)out+=`<tr><td colspan="${isSago?6:7}" style="padding:14px;text-align:center;color:var(--muted);border:1px solid var(--bdr);">이 달 수업 기록이 없습니다</td></tr>`;
   out+=`</tbody></table>`;
 
   // 📌 평가 기록: 이번 리포트 기간 동안 월말평가·단원평가를 몇 월 며칠에 봤는지 날짜별로 정리
