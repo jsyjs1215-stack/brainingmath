@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-30-report-att-col-v32'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-30-assumed-rows-v33'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13194,28 +13194,6 @@ function rReport(){
   out+=buildMonthlyReport(REPORT_SID,session);
   return out;
 }
-function getSessionExpectedCount(sid,session){
-  const today=tdk();
-  // ⚠ 예전엔 세션 시작일(session.start) 하루만 기준으로 그 학생의 요일 배정을 한 번 구해서
-  // 세션 전체 기간에 그대로 적용했다. 그런데 시간표 체계 개편(반 이름 방식 → G1~G7 방식,
-  // SLOT_CUTOVER)이 학생 전체가 아니라 일부 반만 먼저 옮겨간 상태라, 세션 시작일 쪽 체계에는
-  // 이 학생의 배정 요일이 일부만(또는 전혀) 없을 수 있어서 "총수업"이 실제보다 적게 잡히고,
-  // 그 결과 출석률이 200%처럼 100%를 넘는 이상한 값으로 나왔다("총수업 4일인데 출석 8일" 신고의
-  // 원인). 날짜(cutover)만으로 딱 한 체계를 고르면, 아직 새 체계로 안 옮겨간 학생은 그 날짜
-  // 이후로 계속 0으로 잡혀서 오히려 더 나쁜 값이 나온다 — 그래서 그날 두 체계(legacy·aug) 중
-  // 이 학생이 실제로 등록돼 있는 쪽을 그대로 인정한다(어느 체계든 배정돼 있으면 그 날은 수업일).
-  const startD=new Date(session.start+'T00:00:00'),endD=new Date(session.end+'T00:00:00');
-  let cnt=0;
-  for(let dt=new Date(startD);dt<=endD;dt.setDate(dt.getDate()+1)){
-    const dateStr=dk(dt);
-    if(dateStr>today)break;
-    if(isClosure(dateStr))continue;
-    const sc=getSCForDate(dateStr);
-    const dayName=WD[dt.getDay()];
-    if(allSlotDefs().some(sl=>(sc[dayName]?.[sl.id]||[]).includes(sid)))cnt++;
-  }
-  return cnt;
-}
 function buildMonthlyReport(sid,session){
   const s=gS(sid);if(!s)return'';
   const isSago=(s.group||'저학년')==='사고력'; // 사고력은 숙제가 없어서 숙제 이행률을 리포트에서 제외함
@@ -13237,8 +13215,12 @@ function buildMonthlyReport(sid,session){
   // 예: 저학년+고학년 이중등록 학생의 한쪽 반 수업 기록이 통째로 누락된 경우)는 "결석"이 아니므로
   // 출석으로 간주한다. 실제 기록이 있는 날은 그 기록을 그대로 쓰고(숙제/진도 등 다른 통계에는
   // 영향 없음 — entries는 그대로 실제 기록 기준), 기록이 아예 없는 예정일만 출석 카운트에 더한다.
-  let missingScheduledAttend=0;
-  sidList.forEach(msid=>{
+  // ⚠ 이중등록 학생은 옛 시간표 등록이 정리가 안 돼서(레거시+새 슬롯 중복 등록) 같은 날짜가
+  // 두 sid 모두에서 "예정일"로 잡히는 경우가 있다 — 실제로는 하루인데 sid별로 따로 세면 총수업/
+  // 출석 둘 다 중복된다. 그래서 날짜 단위로 한 번만 "이 날 예정이었는가"를 판정한다.
+  const missingScheduledDays=[]; // {date,_sid} — 기록은 없지만 출석으로 간주한 예정일 (표에는 "기록 없음"으로 표시)
+  let target=0;
+  {
     const startD2=new Date(start+'T00:00:00'),endD2=new Date(end+'T00:00:00');
     for(let dt=new Date(startD2);dt<=endD2;dt.setDate(dt.getDate()+1)){
       const dateStr=dk(dt);
@@ -13246,14 +13228,16 @@ function buildMonthlyReport(sid,session){
       if(isClosure(dateStr))continue;
       const sc=getSCForDate(dateStr);
       const dayName=WD[dt.getDay()];
-      if(!allSlotDefs().some(sl=>(sc[dayName]?.[sl.id]||[]).includes(msid)))continue;
-      const rec=D.R[dateStr]?.[msid];
-      if(!rec||!isRealLesson(dateStr,msid,rec))missingScheduledAttend++;
+      const scheduledSids=sidList.filter(msid=>allSlotDefs().some(sl=>(sc[dayName]?.[sl.id]||[]).includes(msid)));
+      if(!scheduledSids.length)continue;
+      target++;
+      const hasRealAny=scheduledSids.some(msid=>{const rec=D.R[dateStr]?.[msid];return rec&&isRealLesson(dateStr,msid,rec);});
+      if(!hasRealAny)missingScheduledDays.push({date:dateStr,_sid:scheduledSids[0]});
     }
-  });
+  }
+  const missingScheduledAttend=missingScheduledDays.length;
   const attendCnt=entries.filter(x=>x.attend!=='결석').length+missingScheduledAttend;
   const absentCnt=entries.filter(x=>x.attend==='결석').length;
-  const target=sidList.reduce((sum,msid)=>sum+getSessionExpectedCount(msid,session),0);
   // ⚠ hwDone/hwPart를 전체 entries에서 세면, 결석했는데도 hwStatus가 기본값('완료')으로
   // 남아있는 기록까지 분자에 포함되어 분모(결석 제외)보다 커져서 100%를 넘는 경우가 있었음.
   // 반드시 hwBase(결석 제외)를 기준으로만 세야 함.
@@ -13347,40 +13331,48 @@ function buildMonthlyReport(sid,session){
       </tr></thead>
       <tbody>`;
   const attBadgeStyle={'출석':{bg:'#DCFCE7',fg:'#14532D'},'결석':{bg:'#FEE2E2',fg:'#991B1B'},'지각':{bg:'#FEF3C7',fg:'#92400E'},'타수업':{bg:'#E0E7FF',fg:'#3730A3'}};
-  entries.forEach(x=>{
+  // 📌 기록이 아예 없어서 "출석으로 간주"만 한 날(missingScheduledDays)도, 실제 출석 여부가 리포트에
+  // 다 보이도록 표에 행으로 넣어준다. 단, 내용(교재/숙제/태도)까지 지어내면 안 되므로 그 칸들은
+  // "-"로 비워두고 특이사항에 "기록 없음"이라고 투명하게 밝힌다.
+  const displayRows=[
+    ...entries,
+    ...missingScheduledDays.map(d=>({date:d.date,_sid:d._sid,attend:'출석',_assumed:true})),
+  ].sort((a,b)=>a.date.localeCompare(b.date)||a._sid.localeCompare(b._sid));
+  displayRows.forEach(x=>{
     const isAbs=x.attend==='결석';
+    const isAssumed=!!x._assumed;
     const attVal=x.attend||'출석';
     const attStyle=attBadgeStyle[attVal]||attBadgeStyle['출석'];
-    const curr=isSago
+    const curr=isAssumed?'-':(isSago
       ?[x.sagoBook,x.sagoUnit].filter(Boolean).join(' · ')||(x.slotData&&x.slot&&x.slotData[x.slot]?.curriculum)||x.curriculum||x.sessionSubject||s.subject||'-'
-      :(x.slotData&&x.slot&&x.slotData[x.slot]?.curriculum)||x.curriculum||x.sessionSubject||s.subject||'-';
+      :(x.slotData&&x.slot&&x.slotData[x.slot]?.curriculum)||x.curriculum||x.sessionSubject||s.subject||'-');
     // 학부모용 특이사항: 별도로 수정해둔 문구(_parentNote)가 있으면 그걸 우선 사용, 없으면 원래 특이사항 그대로
-    const displayNote=(x._parentNote!==undefined&&x._parentNote!==null)?x._parentNote:(x.note||'');
+    const displayNote=isAssumed?'':((x._parentNote!==undefined&&x._parentNote!==null)?x._parentNote:(x.note||''));
     // 보강/시간변동/대체수업으로 추가된 날인지 (정규 시간표 외 날짜에 별도로 진행한 수업도 수업일수에 포함됨을 표시)
     const extraEntry=Array.isArray(x._extraSlots)?x._extraSlots.find(e=>e.slot===x.slot):null;
     const extraLabelMap={'보충':'🔄 보강','시간변동':'🔀 시간변동','대체수업':'🔁 대체수업'};
     const extraBadge=extraEntry?`<br><span style="font-size:9px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:1px 5px;font-weight:700;">${extraLabelMap[extraEntry.type]||'🔄 보강'}</span>`:'';
-    out+=`<tr style="${isAbs?'background:#FEF2F2;':''}">
+    out+=`<tr style="${isAbs?'background:#FEF2F2;':(isAssumed?'background:#F8FAFC;':'')}">
         <td style="padding:6px 5px;border:1px solid var(--bdr);white-space:nowrap;">${x.date.slice(5)}${extraBadge}</td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:9px;background:${attStyle.bg};color:${attStyle.fg};white-space:nowrap;">${esc(attVal)}</span></td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);">${esc(curr)}</td>
-        ${isSago?`<td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${(!isAbs&&x.sagoUnderstand)?(()=>{const c={상:'#10B981',중:'#F59E0B',하:'#EF4444'}[x.sagoUnderstand];return`<span style="font-weight:700;color:${c};">${esc(x.sagoUnderstand)}</span>`;})():'-'}</td>`:`<td style="padding:6px 5px;border:1px solid var(--bdr);">${esc(x.todayHw||'-')}</td>
-        <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${isAbs?'-':`<span class="badge b-${x.hwStatus||'완료'}" style="font-size:10px;padding:2px 6px;">${esc(x.hwStatus||'완료')}</span>`}</td>`}
+        ${isSago?`<td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${(!isAbs&&!isAssumed&&x.sagoUnderstand)?(()=>{const c={상:'#10B981',중:'#F59E0B',하:'#EF4444'}[x.sagoUnderstand];return`<span style="font-weight:700;color:${c};">${esc(x.sagoUnderstand)}</span>`;})():'-'}</td>`:`<td style="padding:6px 5px;border:1px solid var(--bdr);">${isAssumed?'-':esc(x.todayHw||'-')}</td>
+        <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">${(isAbs||isAssumed)?'-':`<span class="badge b-${x.hwStatus||'완료'}" style="font-size:10px;padding:2px 6px;">${esc(x.hwStatus||'완료')}</span>`}</td>`}
         <td style="padding:6px 5px;border:1px solid var(--bdr);text-align:center;">
-          ${isAbs?'-':`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+          ${(isAbs||isAssumed)?'-':`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
             <span>${x.attitude||80}</span>
             <button class="no-print" onclick="openReportAttEdit('${x.date}','${esc(x._sid)}')" style="border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="태도 점수 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
           </div>`}
         </td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);">
           <div style="display:flex;flex-direction:column;gap:6px;">
-            <span>${esc(displayNote)}</span>
+            <span${isAssumed?' style="color:var(--muted);font-style:italic;"':''}>${isAssumed?'(수업 기록 없음 — 결석 아니므로 출석으로 반영)':esc(displayNote)}</span>
             <button class="no-print" onclick="openReportNoteEdit('${x.date}','${esc(x._sid)}')" style="align-self:flex-start;border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="학부모용 문구 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
           </div>
         </td>
       </tr>`;
   });
-  if(!entries.length)out+=`<tr><td colspan="${isSago?6:7}" style="padding:14px;text-align:center;color:var(--muted);border:1px solid var(--bdr);">이 달 수업 기록이 없습니다</td></tr>`;
+  if(!displayRows.length)out+=`<tr><td colspan="${isSago?6:7}" style="padding:14px;text-align:center;color:var(--muted);border:1px solid var(--bdr);">이 달 수업 기록이 없습니다</td></tr>`;
   out+=`</tbody></table>`;
 
   // 📌 평가 기록: 이번 리포트 기간 동안 월말평가·단원평가를 몇 월 며칠에 봤는지 날짜별로 정리
