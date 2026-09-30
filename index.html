@@ -1281,7 +1281,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-30-assumed-rows-v33'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-09-30-assumed-rows-v34'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13366,7 +13366,7 @@ function buildMonthlyReport(sid,session){
         </td>
         <td style="padding:6px 5px;border:1px solid var(--bdr);">
           <div style="display:flex;flex-direction:column;gap:6px;">
-            <span${isAssumed?' style="color:var(--muted);font-style:italic;"':''}>${isAssumed?'(수업 기록 없음 — 결석 아니므로 출석으로 반영)':esc(displayNote)}</span>
+            <span>${isAssumed?'':esc(displayNote)}</span>
             <button class="no-print" onclick="openReportNoteEdit('${x.date}','${esc(x._sid)}')" style="align-self:flex-start;border:1px solid #93C5FD;background:#EFF6FF;color:var(--pri2);cursor:pointer;padding:1px 5px;border-radius:5px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:2px;" title="학부모용 문구 수정"><i class="ti ti-edit" style="font-size:9px;"></i>수정</button>
           </div>
         </td>
