@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-02-sch-history-cleanup-v38'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-02-ovr-imp-star-v39'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3435,7 +3435,8 @@ function rOvr(){
       })());
       // 📌 월말평가 보충 필요 (카드뷰와 동일한 학생 단위 플래그) — 모든 선생님이 공유해서 볼 수 있게
       const hasReinforceNeededOvr=!!s._reinforceNeeded;
-      const rowBg=absent?'background:#FFF5F5;':isOtherClass?'background:#F5F3FF;':hasWrongAnswerOvr?'background:#FEF2F2;':hasReinforceNeededOvr?'background:#F5F3FF;':activeImpNotes.length>0?'background:#FFFBEB;':hasN?'background:#F0F9FF;':'';
+      const hasImportantImpOvr=activeImpNotes.some(n=>n.important);
+      const rowBg=absent?'background:#FFF5F5;':isOtherClass?'background:#F5F3FF;':hasWrongAnswerOvr?'background:#FEF2F2;':hasReinforceNeededOvr?'background:#F5F3FF;':hasImportantImpOvr?'background:#FEF2F2;':activeImpNotes.length>0?'background:#FFFBEB;':hasN?'background:#F0F9FF;':'';
       out+=`<tr style="${rowBg};cursor:pointer;${absent?'border-left:4px solid #DC2626;':''}" onclick="openEdit('${esc(sid)}','${sl.id}','${date}')">
         <td>
           <div class="ov-name">${esc(dispStuName(sid))}${isExtra?' <span style="background:#FEF3C7;color:#92400E;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;">🔄보강</span>':''}</div>
@@ -3486,9 +3487,11 @@ function rOvr(){
           return `<div style="display:flex;flex-direction:column;">${hwLine}<div style="border-top:1px solid #E2E8F0;"></div>${noteLine}</div>`;
         })()}</td>
         <td style="max-width:130px;">${hasImp
-          ?allOvrNotes.map(n=>n.dismissed
+          ?[...allOvrNotes].sort((a,b)=>(b.important?1:0)-(a.important?1:0)).map(n=>n.dismissed
             ?`<div style="font-size:11px;color:#94A3B8;line-height:1.4;margin-bottom:2px;">📌 <span style="text-decoration:line-through;">${esc(n.text)}</span> <span style="font-size:9px;">(확인됨)</span></div>`
-            :`<div style="font-size:11px;color:#92400E;font-weight:600;line-height:1.4;margin-bottom:2px;">📌 ${esc(n.text)}</div>`
+            :n.important
+              ?`<div style="font-size:11px;color:#B91C1C;font-weight:800;line-height:1.4;margin-bottom:2px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:5px;padding:2px 4px;">⚠️📌 ${esc(n.text)}</div>`
+              :`<div style="font-size:11px;color:#92400E;font-weight:600;line-height:1.4;margin-bottom:2px;">📌 ${esc(n.text)}</div>`
           ).join('')
           :'<span style="color:var(--muted);font-size:12px;">-</span>'
         }</td>
