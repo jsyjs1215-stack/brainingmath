@@ -1209,6 +1209,27 @@ button,input,textarea,select{font-family:inherit;}
   <div id="hws-result" style="margin-top:10px;"></div>
 </div></div>
 
+<!-- SCHEDULE HISTORY CLEANUP MODAL (시간표 이력 정리) -->
+<div class="overlay" id="schhm">
+<div class="modal">
+  <div class="mhdr"><div><div class="mtitle">📅 시간표 이력 정리</div><div class="msub">특정 요일에 잘못 남아있는 과거 시간표 등록을 날짜 기준으로 지울 수 있어요</div></div><button class="mclose" onclick="closeM('schhm')"><i class="ti ti-x"></i></button></div>
+  <div style="font-size:11.5px;color:var(--muted);background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+    예) 이 학생이 예전엔 수요일에 다녔는데 지금은 화·목요일만 다니는데, 수요일 등록이 그 이후 기록에도 계속 남아있어서 월간리포트 총수업이 실제보다 많게 나올 때 사용하세요.
+  </div>
+  <div class="frow">
+    <div class="fg"><label class="flbl">학생 이름</label><input class="fi" id="schh-sid" placeholder="예: 조유안" autocomplete="off"></div>
+    <div class="fg"><label class="flbl">지울 요일</label><select class="fsel" id="schh-day">
+      <option value="월">월요일</option><option value="화">화요일</option><option value="수">수요일</option>
+      <option value="목">목요일</option><option value="금">금요일</option><option value="토">토요일</option><option value="일">일요일</option>
+    </select></div>
+  </div>
+  <div class="fg"><label class="flbl">이 날짜부터 지우기 <small style="font-weight:400;color:var(--muted);">(그 전 기록은 실제 과거 이력이니 그대로 둡니다)</small></label><input class="fi" type="date" id="schh-cutoff"></div>
+  <div class="btn-row">
+    <button class="btn btn-pri" onclick="runSchHistSearch()"><i class="ti ti-search" style="vertical-align:-2px;"></i> 확인</button>
+  </div>
+  <div id="schh-result" style="margin-top:10px;"></div>
+</div></div>
+
 <!-- MONTHLY PARENT REPORT PICKER MODAL (월간 리포트 선택) -->
 <div class="overlay" id="reportm">
 <div class="modal">
@@ -1285,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-02-sch-objvalues-fix-v37'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-02-sch-history-cleanup-v38'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -4716,6 +4737,7 @@ function rAdmin(){
     {key:'wa',label:'오답풀이 상태'},
     {key:'closure',label:'휴원일·세션'},
     {key:'hw',label:'숙제 기록 정리'},
+    {key:'schhist',label:'시간표 이력 정리'},
     {key:'removal',label:'배정 복구·이동·중복'},
   ];
   const hwSmsPendingCnt=collectHwSmsNeeded().length;
@@ -4754,6 +4776,8 @@ function rAdmin(){
     out+=rBillSection();
   } else if(ADMIN_TAB==='hw'){
     out+=rHwSearchSection();
+  } else if(ADMIN_TAB==='schhist'){
+    out+=rSchHistSection();
   }
   return out;
 }
@@ -7067,6 +7091,82 @@ function rHwSearchSection(){
   return `<div style="margin-top:18px;border-top:2px solid var(--bdr);padding-top:14px;">
     <button onclick="openHwSearchModal()" style="width:100%;padding:10px;border-radius:var(--rs);background:#fff;border:1px solid var(--bdr);color:var(--pri2);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
       <i class="ti ti-search"></i> 숙제 기록 찾기/정리
+    </button>
+  </div>`;
+}
+// ═══ 시간표 이력 정리 ═══════════════
+// 예전엔 다니던 요일인데 지금은 안 다니는데도, 그 요일 등록이 날짜별 시간표 이력(D.SCH)에
+// 계속 남아있어서 월간리포트 총수업이 실제보다 많게 나오는 경우를 선생님이 직접 찾아 지울 수 있게 함.
+function searchSchHistory(sid,day,cutoff){
+  const liveSlots=Object.entries(D.SC[day]||{}).filter(([slot,arr])=>(arr||[]).includes(sid)).map(([slot])=>slot);
+  const historyHits=[];
+  (D.SCH||[]).forEach(snap=>{
+    if(!snap||!snap.from||snap.from<cutoff)return;
+    const daySc=snap.sc?.[day];
+    if(!daySc)return;
+    const slots=Object.entries(daySc).filter(([slot,arr])=>(arr||[]).includes(sid)).map(([slot])=>slot);
+    if(slots.length)historyHits.push({from:snap.from,slots});
+  });
+  historyHits.sort((a,b)=>a.from.localeCompare(b.from));
+  return {liveSlots,historyHits};
+}
+function clearSchHistoryForDay(sid,day,cutoff){
+  const {liveSlots,historyHits}=searchSchHistory(sid,day,cutoff);
+  if(!historyHits.length&&!liveSlots.length){toast('지울 등록이 없어요');return;}
+  if(!confirm(`${sid} 학생을 ${cutoff}부터 ${day}요일 시간표에서 전부 지울까요?\n(과거 이력 ${historyHits.length}건${liveSlots.length?' + 현재 시간표':''})\n\n그 전 날짜의 이력은 실제 과거 기록이므로 그대로 둡니다.`))return;
+  let touched=0;
+  (D.SCH||[]).forEach(snap=>{
+    if(!snap||!snap.from||snap.from<cutoff)return;
+    const daySc=snap.sc?.[day];
+    if(!daySc)return;
+    let changed=false;
+    Object.keys(daySc).forEach(slot=>{
+      if(Array.isArray(daySc[slot])&&daySc[slot].includes(sid)){
+        daySc[slot]=daySc[slot].filter(x=>x!==sid);
+        changed=true;
+      }
+    });
+    if(changed){ snap.sc[day]=daySc; touched++; }
+  });
+  liveSlots.forEach(slot=>{
+    D.SC[day][slot]=(D.SC[day][slot]||[]).filter(x=>x!==sid);
+  });
+  if(liveSlots.length)touchSC(sid);
+  SD();renderAll();
+  toast(`${sid} ${day}요일 시간표 이력 ${touched}건 삭제 완료`);
+  runSchHistSearch();
+}
+function runSchHistSearch(){
+  const sid=document.getElementById('schh-sid').value.trim();
+  const day=document.getElementById('schh-day').value;
+  const cutoff=document.getElementById('schh-cutoff').value;
+  const resultEl=document.getElementById('schh-result');
+  if(!sid){resultEl.innerHTML='<div style="font-size:12px;color:var(--muted);">학생 이름을 입력해주세요.</div>';return;}
+  if(!cutoff){resultEl.innerHTML='<div style="font-size:12px;color:var(--muted);">날짜를 선택해주세요.</div>';return;}
+  const {liveSlots,historyHits}=searchSchHistory(sid,day,cutoff);
+  if(!historyHits.length&&!liveSlots.length){
+    resultEl.innerHTML='<div style="font-size:12px;color:var(--muted);">해당 날짜 이후로 그 요일에 등록된 이력이 없습니다.</div>';
+    return;
+  }
+  resultEl.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--rs);padding:10px 12px;">
+    <div style="font-size:12.5px;color:#991B1B;line-height:1.6;">
+      ${liveSlots.length?`<b>현재 시간표</b>: ${esc(day)}요일 ${liveSlots.map(esc).join(', ')}에 등록되어 있습니다.<br>`:''}
+      <b>과거 이력</b>: ${cutoff} 이후 ${historyHits.length}개 날짜에 ${esc(day)}요일 등록이 남아있습니다.
+      ${historyHits.length?`<br><span style="color:var(--muted);">${esc(historyHits[0].from)} ~ ${esc(historyHits[historyHits.length-1].from)}</span>`:''}
+    </div>
+    <button onclick="clearSchHistoryForDay('${esc(sid)}','${day}','${cutoff}')" style="margin-top:8px;padding:6px 14px;border-radius:20px;background:var(--dan);color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">이 요일 전부 지우기</button>
+  </div>`;
+}
+function openSchHistModal(){
+  document.getElementById('schh-sid').value='';
+  document.getElementById('schh-cutoff').value='';
+  document.getElementById('schh-result').innerHTML='';
+  openM('schhm');
+}
+function rSchHistSection(){
+  return `<div style="margin-top:18px;border-top:2px solid var(--bdr);padding-top:14px;">
+    <button onclick="openSchHistModal()" style="width:100%;padding:10px;border-radius:var(--rs);background:#fff;border:1px solid var(--bdr);color:var(--pri2);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+      <i class="ti ti-calendar"></i> 시간표 이력 정리
     </button>
   </div>`;
 }
