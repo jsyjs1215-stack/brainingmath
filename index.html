@@ -1285,7 +1285,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-09-30-imp-note-star-v35'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-02-sch-path-fix-v36'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -15443,10 +15443,15 @@ function startCloudListen() {
       D.scMeta = mergedMeta;
     }
     if (data.SCH && data.SCH.length > 0) {
-      // 시간표 이력도 'from' 날짜 기준으로 병합 (같은 날짜면 로컬 우선, 서버에만 있는 날짜는 추가)
+      // 시간표 이력도 'from' 날짜 기준으로 병합. ⚠ 예전엔 "같은 날짜면 로컬 우선"이었는데, 이제
+      // SCH도 날짜별 경로로 쪼개서 올리게 되면서(pushCloudNow) 서버 쪽 경로가 실제로 틀린 과거
+      // 스냅샷을 바로잡는 믿을 수 있는 기준점이 됐다 — 로컬을 우선하면 이 기기가 그 수정을 받기
+      // 전에 아무 저장이나 하는 순간 자기 예전 값으로 서버의 고친 내용을 계속 되돌려버린다.
+      // 그래서 같은 날짜는 서버 쪽을 신뢰하고, 이 기기에만 있는(아직 서버에 안 올라간) 날짜만
+      // 그대로 남겨서 합친다.
       const byFrom = {};
       (D.SCH||[]).forEach(s => { if(s&&s.from) byFrom[s.from] = s; });
-      (data.SCH||[]).forEach(s => { if(s&&s.from&&!byFrom[s.from]) byFrom[s.from] = s; });
+      (data.SCH||[]).forEach(s => { if(s&&s.from) byFrom[s.from] = s; });
       D.SCH = Object.values(byFrom).sort((a,b)=>a.from.localeCompare(b.from));
     }
     // ⚠ 예전엔 D.C(상담기록, 학생기록 화면에서 빠르게 추가하는 상담메모)를 통째로 교체했는데,
@@ -15882,6 +15887,15 @@ function pushCloudNow() {
         payload['SC/'+day+'/'+fbEscapeKey(slotId)]=fbSanitizeForWrite(sids||[]);
       });
     });
+    // ⚠ SCH(시간표 이력 스냅샷)도 같은 이유로 날짜(from)별 경로로 쪼개서 올려야 한다 — 유일하게
+    // 이 보호가 빠져있던 필드였다. 통째로 "SCH" 배열 하나로 올리면, 과거 어느 날짜의 스냅샷을
+    // 서버에서 직접 바로잡아도(예: 잘못 등록된 요일 제거), 그 수정을 아직 못 받은 다른 기기가
+    // 전혀 상관없는 내용을 저장할 때마다 자기 로컬의 예전 스냅샷 배열 전체로 서버 걸 덮어써서
+    // 고친 게 계속 되살아나는 사고로 이어졌다(실제로 겪음 — 이연우 학생 시간표 이력 수정이
+    // 몇 번을 고쳐도 계속 원래대로 돌아감).
+    const schArr=payload.SCH||[];
+    delete payload.SCH;
+    schArr.forEach(snap=>{ if(snap&&snap.from)payload['SCH/'+fbEscapeKey(snap.from)]=fbSanitizeForWrite(snap); });
     // ⚠ makeups(보강)도 같은 이유로 id별 경로로 쪼개서 올려야 한다 — 읽을 때는 이미 id+수정시각
     // 기준으로 안전하게 병합하고 있었지만(mergeArrByIdTs), 쓸 때는 여전히 통째로 나가고 있었다.
     const makeupsArr=payload.makeups||[];
