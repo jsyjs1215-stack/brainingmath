@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-02-ovr-imp-star-v39'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-06-extraslots-merge-v40'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6778,7 +6778,10 @@ function restoreRemoval(id){
     const r=D.R[rec.date]?.[rec.sid];
     if(r){
       if(Array.isArray(r._skipSlots))r._skipSlots=r._skipSlots.filter(sl=>sl!==rec.fromSlot);
-      if(Array.isArray(r._extraSlots))r._extraSlots=r._extraSlots.filter(x=>!(x.slot===rec.toSlot&&x.type==='시간변동'));
+      if(Array.isArray(r._extraSlots)){
+        if(r._extraSlots.some(x=>x.slot===rec.toSlot&&x.type==='시간변동'))markDeleted('extraSlotDeletes', rec.date+'|'+rec.sid+'|'+rec.toSlot);
+        r._extraSlots=r._extraSlots.filter(x=>!(x.slot===rec.toSlot&&x.type==='시간변동'));
+      }
       r._updatedAt=Date.now();
     }
   } else if(rec.type==='today'){
@@ -8601,6 +8604,7 @@ function togOneTime(sid){
     if(existing.type===type){
       if(existing._mkId)unlinkOneTimeMakeup(existing._mkId,date,slot);
       r._extraSlots.splice(existIdx,1);
+      markDeleted('extraSlotDeletes', date+'|'+sid+'|'+slot);
       // extraSlots가 비고 실제 데이터도 없으면 레코드 삭제
       if(r._extraSlots.length===0&&!hasRealData(r)){
         delete D.R[date][sid];
@@ -9575,6 +9579,7 @@ function removeAutoScheduledMakeup(mk){
   if(!mk._autoDate||!mk._autoSlot)return;
   const r=D.R[mk._autoDate]?.[mk.studentId];
   if(r&&Array.isArray(r._extraSlots)){
+    r._extraSlots.filter(x=>x._mkId===mk.id&&x.slot).forEach(x=>markDeleted('extraSlotDeletes', mk._autoDate+'|'+mk.studentId+'|'+x.slot));
     r._extraSlots=r._extraSlots.filter(x=>x._mkId!==mk.id);
     // ⚠ removeOneTime()과 동일한 이유로, 레코드를 통째로 지우지 않고 시각만 갱신함
     // (동기화 시 다른 기기의 예전 값이 되살아나는 것 방지)
@@ -15736,9 +15741,18 @@ function startCloudListen() {
             // 필드 단위 병합 — 같은 레코드를 두 선생님이 거의 동시에 서로 다른 항목만
             // 고쳐도(예: 한쪽은 숙제, 한쪽은 특이사항) 둘 다 유실 없이 보존됨
             const merged = mergeLessonRecord(localRec, serverRec);
-            // _extraSlots/_skipSlots는 항상 로컬 값 우선 (내가 방금 삭제했을 수 있으므로)
-            if (Array.isArray(localRec._extraSlots)) {
-              merged._extraSlots = localRec._extraSlots;
+            // _extraSlots(보강/시간변동 임시추가)는 로컬 값으로 통째 덮어쓰면 안 된다 — 이 날짜 기록이
+            // 이미 로컬에 있는 기기는 다른 선생님이 나중에 추가한 보강을 영영 못 받는다("다른 선생님
+            // 화면에 보강이 안 보여요" 신고의 원인). 취소는 위의 extraSlotDeletes 무덤이 양쪽에서 이미
+            // 걸러냈으므로, 슬롯 단위로 합치고 같은 슬롯은 더 최근 저장본의 항목을 쓴다.
+            if (Array.isArray(localRec._extraSlots) || Array.isArray(serverRec._extraSlots)) {
+              const serverNewer = (serverRec._updatedAt || 0) > (localRec._updatedAt || 0);
+              const olderXS = (serverNewer ? localRec._extraSlots : serverRec._extraSlots) || [];
+              const newerXS = (serverNewer ? serverRec._extraSlots : localRec._extraSlots) || [];
+              const bySlot = new Map();
+              const noSlot = [];
+              olderXS.concat(newerXS).forEach(x => { if (x && x.slot) bySlot.set(x.slot, x); else if (x) noSlot.push(x); });
+              merged._extraSlots = Array.from(bySlot.values()).concat(noSlot);
             }
             if (Array.isArray(localRec._skipSlots)) {
               merged._skipSlots = localRec._skipSlots;
