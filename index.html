@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-08-bill-old-exceptions-v46'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-08-bill-brand-order-v47'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7824,6 +7824,18 @@ function addBillKeyword(){
   const nm=brand?`${brand} ${w}`:w;
   toast(existed?`"${nm}" 금액을 ${Number(p).toLocaleString('ko-KR')}원으로 바꿨습니다`:`"${nm}" ${Number(p).toLocaleString('ko-KR')}원 추가했습니다`);
 }
+// 브랜드 순서 바꾸기 — 교재관리의 브랜드 순서(bookInvBrandOrder)를 그대로 공유한다(여기서 바꾸면 교재관리·새 책 선택지 순서도 같이 바뀐다).
+let BILL_BRAND_LIST=[];
+function moveBillBrand(brand,dir){
+  const vis=BILL_BRAND_LIST.slice(); const i=vis.indexOf(brand), j=i+dir;
+  if(i<0||j<0||j>=vis.length)return;
+  const all=new Set(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b))); vis.forEach(b=>all.add(b));
+  const full=sortBookBrands([...all]);
+  const a=full.indexOf(brand), b=full.indexOf(vis[j]); if(a<0||b<0)return;
+  const t=full[a]; full[a]=full[b]; full[b]=t;
+  D.bookInvBrandOrder=full; touchBookInvBrandOrder();
+  SD();renderAll();
+}
 // 브랜드 삭제 = 기본설정 목록에서만 뺀다(재고·새 책 기록·이미 나간 책은 그대로). 그 브랜드의 기본가/청구안함 설정은 함께 지운다.
 function hideBillBrand(brand){
   if(!confirm(`"${brand}" 브랜드를 기본가격 목록에서 삭제할까요?\n\n· 재고와 이미 나간 책 기록은 그대로 남습니다\n· 이 브랜드에 입력해둔 기본 가격은 지워집니다\n· 나중에 [다시 보이기]로 되살릴 수 있어요`))return;
@@ -8398,6 +8410,7 @@ function rBillPriceSettings(list){
   // 재고 목록의 구분선용 가짜 브랜드("-----사고력-----" 등)는 가격 설정 대상이 아님
   const hiddenBrands=Object.entries(D.bookPrices||{}).filter(([k,v])=>k.startsWith('h:')&&v&&v.p===1).map(([k])=>k.slice(2));
   const brandList=sortBookBrands([...brands].filter(b=>b&&!/^-{3,}/.test(b)&&!hiddenBrands.includes(b)&&b!=='최상위'));
+  BILL_BRAND_LIST=brandList;
   const inputStyle='width:88px;padding:4px 6px;font-size:12px;text-align:right;';
   const titles=[]; const seen=new Set();
   list.forEach(e=>{ const k=billTitleKey(e); if(!seen.has(k)){seen.add(k);titles.push(e);} });
@@ -8424,7 +8437,7 @@ function rBillPriceSettings(list){
     </div>
     <div style="font-size:12px;font-weight:800;color:#92400E;margin-bottom:5px;">브랜드별 기본 가격 <span style="font-weight:500;color:var(--muted);">— 안 쓰는 브랜드는 [삭제]로 목록에서 뺄 수 있어요</span>${hiddenBrands.length?` <span style="font-weight:500;">· 삭제한 브랜드 다시 보이기: ${hiddenBrands.map(h=>`<button type="button" onclick="unhideBillBrand('${escAttr(h).replace(/'/g,"\\'")}')" style="margin-left:4px;padding:2px 9px;border:1px solid var(--bdr);background:#fff;border-radius:12px;font-size:11px;cursor:pointer;">${esc(h)}</button>`).join('')}</span>`:''}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;margin-bottom:10px;">
-      ${brandList.map(b=>{ const cur=billAliasSubjects(b).map(s=>bp[billBrandKey(s)]).find(x=>x&&x.p!=null)||bp[billBrandKey(b)]; return `<div style="display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div style="font-size:14px;font-weight:800;word-break:keep-all;">${esc(b)}</div><button type="button" title="이 브랜드를 목록에서 삭제" onclick="hideBillBrand('${escAttr(b).replace(/'/g,"\\'")}')" style="padding:3px 9px;border:1px solid #FCA5A5;background:#FEF2F2;color:var(--dan);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button></div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><input id="bl-b-${escAttr(b)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span>${cur&&cur.p!=null?`<button type="button" title="이 브랜드 기본 가격 지우기" onclick="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}','')" style="border:none;background:none;color:var(--dan);cursor:pointer;font-size:12px;padding:0 2px;">✕</button>`:''}<label title="이 브랜드는 교재비를 청구하지 않음" style="display:flex;align-items:center;gap:2px;font-size:10px;color:#92400E;white-space:nowrap;cursor:pointer;"><input type="checkbox" ${billAliasSubjects(b).some(s=>bp[`xb:${s}`]&&bp[`xb:${s}`].p===1)?'checked':''} onchange="setBillPrice('xb:${escAttr(b).replace(/'/g,"\\'")}',this.checked?'1':'')">청구안함</label></div></div>`; }).join('')}
+      ${brandList.map(b=>{ const cur=billAliasSubjects(b).map(s=>bp[billBrandKey(s)]).find(x=>x&&x.p!=null)||bp[billBrandKey(b)]; return `<div style="display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div style="font-size:14px;font-weight:800;word-break:keep-all;">${esc(b)}</div><span style="display:flex;align-items:center;gap:4px;">${(()=>{const i=brandList.indexOf(b),q=escAttr(b).replace(/'/g,"\\'"),mb=(d,t,dis)=>`<button type="button" title="${t}" ${dis?'disabled':''} onclick="moveBillBrand('${q}',${d})" style="width:28px;height:26px;border:1px solid var(--bdr);background:${dis?'#F1F5F9':'#fff'};color:${dis?'#CBD5E1':'var(--pri2)'};border-radius:8px;font-size:12px;font-weight:800;cursor:${dis?'default':'pointer'};padding:0;">${d<0?'◀':'▶'}</button>`;return mb(-1,'앞으로 옮기기',i<=0)+mb(1,'뒤로 옮기기',i>=brandList.length-1);})()}<button type="button" title="이 브랜드를 목록에서 삭제" onclick="hideBillBrand('${escAttr(b).replace(/'/g,"\\'")}')" style="padding:3px 9px;border:1px solid #FCA5A5;background:#FEF2F2;color:var(--dan);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button></span></div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><input id="bl-b-${escAttr(b)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span>${cur&&cur.p!=null?`<button type="button" title="이 브랜드 기본 가격 지우기" onclick="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}','')" style="border:none;background:none;color:var(--dan);cursor:pointer;font-size:12px;padding:0 2px;">✕</button>`:''}<label title="이 브랜드는 교재비를 청구하지 않음" style="display:flex;align-items:center;gap:2px;font-size:10px;color:#92400E;white-space:nowrap;cursor:pointer;"><input type="checkbox" ${billAliasSubjects(b).some(s=>bp[`xb:${s}`]&&bp[`xb:${s}`].p===1)?'checked':''} onchange="setBillPrice('xb:${escAttr(b).replace(/'/g,"\\'")}',this.checked?'1':'')">청구안함</label></div></div>`; }).join('')}
     </div>
     ${titles.length?`<details style="background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;">교재명별 예외 가격 (이 기간에 나간 ${titles.length}종)</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px;">
