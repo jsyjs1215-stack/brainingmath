@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-08-bill-brand-hide-v43'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-08-bill-choesang-merge-v44'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7785,8 +7785,10 @@ function billBrandKey(subject){ return `b:${subject}`; }
 function billUnitPrice(e){
   const ov=(D.bookBillOv||{})[billEntryKey(e)];
   if(ov&&ov.price!=null&&ov.price!=='')return{p:Number(ov.price),src:'건별'};
-  const t=(D.bookPrices||{})[billTitleKey(e)];
-  if(t&&t.p!=null)return{p:Number(t.p),src:'교재별'};
+  for(const s of billAliasSubjects(e.subject)){
+    const t=(D.bookPrices||{})[billTitleKey({subject:s,title:e.title})];
+    if(t&&t.p!=null)return{p:Number(t.p),src:'교재별'};
+  }
   // 단어 규칙(예: "워크북" → 3,000원): 교재명에 그 단어가 들어 있으면 적용. 여러 개가 걸리면 더 긴 단어 우선.
   // 개념완성 세트처럼 "본책 + 워크북 1·2·3권"이 각각 한 줄로 나뉘어 기록되는 경우에 쓴다.
   let kw=null;
@@ -7795,10 +7797,18 @@ function billUnitPrice(e){
     const w=k.slice(2); if(w&&String(e.title||'').includes(w)&&(!kw||w.length>kw.w.length))kw={w,p:Number(v.p)};
   });
   if(kw)return{p:kw.p,src:`"${kw.w}"`};
-  const b=e.subject?(D.bookPrices||{})[billBrandKey(e.subject)]:null;
-  if(b&&b.p!=null)return{p:Number(b.p),src:'기본'};
+  if(e.subject){
+    for(const s of billAliasSubjects(e.subject)){
+      const b=(D.bookPrices||{})[billBrandKey(s)];
+      if(b&&b.p!=null)return{p:Number(b.p),src:'기본'};
+    }
+  }
   return{p:null,src:''};
 }
+// 저학년 새 책 선택지는 옛 이름 "최상위", 고학년은 "최상위수학"으로 만들어져 있었지만 같은 책이다.
+// 청구에서는 항상 "최상위수학" 하나로 합쳐 보고(수업 기록 원본은 그대로), 예전에 "최상위"로 넣어둔 가격·청구안함도 계속 인정한다.
+function billCanonSubject(s){ return s==='최상위'?'최상위수학':s; }
+function billAliasSubjects(s){ return s==='최상위수학'?['최상위수학','최상위']:[s]; }
 function addBillKeyword(){
   let w=(document.getElementById('bl-kw-new')?.value||'').trim();
   const brand=document.getElementById('bl-kb-new')?.value||'';
@@ -7867,6 +7877,11 @@ function setBillPrice(key,val){
   if(!D.bookPrices)D.bookPrices={};
   const n=String(val).replace(/[^\d]/g,'');
   D.bookPrices[key]={p:n===''?null:Number(n),_u:Date.now()};
+  // "최상위수학" 가격·청구안함을 비울 때는 예전 이름("최상위")으로 넣어둔 값도 같이 비워야 진짜로 지워진다
+  if(n===''&&(key==='b:최상위수학'||key==='xb:최상위수학')){
+    const al=key.replace('최상위수학','최상위');
+    if(D.bookPrices[al]&&D.bookPrices[al].p!=null)D.bookPrices[al]={p:null,_u:Date.now()};
+  }
   SD();renderAll();
 }
 function setBillOv(key,field,val){
@@ -7884,8 +7899,9 @@ function billIsExcluded(e){
   if(ov&&ov.excl===true)return true;
   if(ov&&ov.excl===false)return false;
   const bp=D.bookPrices||{};
-  const t=bp[`xt:${e.subject}|${e.title}`]; if(t&&t.p===1)return true;
-  const b=e.subject?bp[`xb:${e.subject}`]:null; return !!(b&&b.p===1);
+  const subs=billAliasSubjects(e.subject);
+  if(subs.some(s=>{const t=bp[`xt:${s}|${e.title}`];return t&&t.p===1;}))return true;
+  return !!e.subject&&subs.some(s=>{const b=bp[`xb:${s}`];return b&&b.p===1;});
 }
 // 개념완성 본책과 워크북은 따로 나가는 교재라 청구도 따로 잡는다: 워크북은 "개념완성 워크북" 브랜드로 분리.
 // "개념완성6-2+워크북1,2,3"처럼 한 줄에 같이 적힌 건 본책 1건 + 워크북 1건으로 나눈다(수업 기록 원본은 그대로).
@@ -7915,7 +7931,7 @@ function collectBillEntries(cy,groupFilter,wantExcluded){
         const ent={date,sid,idx,grp,grade:st?st.grade:'',subject:nb.subject||'',title:nb.title,by:nb.by||'',guessBy:nb.by?'':(r._lastEditedBy||''),at:nb.at||0,carry:date<cy.start};
         ent.origTitle=ent.title;ent.origSubject=ent.subject;ent.okey=`${date}|${sid}|${ent.subject}|${ent.title}`;billApplyTitleOv(ent);
         const ov0=(D.bookBillOv||{})[ent.okey];
-        billSplitWorkbook(ent,!!(ov0&&(ov0.title||ov0.subj!=null))).forEach(p=>{ if(billIsExcluded(p)!==!!wantExcluded)return; out.push(p); });
+        billSplitWorkbook(ent,!!(ov0&&(ov0.title||ov0.subj!=null))).forEach(p=>{ p.subject=billCanonSubject(p.subject); p.origSubject=billCanonSubject(p.origSubject); if(billIsExcluded(p)!==!!wantExcluded)return; out.push(p); });
       });
     });
   });
@@ -7927,6 +7943,7 @@ function collectBillEntries(cy,groupFilter,wantExcluded){
     if(groupFilter&&groupFilter!=='전체'&&grp!==groupFilter)return;
     const ent={date:v.date,sid:v.sid,idx:-1,grp,grade:st?st.grade:'',subject:v.subject||'',title:v.title,by:v.by||'',guessBy:'',manual:true,mkey:k};
     if(ent.subject==='개념완성'&&/워크/.test(ent.title)&&!/[+]/.test(ent.title))ent.subject=BILL_WB_BRAND;
+    ent.subject=billCanonSubject(ent.subject);
     if(billIsExcluded(ent)!==!!wantExcluded)return;
     out.push(ent);
   });
@@ -7950,7 +7967,8 @@ function billBrandChoices(current){
   const set=new Set(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b)));
   Object.keys(D.bookPrices||{}).forEach(k=>{ if(k.startsWith('b:')&&!/^b:-{3,}/.test(k))set.add(k.slice(2)); });
   Object.entries(D.bookPrices||{}).forEach(([k,v])=>{ if(k.startsWith('h:')&&v&&v.p===1)set.delete(k.slice(2)); });
-  if(current)set.add(current);
+  set.delete('최상위');
+  if(current)set.add(billCanonSubject(current));
   return sortBookBrands([...set]);
 }
 function openBillEdit(key){ BILL_EDIT_KEY=key; renderAll(); }
@@ -8367,7 +8385,7 @@ function rBillPriceSettings(list){
   list.forEach(e=>{ if(e.subject)brands.add(e.subject); });
   // 재고 목록의 구분선용 가짜 브랜드("-----사고력-----" 등)는 가격 설정 대상이 아님
   const hiddenBrands=Object.entries(D.bookPrices||{}).filter(([k,v])=>k.startsWith('h:')&&v&&v.p===1).map(([k])=>k.slice(2));
-  const brandList=sortBookBrands([...brands].filter(b=>b&&!/^-{3,}/.test(b)&&!hiddenBrands.includes(b)));
+  const brandList=sortBookBrands([...brands].filter(b=>b&&!/^-{3,}/.test(b)&&!hiddenBrands.includes(b)&&b!=='최상위'));
   const inputStyle='width:88px;padding:4px 6px;font-size:12px;text-align:right;';
   const titles=[]; const seen=new Set();
   list.forEach(e=>{ const k=billTitleKey(e); if(!seen.has(k)){seen.add(k);titles.push(e);} });
@@ -8393,7 +8411,7 @@ function rBillPriceSettings(list){
     </div>
     <div style="font-size:12px;font-weight:800;color:#92400E;margin-bottom:5px;">브랜드별 기본 가격 <span style="font-weight:500;color:var(--muted);">— 안 쓰는 브랜드는 [삭제]로 목록에서 뺄 수 있어요</span>${hiddenBrands.length?` <span style="font-weight:500;">· 삭제한 브랜드 다시 보이기: ${hiddenBrands.map(h=>`<button type="button" onclick="unhideBillBrand('${escAttr(h).replace(/'/g,"\\'")}')" style="margin-left:4px;padding:2px 9px;border:1px solid var(--bdr);background:#fff;border-radius:12px;font-size:11px;cursor:pointer;">${esc(h)}</button>`).join('')}</span>`:''}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;margin-bottom:10px;">
-      ${brandList.map(b=>{ const cur=bp[billBrandKey(b)]; return `<div style="display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div style="font-size:14px;font-weight:800;word-break:keep-all;">${esc(b)}</div><button type="button" title="이 브랜드를 목록에서 삭제" onclick="hideBillBrand('${escAttr(b).replace(/'/g,"\\'")}')" style="padding:3px 9px;border:1px solid #FCA5A5;background:#FEF2F2;color:var(--dan);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button></div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><input id="bl-b-${escAttr(b)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span>${cur&&cur.p!=null?`<button type="button" title="이 브랜드 기본 가격 지우기" onclick="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}','')" style="border:none;background:none;color:var(--dan);cursor:pointer;font-size:12px;padding:0 2px;">✕</button>`:''}<label title="이 브랜드는 교재비를 청구하지 않음" style="display:flex;align-items:center;gap:2px;font-size:10px;color:#92400E;white-space:nowrap;cursor:pointer;"><input type="checkbox" ${(bp[`xb:${b}`]&&bp[`xb:${b}`].p===1)?'checked':''} onchange="setBillPrice('xb:${escAttr(b).replace(/'/g,"\\'")}',this.checked?'1':'')">청구안함</label></div></div>`; }).join('')}
+      ${brandList.map(b=>{ const cur=billAliasSubjects(b).map(s=>bp[billBrandKey(s)]).find(x=>x&&x.p!=null)||bp[billBrandKey(b)]; return `<div style="display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div style="font-size:14px;font-weight:800;word-break:keep-all;">${esc(b)}</div><button type="button" title="이 브랜드를 목록에서 삭제" onclick="hideBillBrand('${escAttr(b).replace(/'/g,"\\'")}')" style="padding:3px 9px;border:1px solid #FCA5A5;background:#FEF2F2;color:var(--dan);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button></div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><input id="bl-b-${escAttr(b)}" inputmode="numeric" class="fi" style="${inputStyle}" placeholder="가격" value="${cur&&cur.p!=null?cur.p:''}" onchange="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}',this.value)"><span style="font-size:10px;color:var(--muted);">원</span>${cur&&cur.p!=null?`<button type="button" title="이 브랜드 기본 가격 지우기" onclick="setBillPrice('${escAttr(billBrandKey(b)).replace(/'/g,"\\'")}','')" style="border:none;background:none;color:var(--dan);cursor:pointer;font-size:12px;padding:0 2px;">✕</button>`:''}<label title="이 브랜드는 교재비를 청구하지 않음" style="display:flex;align-items:center;gap:2px;font-size:10px;color:#92400E;white-space:nowrap;cursor:pointer;"><input type="checkbox" ${billAliasSubjects(b).some(s=>bp[`xb:${s}`]&&bp[`xb:${s}`].p===1)?'checked':''} onchange="setBillPrice('xb:${escAttr(b).replace(/'/g,"\\'")}',this.checked?'1':'')">청구안함</label></div></div>`; }).join('')}
     </div>
     ${titles.length?`<details style="background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;">교재명별 예외 가격 (이 기간에 나간 ${titles.length}종)</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px;">
