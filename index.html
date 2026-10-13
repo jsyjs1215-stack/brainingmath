@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-08-bill-books-in-brand-v50'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-13-record-tomb-time-v51'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -15437,12 +15437,17 @@ function startCloudListen() {
     // 되면(예전 코드를 쓰는 다른 기기가 그 사이 한 번도 안 건드려서) 아래 R 병합 루프 자체가 그
     // 레코드를 쳐다보지도 않아 계속 남아있을 수 있다 — 그래서 무덤이 있는 항목은 로컬에 이미
     // 남아있어도 여기서 한 번 더 확실히 정리한다.
+    // ⚠ 단, 삭제 "이후에" 같은 날짜·학생에 다시 입력한 기록(= 무덤 시각보다 나중에 저장된 기록)까지
+    // 매번 지우면 안 된다 — 안 그러면 한 번이라도 그 날짜 기록을 지운 적 있는 학생은 그 뒤로 숙제·특이사항을
+    // 입력하고 "저장되었어요"가 떠도 다음 동기화 때마다 입력한 내용이 계속 사라진다(신규 학생 신고의 원인).
     if (D.tombstones?.recordDeletes) {
       Object.keys(D.tombstones.recordDeletes).forEach(key => {
         const sep = key.indexOf('|');
         if (sep < 0) return;
         const rDate = key.slice(0, sep), rSid = key.slice(sep + 1);
-        if (D.R[rDate] && D.R[rDate][rSid]) delete D.R[rDate][rSid];
+        const delTs = D.tombstones.recordDeletes[key];
+        const rec = D.R[rDate] && D.R[rDate][rSid];
+        if (rec && delTs != null && delTs >= (rec._updatedAt || 0)) delete D.R[rDate][rSid];
       });
     }
 
@@ -16525,12 +16530,15 @@ function startSagoListen(){
     }
     // ⚠ 코스 클라우드 리스너와 동일한 이유 — 아래 R 병합은 "서버 payload에 실제로 들어있는 값"만
     // 걸러주므로, 삭제 전부터 이미 로컬에 캐시돼있던 기록은 무덤이 있어도 그냥 남아있을 수 있다.
+    // (시각 비교 — 코스 클라우드 리스너의 같은 정리 코드 설명 참고: 삭제 이후 다시 입력한 기록은 살린다)
     if (D.tombstones?.recordDeletes) {
       Object.keys(D.tombstones.recordDeletes).forEach(key => {
         const sep = key.indexOf('|');
         if (sep < 0) return;
         const rDate = key.slice(0, sep), rSid = key.slice(sep + 1);
-        if (D.R[rDate] && D.R[rDate][rSid]) delete D.R[rDate][rSid];
+        const delTs = D.tombstones.recordDeletes[key];
+        const rec = D.R[rDate] && D.R[rDate][rSid];
+        if (rec && delTs != null && delTs >= (rec._updatedAt || 0)) delete D.R[rDate][rSid];
       });
     }
     rebuildSagoAlias(serverS);
