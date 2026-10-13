@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-13-daydef-newer-wins-v55'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-13-book-order-session-v56'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7429,15 +7429,52 @@ function restoreNewBookStock(nb){
 // ═══ 교재 신청 ═══════════════════════
 function getBookOrders(){ if(!D.bookOrders)D.bookOrders=[]; return D.bookOrders; }
 function collectPendingBookOrders(){ return getBookOrders().filter(o=>!o.received); }
-let BookOrderForm={label:'',brand:'',customBrand:'',item:'',qty:'',note:'',teacher:''};
+let BookOrderForm={label:'',session:'',customSession:'',date:'',brand:'',customBrand:'',item:'',qty:'',note:'',teacher:''};
 const BO_CUSTOM_BRAND='__custom__';
-function addBookOrder(label,brand,item,qty,note,teacherOverride){
+const BO_CUSTOM_SESSION='__custom_session__';
+const BO_NO_SESSION='세션 미지정';
+let BO_SESSION_FILTER='전체';
+// ── 세션별 교재 신청 관리 ─────────────────────────────────────────────
+// 신청 한 건이 "어느 세션을 위한 교재인가"를 session 필드(세션 이름)로 갖는다. 예전에 "10월 세션대비 교재신청"처럼
+// 글자로만 적어둔 신청은 글자 속 "N월"을 보고 같은 달의 세션으로 자동 연결한다(데이터는 바꾸지 않고 화면에서만 판단).
+function boMonthIn(name,m){ return new RegExp('(^|[^0-9])'+m+'\\s*월').test(String(name||'')); }
+function boSessionName(o){
+  if(o.session)return o.session;
+  const m=String(o.label||'').match(/(\d{1,2})\s*월/);
+  if(m){ const s=getAcadSessions().find(x=>boMonthIn(x.name,m[1])); if(s)return s.name; }
+  return o.label?o.label:BO_NO_SESSION;
+}
+function boSessionObj(name){ return getAcadSessions().find(s=>s.name===name)||null; }
+function boDayDiff(a,b){ return Math.round((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000); }
+function boFmtDate(d){ if(!d)return ''; const dt=new Date(d+'T00:00:00'); return isNaN(dt)?d:`${dt.getMonth()+1}/${dt.getDate()}(${WD[dt.getDay()]})`; }
+// 이미 시작된 세션인데 아직 주문(신청완료)도 입고도 안 된 교재 — 급하게 챙겨야 하는 신청
+function boIsUrgent(o){
+  if(o.received||o.ordered)return false;
+  const s=boSessionObj(boSessionName(o));
+  return !!s&&s.start<=tdk();
+}
+function boDefaultSession(){
+  const today=tdk(), ss=getAcadSessions().slice().sort((a,b)=>a.start.localeCompare(b.start));
+  const next=ss.find(s=>s.start>today)||ss.find(s=>s.end>=today);
+  return next?next.name:'';
+}
+function setBookOrderSession(id,name){
+  const o=getBookOrders().find(x=>x.id===id);if(!o||!name)return;
+  o.session=name;o.label=`${name} 대비 교재신청`;o._updatedAt=Date.now();
+  SD();renderAll();
+  toast(`"${name}" 신청으로 옮겼습니다`);
+}
+function addBookOrder(label,brand,item,qty,note,teacherOverride,session,date){
   const requestedBy=(teacherOverride||'').trim()||getTeacherName()||'이름 미설정';
-  getBookOrders().push({id:Date.now()+Math.random(),label,brand,item,qty,note:note||'',date:tdk(),received:false,receivedDate:'',ordered:false,orderedBy:'',orderedAt:'',requestedBy,_updatedAt:Date.now()});
+  getBookOrders().push({id:Date.now()+Math.random(),label,session:session||'',brand,item,qty,note:note||'',date:date||tdk(),received:false,receivedDate:'',ordered:false,orderedBy:'',orderedAt:'',requestedBy,_updatedAt:Date.now()});
   SD();
 }
 function submitBookOrder(){
-  const label=document.getElementById('bo-label').value.trim();
+  const sessSel=document.getElementById('bo-session')?.value||'';
+  const session=sessSel===BO_CUSTOM_SESSION?(document.getElementById('bo-session-custom')?.value||'').trim():sessSel;
+  if(!session){alert(sessSel===BO_CUSTOM_SESSION?'세션 이름을 입력해주세요.':'어느 세션을 위한 교재인지 선택해주세요.');return;}
+  const label=boSessionObj(session)?`${session} 대비 교재신청`:session;
+  const orderDate=document.getElementById('bo-date')?.value||tdk();
   const brandSel=document.getElementById('bo-brand').value;
   const brand=brandSel===BO_CUSTOM_BRAND?document.getElementById('bo-brand-custom').value.trim():brandSel;
   const item=document.getElementById('bo-item').value.trim();
@@ -7447,10 +7484,11 @@ function submitBookOrder(){
   if(!brand){alert(brandSel===BO_CUSTOM_BRAND?'브랜드명을 입력해주세요.':'브랜드를 선택해주세요.');return;}
   if(!item){alert('교재를 입력해주세요.');return;}
   if(!qty||qty<1){alert('수량을 입력해주세요.');return;}
-  addBookOrder(label,brand,item,qty,note,teacherOverride);
-  BookOrderForm={label,brand:'',customBrand:'',item:'',qty:'',note:'',teacher:''}; // 세션 라벨은 남겨두고(연속 입력 편하게) 나머지는 초기화
+  addBookOrder(label,brand,item,qty,note,teacherOverride,session,orderDate);
+  // 세션과 신청 날짜는 남겨두고(연속 입력 편하게) 나머지는 초기화
+  BookOrderForm={label,session:sessSel,customSession:sessSel===BO_CUSTOM_SESSION?session:'',date:orderDate,brand:'',customBrand:'',item:'',qty:'',note:'',teacher:''};
   renderAll();
-  toast('교재 신청을 등록했습니다');
+  toast(`교재 신청을 등록했습니다 — ${session}`);
 }
 // 📌 신청완료 — 선생님이 신청 등록한 뒤, 원장님이 실제로 출판사에 주문을 넣었으면 눌러서 표시.
 // 안 눌러도 "입고 처리"는 그대로 할 수 있고 재고도 똑같이 자동 반영된다 — 이 버튼은 어디까지나
@@ -7601,6 +7639,20 @@ function rBookOrderSection(){
     const nameCmp=key(a).localeCompare(key(b),'ko',{numeric:true});
     return nameCmp!==0?nameCmp:b._updatedAt-a._updatedAt;
   });
+  // 세션별로 묶는다 — 이미 시작된 세션(급한 것 포함)이 위로, 아직 안 시작한 세션은 시작일 순서로 아래에
+  const today=tdk();
+  const groupsMap={};
+  pending.forEach(o=>{ const n=boSessionName(o); (groupsMap[n]=groupsMap[n]||[]).push(o); });
+  const groups=Object.entries(groupsMap).map(([name,items])=>{
+    const s=boSessionObj(name);
+    items.sort((a,b)=>(boIsUrgent(b)?1:0)-(boIsUrgent(a)?1:0)||(a.ordered?1:0)-(b.ordered?1:0)||`${a.brand}|${a.item}`.localeCompare(`${b.brand}|${b.item}`,'ko',{numeric:true}));
+    return {name,s,items,urgent:items.filter(boIsUrgent).length,notOrdered:items.filter(o=>!o.ordered).length};
+  }).sort((a,b)=>(a.s?a.s.start:'9999').localeCompare(b.s?b.s.start:'9999')||a.name.localeCompare(b.name,'ko'));
+  const urgentTotal=groups.reduce((n,g)=>n+g.urgent,0);
+  if(BO_SESSION_FILTER!=='전체'&&!groups.some(g=>g.name===BO_SESSION_FILTER))BO_SESSION_FILTER='전체';
+  const shown=BO_SESSION_FILTER==='전체'?groups:groups.filter(g=>g.name===BO_SESSION_FILTER);
+  if(!BookOrderForm.session)BookOrderForm.session=boDefaultSession();
+  const sessOptions=getAcadSessions().slice().sort((a,b)=>a.start.localeCompare(b.start)).filter(s=>s.end>=today||s.name===BookOrderForm.session);
   const received=getBookOrders().filter(o=>o.received).sort((a,b)=>(b.receivedDate||'').localeCompare(a.receivedDate||'')).slice(0,10);
   const inv=getBookInv();
   const brands=sortBookBrands(Object.keys(inv));
@@ -7608,8 +7660,20 @@ function rBookOrderSection(){
     <div style="font-size:14px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:5px;margin-bottom:6px;"><i class="ti ti-truck-delivery"></i> 교재 신청</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">세션이 정해진 날짜 없이 돌아가더라도, 다음 세션 대비 교재를 미리 신청해둔 걸 기록해두세요. 실제로 책이 도착하면 "입고 처리"를 눌러서 재고에 그대로 더해줍니다.</div>
     <div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:var(--rs);padding:12px;margin-bottom:12px;">
-      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px;">세션/용도</div>
-      <input class="fi" id="bo-label" placeholder="예) 10월 세션대비 교재신청" value="${escAttr(BookOrderForm.label)}" oninput="BookOrderForm.label=this.value;" style="margin-bottom:10px;width:100%;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <div style="flex:2;min-width:150px;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px;">어느 세션을 위한 교재인가요?</div>
+          <select class="fsel" id="bo-session" style="width:100%;font-weight:700;" onchange="BookOrderForm.session=this.value;renderAll()">
+            ${sessOptions.map(s=>{ const st=s.start<=today?(s.end>=today?'진행중':'지난 세션'):`${boFmtDate(s.start)} 시작`; return `<option value="${esc(s.name)}" ${BookOrderForm.session===s.name?'selected':''}>${esc(s.name)} 대비 (${st})</option>`; }).join('')}
+            <option value="${BO_CUSTOM_SESSION}" ${BookOrderForm.session===BO_CUSTOM_SESSION?'selected':''}>+ 직접 입력</option>
+          </select>
+          ${BookOrderForm.session===BO_CUSTOM_SESSION?`<input class="fi" id="bo-session-custom" placeholder="세션/용도 직접 입력" value="${escAttr(BookOrderForm.customSession)}" oninput="BookOrderForm.customSession=this.value;" style="width:100%;margin-top:6px;">`:''}
+        </div>
+        <div style="flex:1;min-width:130px;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px;">신청 날짜</div>
+          <input class="fi" id="bo-date" type="date" value="${escAttr(BookOrderForm.date||today)}" oninput="BookOrderForm.date=this.value;" style="width:100%;">
+        </div>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <div style="flex:2;min-width:110px;">
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px;">브랜드</div>
@@ -7645,28 +7709,56 @@ function rBookOrderSection(){
   if(!pending.length){
     out+=`<div style="text-align:center;padding:16px;color:var(--muted);font-size:12.5px;"><i class="ti ti-check" style="font-size:24px;display:block;margin-bottom:5px;opacity:.4;"></i>입고 대기 중인 신청이 없습니다.</div>`;
   } else {
-    out+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
-      ${pending.map(o=>`<div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:${o.ordered?'#EFF6FF':'#FFFBEB'};border:1px solid ${o.ordered?'#BFDBFE':'#FDE68A'};border-radius:var(--rs);">
+    // 🚨 급한 신청 요약 — 이미 시작된 세션인데 아직 주문(신청완료)이 안 된 교재
+    if(urgentTotal>0){
+      const urgentGroups=groups.filter(g=>g.urgent>0);
+      out+=`<div style="background:#FEF2F2;border:2px solid #EF4444;border-radius:var(--rs);padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:800;color:#B91C1C;">🚨 급해요! 이미 시작된 세션인데 아직 주문 안 된 교재 ${urgentTotal}건</div>
+        <div style="font-size:12px;color:#991B1B;margin-top:3px;">${urgentGroups.map(g=>`<b>${esc(g.name)}</b> ${g.urgent}건 (시작 ${g.s?boFmtDate(g.s.start):''}${g.s?`, D+${boDayDiff(today,g.s.start)}일`:''})`).join(' · ')}</div>
+        <div style="font-size:11px;color:#991B1B;margin-top:2px;">아래 빨간 표시된 줄의 <b>✓ 신청완료</b>를 눌러 주문 상태를 바꿔 주세요.</div>
+      </div>`;
+    }
+    // 세션 필터 칩
+    out+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <button onclick="BO_SESSION_FILTER='전체';renderAll()" style="padding:6px 13px;border-radius:20px;border:1px solid var(--bdr);background:${BO_SESSION_FILTER==='전체'?'var(--pri)':'#fff'};color:${BO_SESSION_FILTER==='전체'?'#fff':'var(--muted)'};font-size:12px;font-weight:700;cursor:pointer;">전체 (${pending.length})</button>
+      ${groups.map(g=>`<button onclick="BO_SESSION_FILTER='${escAttr(g.name).replace(/'/g,"\\'")}';renderAll()" style="padding:6px 13px;border-radius:20px;border:${g.urgent?'2px solid #EF4444':'1px solid var(--bdr)'};background:${BO_SESSION_FILTER===g.name?(g.urgent?'#EF4444':'var(--pri)'):'#fff'};color:${BO_SESSION_FILTER===g.name?'#fff':(g.urgent?'#B91C1C':'var(--muted)')};font-size:12px;font-weight:700;cursor:pointer;">${g.urgent?'🚨 ':''}${esc(g.name)} (${g.items.length})</button>`).join('')}
+    </div>`;
+    out+=shown.map(g=>{
+      const s=g.s; const started=s&&s.start<=today;
+      const stat=!s?'':started?(s.end<today?`지난 세션 · 종료 ${boFmtDate(s.end)}`:`진행중 · 시작 ${boFmtDate(s.start)} (D+${boDayDiff(today,s.start)}일)`):`${boFmtDate(s.start)} 시작 (D-${boDayDiff(s.start,today)}일)`;
+      return `<div style="margin-bottom:14px;border:${g.urgent?'2px solid #FCA5A5':'1px solid var(--bdr)'};border-radius:var(--rs);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 11px;background:${g.urgent?'#FEE2E2':'#F1F5F9'};">
+          ${s?`<span style="width:10px;height:10px;border-radius:50%;background:${esc(s.color||'#64748B')};display:inline-block;"></span>`:''}
+          <b style="font-size:14px;">${esc(g.name)}</b>
+          <span style="font-size:11px;color:var(--muted);">${stat}</span>
+          <span style="margin-left:auto;font-size:11px;font-weight:700;color:#92400E;">주문 대기 ${g.notOrdered}건</span>
+          <span style="font-size:11px;font-weight:700;color:#1D4ED8;">신청완료 ${g.items.length-g.notOrdered}건</span>
+          ${g.urgent?`<span style="font-size:11px;font-weight:800;color:#fff;background:#EF4444;border-radius:12px;padding:2px 8px;">🚨 급함 ${g.urgent}건</span>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:8px;">
+      ${g.items.map(o=>{ const urgent=boIsUrgent(o); const waitDays=o.date?boDayDiff(today,o.date):0; return `<div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:${urgent?'#FEF2F2':(o.ordered?'#EFF6FF':'#FFFBEB')};border:${urgent?'2px solid #EF4444':'1px solid '+(o.ordered?'#BFDBFE':'#FDE68A')};border-radius:var(--rs);">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:11px;color:var(--muted);">${esc(o.label||'')}</div>
-          <div style="font-size:13px;font-weight:700;">${esc(o.brand)} ${esc(o.item)} <span style="color:var(--pri2);">× ${o.qty}</span></div>
+          <div style="font-size:13px;font-weight:700;">${urgent?'<span style="font-size:10.5px;font-weight:800;color:#fff;background:#EF4444;border-radius:10px;padding:1px 7px;margin-right:5px;">🚨 급함</span>':''}${esc(o.brand)} ${esc(o.item)} <span style="color:var(--pri2);">× ${o.qty}</span></div>
           ${o.note?`<div style="font-size:11px;color:var(--muted);">${esc(o.note)}</div>`:''}
-          <div style="font-size:10.5px;color:#B45309;margin-top:2px;"><i class="ti ti-user" style="font-size:10px;vertical-align:-1px;"></i> ${esc(dispTeacherName(o.requestedBy)||'이름 미설정')} 신청</div>
-          ${o.ordered?`<div style="font-size:10.5px;color:#1D4ED8;font-weight:700;margin-top:2px;"><i class="ti ti-circle-check" style="font-size:10px;vertical-align:-1px;"></i> ${esc(dispTeacherName(o.orderedBy)||'')} 신청완료${o.orderedAt?` (${o.orderedAt})`:''}</div>`:`<div style="font-size:10.5px;color:#92400E;margin-top:2px;">⏳ 주문 대기중</div>`}
+          <div style="font-size:10.5px;color:#B45309;margin-top:2px;"><i class="ti ti-user" style="font-size:10px;vertical-align:-1px;"></i> ${esc(dispTeacherName(o.requestedBy)||'이름 미설정')} 신청 · <b>📅 신청일 ${boFmtDate(o.date)||'-'}</b></div>
+          ${o.ordered?`<div style="font-size:10.5px;color:#1D4ED8;font-weight:700;margin-top:2px;"><i class="ti ti-circle-check" style="font-size:10px;vertical-align:-1px;"></i> ${esc(dispTeacherName(o.orderedBy)||'')} 신청완료${o.orderedAt?` (${boFmtDate(o.orderedAt)})`:''}</div>`:`<div style="font-size:10.5px;color:${urgent?'#B91C1C':'#92400E'};font-weight:${urgent?'800':'400'};margin-top:2px;">⏳ 주문 대기중${waitDays>0?` · 신청 후 ${waitDays}일째`:''}</div>`}
+          <div style="margin-top:3px;"><select onchange="setBookOrderSession(${o.id},this.value)" title="다른 세션 신청으로 옮기기" style="font-size:10.5px;padding:2px 4px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--muted);max-width:170px;"><option value="">세션 옮기기…</option>${getAcadSessions().filter(x=>x.name!==g.name).map(x=>`<option value="${esc(x.name)}">${esc(x.name)}로</option>`).join('')}</select></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:stretch;">
           ${o.ordered?`<button onclick="undoBookOrderOrdered(${o.id})" style="padding:5px 10px;border-radius:16px;background:#fff;color:#1D4ED8;border:1px solid #BFDBFE;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;">신청완료 취소</button>`:`<button onclick="markBookOrderOrdered(${o.id})" style="padding:5px 10px;border-radius:16px;background:#3B82F6;color:#fff;border:none;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;">✓ 신청완료</button>`}
           <button onclick="receiveBookOrder(${o.id})" style="padding:5px 10px;border-radius:16px;background:#10B981;color:#fff;border:none;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;">입고 처리</button>
           <button onclick="deleteBookOrder(${o.id})" style="padding:5px 10px;border-radius:16px;background:#fff;color:var(--dan);border:1px solid var(--dan-b);font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;">삭제</button>
         </div>
-      </div>`).join('')}
-    </div>`;
+      </div>`; }).join('')}
+        </div>
+      </div>`;
+    }).join('');
   }
   if(received.length){
     out+=`<div style="margin-top:10px;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;">✅ 최근 입고완료 (${received.length}건)</div>
       ${received.map(o=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 9px;background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:5px;">
-        <div style="flex:1;font-size:11px;color:var(--muted);">${esc(o.label||'')} — ${esc(o.brand)} ${esc(o.item)} × ${o.qty} <span style="color:#10B981;">✓ ${o.receivedDate}</span> · ${esc(dispTeacherName(o.requestedBy)||'이름 미설정')} 신청</div>
+        <div style="flex:1;font-size:11px;color:var(--muted);"><b>${esc(boSessionName(o))}</b> — ${esc(o.brand)} ${esc(o.item)} × ${o.qty} · 📅 신청 ${boFmtDate(o.date)||'-'} <span style="color:#10B981;">→ ✓ 입고 ${boFmtDate(o.receivedDate)||o.receivedDate}</span> · ${esc(dispTeacherName(o.requestedBy)||'이름 미설정')} 신청</div>
         <button onclick="undoReceiveBookOrder(${o.id})" style="padding:4px 9px;border-radius:14px;background:transparent;color:var(--dan);border:1px solid var(--dan-b);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">취소</button>
       </div>`).join('')}
     </div>`;
