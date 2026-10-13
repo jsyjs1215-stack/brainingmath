@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-13-record-tomb-time-v51'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-13-daydef-newer-wins-v55'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2157,6 +2157,18 @@ function getSlotCurr(r,slot){return(r?.slotData&&r.slotData[slot]?.curriculum)||
 // 슬롯별 교재/진도 쓰기
 function setSlotSubj(r,slot,val){if(!r.slotData)r.slotData={};if(!r.slotData[slot])r.slotData[slot]={};r.slotData[slot].sessionSubject=val;}
 function setSlotCurr(r,slot,val){if(!r.slotData)r.slotData={};if(!r.slotData[slot])r.slotData[slot]={};r.slotData[slot].curriculum=val;}
+// "기록을 지워도 되는지"를 판단하는 곳(앱을 열 때의 빈 기록 정리, 보강 취소 시 서버 기록 삭제)용 — hasRealData는
+// 월간 리포트·출석 집계에도 쓰이는 "수업을 실제로 한 날인지" 기준이라 일부러 좁게 되어 있어서, 문자 발송 표시·
+// 리포트 제외 표시·오답풀이 완료 표시·학부모 공유 메모·슬롯별 교재 같은 값만 있는 기록은 "빈 기록"으로 오인돼
+// 조용히 지워질 수 있었다. 지울지 말지 판단할 때는 이 함수(더 넓은 기준)를 쓴다.
+function hasAnyContent(r){
+  if(!r)return false;
+  if(hasRealData(r))return true;
+  if(r.smsSent||r._sessionExcluded||r._parentNote||r._wrongAnswerCompletedHere||r._wrongAnswerCompletedDate||r._wrongAnswerCompletedAt||r._hwSmsAck||r._noteImpId||r.comment||r.questions||r.units||r.tplId||r.totalScore!=null&&r.totalScore!=='')return true;
+  if(Array.isArray(r.books)&&r.books.some(b=>b&&(b.subject||b.curriculum)))return true;
+  if(r.slotData&&typeof r.slotData==='object'&&Object.values(r.slotData).some(sd=>sd&&typeof sd==='object'&&(sd.sessionSubject||sd.curriculum||sd.monthlyEval||(Array.isArray(sd.books)&&sd.books.length))))return true;
+  return false;
+}
 // 레코드가 실제 의미 있는 데이터를 가지는지 확인 — 자동 정리(cleanEmptyRecords 등)에서
 // "비어있다"고 판단해 지워도 되는 기록인지 가리는 유일한 기준. 여기 빠진 필드가 있으면 그
 // 필드만 채워진 기록은 매 새로고침마다 조용히 삭제된다(수업태도·반이동·재시험 여부도 포함).
@@ -6304,6 +6316,7 @@ function setClassMove(v){
     if(!D.dayDefs[ET.sid])D.dayDefs[ET.sid]={};
     if(!D.dayDefs[ET.sid][dayOfWeek])D.dayDefs[ET.sid][dayOfWeek]={};
     D.dayDefs[ET.sid][dayOfWeek].classMove=val;
+    D.dayDefs[ET.sid]._u=Date.now();
     SD();
   }
   setClassMoveUI(v);
@@ -8714,7 +8727,7 @@ function togOneTime(sid){
       r._extraSlots.splice(existIdx,1);
       markDeleted('extraSlotDeletes', date+'|'+sid+'|'+slot);
       // extraSlots가 비고 실제 데이터도 없으면 레코드 삭제
-      if(r._extraSlots.length===0&&!hasRealData(r)){
+      if(r._extraSlots.length===0&&!hasAnyContent(r)){
         delete D.R[date][sid];
         if(Object.keys(D.R[date]).length===0)delete D.R[date];
         // Firebase에서도 명시 삭제
@@ -10015,6 +10028,7 @@ function setDayDef(sid,day,subject,curriculum,slot,teacher,books){
   // 요일 데이터가 완전히 비면 정리
   const dd=D.dayDefs[sid][day];
   if(!dd.subject&&!dd.curriculum&&!dd.teacher&&!(dd.books&&dd.books.length)&&(!dd.slots||Object.keys(dd.slots).length===0))delete D.dayDefs[sid][day];
+  D.dayDefs[sid]._u=Date.now(); // 병합 때 "더 최근에 수정한 쪽이 이김"을 판단하는 시각
   SD();
 }
 function getAllDayDefs(sid){
@@ -10191,6 +10205,7 @@ function toggleSlotMode(sid,day){
   if(hasSlotDefs(sid,day)){
     // OFF: slots 초기화 (공통설정으로 복원)
     if(D.dayDefs[sid]&&D.dayDefs[sid][day])delete D.dayDefs[sid][day].slots;
+    if(D.dayDefs[sid])D.dayDefs[sid]._u=Date.now();
     SD();
   } else {
     // ON: 공통 설정을 첫 슬롯에 복사
@@ -10203,6 +10218,7 @@ function toggleSlotMode(sid,day){
       D.dayDefs[sid][day].slots[firstSlot.id]={subject:dayData.subject||'',curriculum:dayData.curriculum||'',teacher:dayData.teacher||''};
       if(dayData.books&&dayData.books.length)D.dayDefs[sid][day].slots[firstSlot.id].books=dayData.books;
     }
+    D.dayDefs[sid]._u=Date.now();
     SD();
   }
   renderRMDayDefList(sid);
@@ -15263,7 +15279,7 @@ function connectCloud() {
       firebase.initializeApp(config);
       db = firebase.database();
       cloudEnabled = true;
-      cloudListening = false; // 새 db로 리스너를 다시 붙일 수 있도록 반드시 초기화
+      cloudListening = false; COURSE_SERVER_RAW = null; COURSE_SENT = {}; // 새 db로 리스너를 다시 붙일 수 있도록 반드시 초기화
       localStorage.setItem('br5_fb_config', JSON.stringify(config));
       localStorage.removeItem('br5_fb_autoconnect_off'); // 선생님이 직접 다시 연결했으니 자동연결 차단 해제
       startCloudListen();
@@ -15290,7 +15306,7 @@ function connectCloud() {
   const hasDefaultApp = firebase.apps.some(a => a.name === '[DEFAULT]');
   if (hasDefaultApp) {
     if (db) { try { db.ref('braining').off(); } catch(e) {} try { db.ref('.info/connected').off(); } catch(e) {} }
-    cloudListening = false;
+    cloudListening = false; COURSE_SERVER_RAW = null; COURSE_SENT = {};
     firebase.app().delete().then(doInit).catch(doInit);
   } else {
     doInit();
@@ -15391,6 +15407,10 @@ function startCloudListen() {
   });
   db.ref('braining').on('value', snapshot => {
     let data = snapshot.val();
+    // 저장 보호용: 서버가 지금 갖고 있는 원본을 기억해 두고, 이 기기가 그 사이 보낸 값 기록은 비운다.
+    COURSE_SERVER_RAW = data || {};
+    COURSE_SENT = {};
+    if (COURSE_PUSH_PENDING) setTimeout(() => { if (COURSE_PUSH_PENDING) { COURSE_PUSH_PENDING = false; scheduleCloudPush(); } }, 0);
     // 쓸 때(pushCloudNow) 레벨명("Lv.1") 같은 "."이 든 값을 이스케이프해서 올리므로, 읽을 때도
     // 반드시 원래대로 되돌려야 함 — 안 그러면 화면에 "Lv﹒1"처럼 이스케이프된 문자가 그대로 보인다.
     if (data) data = fbUnsanitizeFromRead(data);
@@ -15726,7 +15746,15 @@ function startCloudListen() {
     if (data.closureDays) D.closureDays = Array.from(new Set([...(D.closureDays||[]), ...(data.closureDays||[])]));
     if (data.dayDefs && Object.keys(data.dayDefs).length > 0) {
       // sid별로 병합 (요일별 고정설정도 학생별 병합 - S와 동일한 이유)
-      const merged = Object.assign({}, data.dayDefs, D.dayDefs || {});
+      // ⚠ 예전엔 이 기기에 있는 값이 무조건 이겨서(Object.assign), 서버에서 고쳐도 옛 값을 가진 기기가 있으면
+      // 그 기기가 다시 올려 도로 옛 값으로 돌아갔다. 이제는 학생별 마지막 수정 시각(_u)이 더 최근인 쪽이 이긴다
+      // (시각이 없는 예전 값끼리는 지금까지처럼 이 기기 값 우선).
+      const merged = Object.assign({}, data.dayDefs);
+      Object.entries(D.dayDefs || {}).forEach(([sid, local]) => {
+        const sv = data.dayDefs[sid];
+        if (!sv) { merged[sid] = local; return; }
+        merged[sid] = ((sv && sv._u) || 0) > ((local && local._u) || 0) ? sv : local;
+      });
       D.dayDefs = merged;
     }
     // 고학년 전체시간표 "반 종류"도 dayDefs와 동일한 방식(요일·시간·담임 키별 병합, 충돌 시 이
@@ -15909,7 +15937,7 @@ function startCloudListen() {
   }, err => {
     console.error('Firebase error:', err);
     toast('⚠ 클라우드 동기화 오류: ' + err.message);
-    cloudEnabled = false; cloudListening = false;
+    cloudEnabled = false; cloudListening = false; COURSE_SERVER_RAW = null; COURSE_SENT = {};
     updateCloudUI(false);
   });
 }
@@ -15936,7 +15964,7 @@ function disconnectCloud() {
   // ⚠ firebase.apps엔 사고력 전용 앱('sago')도 항상 들어있어서, length만으로 판단하면 기본 앱이
   // 없을 때도 firebase.app()(=기본 앱)을 불러 불필요한 오류가 날 수 있다. 기본 앱 존재 여부만 확인.
   if (firebase.apps.some(a => a.name === '[DEFAULT]')) { try { firebase.app().delete(); } catch(e) {} }
-  db = null; cloudEnabled = false; cloudListening = false;
+  db = null; cloudEnabled = false; cloudListening = false; COURSE_SERVER_RAW = null; COURSE_SENT = {};
   localStorage.removeItem('br5_fb_config');
   // ⚠ 예전엔 여기서 저장된 설정값만 지웠는데, 학원 공식 공유 주소(MAIN_FIREBASE_CONFIG)가 코드에
   // 고정돼 있다 보니 새로고침하는 순간 initCloud()가 "저장된 값 없음 → 기본값으로 자동 연결"을
@@ -16034,6 +16062,13 @@ let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실�
 // 뭉뚱그린 문구 대신 실제 원인을 화면에 보여주기 위해 보관해둔다 (flushLinkedWrite에서 사용).
 function pushCloudNow() {
   if (!(cloudEnabled && db)) return null;
+  // 서버의 최신 데이터를 아직 한 번도 못 받았으면(막 켠 직후 등) 저장을 잠시 미룬다 — 오래된 로컬 값으로
+  // 서버의 최신 입력을 덮어쓰지 않기 위함. 서버 데이터를 받는 즉시(리스너) 이어서 자동 저장한다.
+  if (COURSE_SERVER_RAW === null) {
+    COURSE_PUSH_PENDING = true;
+    LAST_PUSH_CLOUD_ERROR = new Error('서버의 최신 데이터를 아직 받지 못해 저장을 잠시 미뤘습니다 (받는 즉시 자동 저장됩니다)');
+    return null;
+  }
   lastPush = Date.now();
   try {
     // set() 대신 update()로 각 필드만 업데이트 → 다른 선생님 데이터 덮어쓰기 방지
@@ -16087,7 +16122,12 @@ function pushCloudNow() {
       const s=gS(sid);
       if(s&&(s.group||'저학년')==='사고력')return; // 사고력 학생 기록은 사고력 클라우드(pushSagoNow) 쪽에서 처리
       if(!D.R[date]||!D.R[date][sid]){
-        payload['R/'+date+'/'+fbEscapeKey(sid)]=null;
+        // ⚠ 삭제 표시가 있다고 무조건 서버 기록을 지우면 안 된다 — 삭제 "이후에" 다른 선생님이 같은
+        // 날짜·학생에 새로 입력한 기록(서버에 있고 삭제 시각보다 나중에 저장됨)이 이 기기가 아직 못
+        // 받았다는 이유만으로 서버에서 지워진다. 서버 기록이 삭제 시각 이후의 것이면 그대로 둔다.
+        const rp='R/'+date+'/'+fbEscapeKey(sid);
+        const sv=fbGetPath(COURSE_SERVER_RAW,rp);
+        if(sv!=null&&!((sv._updatedAt||0)>(D.tombstones.recordDeletes[key]||0)))payload[rp]=null;
       }
     });
     // ⚠ S(학생 목록)도 R과 완전히 같은 이유로 학생별 경로로 쪼개서 올려야 한다. 실제로 겪은 사고:
@@ -16106,7 +16146,11 @@ function pushCloudNow() {
       Object.keys(D.tombstones?.students||{}).forEach(sid=>{
         const st=gS(sid);
         if(st&&(st.group||'저학년')==='사고력')return; // 사고력 학생은 사고력 클라우드 쪽에서 처리
-        if(!courseIds.has(sid))payload['S/'+fbEscapeKey(sid)]=null;
+        if(!courseIds.has(sid)){
+          // 같은 이름으로 삭제 이후에 다시 등록한 학생(서버에 더 최근 저장본이 있음)은 지우지 않는다
+          const sp='S/'+fbEscapeKey(sid), sv=fbGetPath(COURSE_SERVER_RAW,sp);
+          if(sv!=null&&!((sv._updatedAt||0)>(D.tombstones.students[sid]||0)))payload[sp]=null;
+        }
       });
     }
     // ⚠ SC(반배정/시간표)도 같은 이유로 요일+시간대별 경로로 쪼개서 올려야 한다. 이 시간표를
@@ -16184,6 +16228,16 @@ function pushCloudNow() {
     // "값"만 재귀적으로 이스케이프한다 — 최상위 키 이름(위 "scMeta/학생이름" 같은 경로 키 포함)은
     // update()가 경로 구분자로 그대로 써야 하므로 건드리면 안 된다.
     Object.keys(payload).forEach(k=>{ if(!k.includes('/'))payload[k]=fbSanitizeForWrite(payload[k]); });
+    // ⚠ 사고력 별칭 지도(sagoAlias)는 통째로 올리면 이 기기가 알고 있는 별칭으로 서버의 기존 별칭을 덮어써서
+    // 같은 학생을 가리키는 이름이 기기마다 갈라진다(수업기록이 "사라진 것처럼" 보이는 원인). 서버에 아직 없는
+    // 이름의 별칭만 항목별로 추가하고, 이미 정해진 별칭은 절대 바꾸지 않는다.
+    {
+      const aliasAll=payload.sagoAlias||{}; delete payload.sagoAlias;
+      const srvAlias=(COURSE_SERVER_RAW&&COURSE_SERVER_RAW.sagoAlias)||{};
+      Object.entries(aliasAll).forEach(([orig,alias])=>{ const ek=fbEscapeKey(orig); if(alias&&srvAlias[ek]===undefined)payload['sagoAlias/'+ek]=alias; });
+    }
+    // 서버가 이미 같은 값을 갖고 있는 항목은 다시 쓰지 않는다(저장 보호 — 위 설명 참고).
+    dropUnchangedPaths(payload, COURSE_SERVER_RAW, COURSE_SENT);
     const p = db.ref('braining').update(payload);
     // 아무도 결과를 안 볼 때도 "처리되지 않은 오류(unhandled rejection)"가 뜨지 않도록 한 번 받아둔다.
     // (아래에서 그대로 반환하는 p 자체는 여전히 실패를 알려주므로, 연동 저장 확인에는 영향 없음)
@@ -16391,6 +16445,47 @@ function fbUnsanitizeFromRead(obj){
   return obj;
 }
 
+// ═══ 저장 보호 — "오래된 기기가 서버의 최신 입력을 옛날 값으로 덮어쓰는" 사고 방지 ═══
+// 예전에는 저장할 때마다 이 기기가 가진 모든 수업기록·학생·시간표를 서버에 그대로 다시 썼다. 그래서 서버의
+// 최신 데이터를 아직 못 받았거나(막 켠 직후, 연결이 불안정해 업데이트가 안 들어오는 기기 등) 오래된 값을
+// 가진 기기가 아무 저장이나 하면, 다른 선생님이 방금 입력한 내용이 옛날 값으로 통째로 되돌려졌다.
+// 이제는 ① 서버의 최신 데이터를 한 번이라도 받은 뒤에만 저장하고, ② "서버에서 마지막으로 받은 값과 똑같은
+// 항목"은 아예 다시 쓰지 않는다(= 이 기기에서 실제로 바꾼 항목만 서버로 나간다).
+let COURSE_SERVER_RAW=null, SAGO_SERVER_RAW=null;       // 서버에서 마지막으로 받은 원본(이스케이프된 키 그대로)
+let COURSE_SENT={}, SAGO_SENT={};                       // 마지막 서버 수신 이후 이 기기가 보낸 값(되돌리기 저장이 생략되지 않게)
+let COURSE_PUSH_PENDING=false, SAGO_PUSH_PENDING=false; // 서버 데이터를 받기 전에 들어온 저장 요청 — 받은 직후 이어서 저장
+// Firebase가 저장·반환하는 모양에 맞춘 비교용 값 (null·빈 배열·빈 객체는 저장되지 않고, 배열은 번호 키 객체로 돌아온다)
+function fbCanon(v){
+  if(v===null||v===undefined)return undefined;
+  if(typeof v!=='object')return v;
+  const o={};
+  const keys=Array.isArray(v)?v.map((_,i)=>String(i)):Object.keys(v).sort();
+  keys.forEach(k=>{ const c=fbCanon(v[k]); if(c!==undefined)o[k]=c; });
+  return Object.keys(o).length?o:undefined;
+}
+function fbCanonStr(v){ const c=fbCanon(v); return c===undefined?'':JSON.stringify(c); }
+function fbGetPath(root,path){ return String(path).split('/').reduce((o,seg)=>(o==null?undefined:o[seg]),root); }
+// payload에서 "서버가 이미 그 값을 갖고 있는" 항목을 뺀다. 명시적 삭제(null)는 그대로 보낸다.
+function dropUnchangedPaths(payload,raw,sent){
+  Object.keys(payload).forEach(k=>{
+    const val=payload[k];
+    if(val===null){
+      // 서버에 지울 게 이미 없으면 보낼 필요가 없다(삭제 표시가 있는 수백 개 경로에 매번 null을 쓰던 것 정리)
+      if(fbGetPath(raw,k)===undefined&&sent[k]===undefined){ delete payload[k]; return; }
+      sent[k]=''; return;
+    }
+    // 시간표 칸(SC/요일/시간대)은 학생 이름 목록이라 순서만 다른 건 같은 내용으로 본다
+    const cmp=(v)=>{
+      if(k.startsWith('SC/')){ const a=Array.isArray(v)?v:(v&&typeof v==='object'?Object.values(v):[]); return fbCanonStr(a.slice().sort()); }
+      return fbCanonStr(v);
+    };
+    const want=cmp(val);
+    const prev=sent[k];
+    if(want===cmp(fbGetPath(raw,k))&&(prev===undefined||prev===want)){ delete payload[k]; return; }
+    sent[k]=want;
+  });
+}
+
 // 이 학생이 사고력 그룹인지 — 사고력 클라우드로 내보낼 대상을 고를 때 쓰는 공통 기준
 function isSagoSid(sid){ const s=gS(sid); return !!s&&(s.group||'저학년')==='사고력'; }
 // 사고력 클라우드에서 받은 이름 → 이 앱에서 쓸 이름 (겹치면 "(사고력)"을 붙임)
@@ -16466,7 +16561,13 @@ function cleanupDuplicateSagoRecords(){
       if(s===keep)return;
       Object.keys(s).forEach(k=>{ if(k!=='id'&&(keep[k]===undefined||keep[k]===''))keep[k]=s[k]; });
       allSlotDefs().forEach(sl=>{ DAYS.concat(['토']).forEach(d=>{ if(D.SC[d]?.[sl.id])D.SC[d][sl.id]=D.SC[d][sl.id].filter(x=>x!==s.id); }); });
-      Object.keys(D.R||{}).forEach(date=>{ if(D.R[date][s.id])delete D.R[date][s.id]; });
+      // ⚠ 중복(유령) 쪽 수업 기록을 그냥 지우면 그 안에만 있던 입력이 사라진다 — 진짜 쪽에 그날 기록이
+      // 없으면 그대로 옮기고, 둘 다 있으면 합쳐서(더 최근 저장본 기준) 진짜 쪽에 남긴 뒤에 유령 쪽을 정리한다.
+      Object.keys(D.R||{}).forEach(date=>{
+        const g=D.R[date]&&D.R[date][s.id]; if(!g)return;
+        D.R[date][keep.id]=D.R[date][keep.id]?mergeLessonRecord(D.R[date][keep.id],g):g;
+        delete D.R[date][s.id];
+      });
       if(!D.tombstones)D.tombstones={};
       if(!D.tombstones.students)D.tombstones.students={};
       D.tombstones.students[s.id]=Date.now();
@@ -16500,6 +16601,9 @@ function startSagoListen(){
   }catch(e){ console.warn('[사고력 동기화] 연결 상태 감시 실패:', e); }
   sagoDb.ref(SAGO_ROOT).on('value', snapshot=>{
     let data=snapshot.val();
+    SAGO_SERVER_RAW=data||{};
+    SAGO_SENT={};
+    if(SAGO_PUSH_PENDING)setTimeout(()=>{ if(SAGO_PUSH_PENDING){ SAGO_PUSH_PENDING=false; scheduleSagoPush(); } },0);
     if(data)data=fbUnsanitizeFromRead(data); // 서버에서 이스케이프된 키를 원래대로 복원
     if(!data){
       // 서버가 비어있으면, 이 기기에 사고력 학생이 있을 때만 처음 한 번 올려서 채워줌
@@ -16827,7 +16931,7 @@ function startSagoListen(){
   }, err=>{
     // 사고력 클라우드에 못 붙어도 앱 전체가 멈추면 안 됨 — 조용히 꺼두고 로컬 데이터로 계속 사용
     console.warn('[사고력 동기화] 연결 오류 — 사고력 데이터는 이 기기에 저장된 내용으로 계속 사용됩니다:', err);
-    sagoConnected=false; sagoListening=false;
+    sagoConnected=false; sagoListening=false; SAGO_SERVER_RAW=null; SAGO_SENT={};
   });
 }
 
@@ -16917,6 +17021,8 @@ function buildSagoPayload(){
 // pushCloudNow()와 동일하게, 실제로 저장 요청을 보냈으면 그 Promise를 반환한다(아니면 null).
 function pushSagoNow(){
   if(!(sagoConnected&&sagoDb))return null;
+  // 코스 클라우드와 같은 저장 보호: 서버 최신 데이터를 받기 전에는 저장을 미룬다.
+  if(SAGO_SERVER_RAW===null){ SAGO_PUSH_PENDING=true; return null; }
   sagoLastPush=Date.now();
   try{
     const payload=JSON.parse(JSON.stringify(buildSagoPayload()));
@@ -16940,7 +17046,10 @@ function pushSagoNow(){
       const s=gS(sid);
       if(!s||(s.group||'저학년')!=='사고력')return;
       if(!D.R[date]||!D.R[date][sid]){
-        payload['R/'+date+'/'+fbEscapeKey(sagoOut(sid))]=null;
+        // 삭제 이후에 새로 입력된 서버 기록은 지우지 않는다(코스 클라우드 쪽과 동일)
+        const rp='R/'+date+'/'+fbEscapeKey(sagoOut(sid));
+        const sv=fbGetPath(SAGO_SERVER_RAW,rp);
+        if(sv!=null&&!((sv._updatedAt||0)>(D.tombstones.recordDeletes[key]||0)))payload[rp]=null;
       }
     });
     // ⚠ S(학생 목록)도 코스 클라우드와 같은 이유로 학생별 경로로 쪼개서 올려야 한다 — 오늘 실제로
@@ -16954,7 +17063,10 @@ function pushSagoNow(){
         const st=gS(sid);
         if(st&&(st.group||'저학년')!=='사고력')return; // 교과 학생은 코스 클라우드 쪽에서 처리
         const sagoSid=sagoOut(sid);
-        if(!sagoIds.has(sagoSid))payload['S/'+fbEscapeKey(sagoSid)]=null;
+        if(!sagoIds.has(sagoSid)){
+          const sp='S/'+fbEscapeKey(sagoSid), sv=fbGetPath(SAGO_SERVER_RAW,sp);
+          if(sv!=null&&!((sv._updatedAt||0)>(D.tombstones.students[sid]||0)))payload[sp]=null;
+        }
       });
     }
     // ⚠ SC(반배정/시간표)도 같은 이유로 요일+시간대별 경로로 쪼개서 올려야 한다.
@@ -16981,6 +17093,7 @@ function pushSagoNow(){
     // 되어(전각 슬래시로 바뀜) 경로가 아니라 그냥 이상한 이름의 필드가 되어버려 쪼개 올리는 의미가
     // 없어진다(pushCloudNow가 값만 선택적으로 이스케이프하는 것과 동일한 이유).
     Object.keys(payload).forEach(k=>{ if(!k.includes('/'))payload[k]=fbSanitizeForWrite(payload[k]); });
+    dropUnchangedPaths(payload, SAGO_SERVER_RAW, SAGO_SENT);
     const p=sagoDb.ref(SAGO_ROOT).update(payload);
     try{ p.catch(err=>console.warn('[사고력 동기화] 저장 실패 — 이 기기에는 정상 저장되었습니다:',err)); }catch(e2){}
     return p;
@@ -17005,7 +17118,7 @@ function initSagoCloud(){
     startSagoListen();
   }catch(e){
     console.warn('[사고력 동기화] 연결에 실패했지만 앱은 정상 동작합니다 (사고력 데이터는 이 기기에 저장된 내용 사용):',e);
-    sagoDb=null; sagoConnected=false; sagoListening=false;
+    sagoDb=null; sagoConnected=false; sagoListening=false; SAGO_SERVER_RAW=null; SAGO_SENT={};
   }
 }
 
@@ -17242,7 +17355,7 @@ function init(){
     if(!D.R[date])return;
     Object.keys(D.R[date]).forEach(sid=>{
       const r=D.R[date][sid];if(!r)return;
-      if(!hasRealData(r)){delete D.R[date][sid];needClean=true;}
+      if(!hasAnyContent(r)){delete D.R[date][sid];needClean=true;}
     });
     if(D.R[date]&&Object.keys(D.R[date]).length===0){delete D.R[date];needClean=true;}
   });
