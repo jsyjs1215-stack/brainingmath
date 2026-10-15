@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-15-bill-student-date-v59'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-15-daydef-sago-guard-v60'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -10100,7 +10100,19 @@ function toastUndo(msg,removalId){
 
 // ═══ DAY DEFAULTS (요일별 교재 고정) ════════════════════════
 // dayDefs는 D 객체 안에 저장 → Firebase 자동 동기화됨
+// ⚠ 저학년·고학년 학생의 요일별 고정설정에 사고력 브랜드(팩토·수학이재밌어 등)가 옛 값으로 남아 있으면(사고력→교과로
+// 옮긴 학생, 또는 옛 버전 기기가 옛 값을 다시 올린 경우) 수업입력 때 그 값이 과목으로 자동 채워져 기록이 엉켜 보였다
+// (예: 아리수 학생의 기록 과목이 "팩토"로 저장됨). 학생의 기본 교재가 따로 있는데 요일 설정만 사고력 브랜드면 그 값은 무시한다.
+const DAYDEF_SAGO_ONLY_BRANDS=['팩토','수학이재밌어','필즈','성냥개비','폴리오미노'];
 function getDayDef(sid,day,slot){
+  const dd=getDayDefRaw(sid,day,slot);
+  if(!dd||!DAYDEF_SAGO_ONLY_BRANDS.includes(dd.subject))return dd;
+  const s=gS(sid);
+  if(!s||(s.group||'저학년')==='사고력')return dd;
+  if(s.subject&&!DAYDEF_SAGO_ONLY_BRANDS.includes(s.subject))return Object.assign({},dd,{subject:'',curriculum:DAYDEF_SAGO_ONLY_BRANDS.includes(dd.subject)?'':dd.curriculum});
+  return dd;
+}
+function getDayDefRaw(sid,day,slot){
   if(!D.dayDefs)D.dayDefs={};
   const dayData=(D.dayDefs[sid]||{})[day];
   if(!dayData)return null;
