@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-15-bill-sheet-0919-v58'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-15-bill-student-date-v59'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -8271,6 +8271,8 @@ function copyBillText(txt){
   const done=()=>toast('복사했습니다 — 문자에 붙여넣기 하세요');
   try{ navigator.clipboard.writeText(txt).then(done,()=>alert(txt)); }catch(e){ alert(txt); }
 }
+// 배부 날짜를 "9/21"처럼 짧게 (앞의 0 없이)
+function billMD(d){ const m=String(d||'').match(/^\d{4}-(\d{2})-(\d{2})/); return m?`${Number(m[1])}/${Number(m[2])}`:String(d||''); }
 function rBillSortToggle(){
   const b=(k,l)=>`<button onclick="BILL_SORT='${k}';renderAll()" style="padding:5px 12px;border-radius:16px;border:1px solid var(--bdr);background:${BILL_SORT===k?'var(--pri)':'#fff'};color:${BILL_SORT===k?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;">${l}</button>`;
   return `<span style="display:inline-flex;gap:5px;align-items:center;">${b('name','이름순')}${b('book','교재순')}</span>`;
@@ -8312,7 +8314,7 @@ function rBillSummaryBlock(sum,list){
   sum.students.forEach(g=>{
     out+=`<div style="background:#fff;border:1px solid var(--bdr);border-radius:var(--rs);padding:8px 12px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
       <div style="min-width:78px;font-size:13px;font-weight:800;">${esc(dispStuName(g.sid))} <span style="font-size:10px;color:var(--muted);font-weight:500;">${esc(g.grp)}</span></div>
-      <div style="flex:1;min-width:190px;font-size:12px;line-height:1.7;">${g.items.slice().sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})).map(i=>`<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed #F1F5F9;"><span>${esc(i.title)}</span><b style="color:${i._price==null?'#B91C1C':'#334155'};white-space:nowrap;">${i._price==null?'미설정':Number(i._price).toLocaleString('ko-KR')+'원'}</b></div>`).join('')}</div>
+      <div style="flex:1;min-width:190px;font-size:12px;line-height:1.7;">${g.items.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.subject).localeCompare(String(b.subject),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})).map(i=>`<div style="display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed #F1F5F9;"><span><span style="display:inline-block;min-width:36px;color:#475569;font-weight:700;white-space:nowrap;" title="이 책이 나간 날짜">${billMD(i.date)}</span> ${esc(i.title)}</span><b style="color:${i._price==null?'#B91C1C':'#334155'};white-space:nowrap;">${i._price==null?'미설정':Number(i._price).toLocaleString('ko-KR')+'원'}</b></div>`).join('')}</div>
       <div style="font-size:13px;font-weight:800;color:${g.unset?'#B91C1C':'#166534'};white-space:nowrap;min-width:80px;text-align:right;">${billMoney(g.total)}${g.unset?`<div style="font-size:10px;">(미설정 ${g.unset})</div>`:''}</div>
     </div>`;
   });
@@ -8652,7 +8654,7 @@ function billPrintSummary(sum,list,th,td){
   }
   return `<div style="font-size:13px;font-weight:800;margin:14px 0 5px;">학생별 청구 합계 (교재별 금액)</div>
     <table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="${th}width:15%">이름</th><th style="${th}">교재 / 교재비</th><th style="${th}width:15%">합계</th></tr></thead><tbody>
-    ${sum.students.map(g=>`<tr><td style="${td}font-weight:700;vertical-align:top;">${esc(dispStuName(g.sid))}</td><td style="${td}">${g.items.slice().sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})).map(i=>esc(i.title)+' — '+price(i._price)).join('<br>')}</td><td style="${td}text-align:right;font-weight:700;vertical-align:top;">${billMoney(g.total)}</td></tr>`).join('')}
+    ${sum.students.map(g=>`<tr><td style="${td}font-weight:700;vertical-align:top;">${esc(dispStuName(g.sid))}</td><td style="${td}">${g.items.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.subject).localeCompare(String(b.subject),'ko')||String(a.title).localeCompare(String(b.title),'ko',{numeric:true})).map(i=>billMD(i.date)+' '+esc(i.title)+' — '+price(i._price)).join('<br>')}</td><td style="${td}text-align:right;font-weight:700;vertical-align:top;">${billMoney(g.total)}</td></tr>`).join('')}
     <tr><td style="${td}font-weight:800;background:#F8FAFC;" colspan="2">합계</td><td style="${td}text-align:right;font-weight:800;background:#F8FAFC;">${billMoney(sum.total)}</td></tr>
     </tbody></table>`;
 }
