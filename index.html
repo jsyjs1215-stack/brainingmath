@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-16-bookinv-array-fix-v64'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-16-ghost-count-fix-v65'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3138,7 +3138,7 @@ function updDB(){
       (daySC[sl.id]||[]).filter(Boolean).forEach(sid=>{
         if(skipped.includes(sid))return;
         const s=gS(sid);
-        if(s&&!isActiveStu(s))return;
+        if(!s||!isActiveStu(s))return;
         // 📌 저학년/고학년 그룹 전환: 다른 그룹 학생은 요일 탭의 인원수에 포함하지 않음
         if(s&&(s.group||'저학년')!==ActiveGroup)return;
         seen.add(sid);
@@ -3164,17 +3164,17 @@ function getDaySlotIds(date,day){
     const skipped=Object.entries(recs).filter(([sid2,r])=>Array.isArray(r._skipSlots)&&r._skipSlots.includes(sl.id)).map(([sid2])=>sid2);
     (sc[sl.id]||[]).filter(Boolean).forEach(sid=>{
       const s=gS(sid);
-      if((!s||isActiveStu(s))&&(!s||(s.group||'저학년')===ActiveGroup)&&!skipped.includes(sid)&&!regIds.includes(sid))regIds.push(sid);
+      if((s&&isActiveStu(s))&&(s.group||'저학년')===ActiveGroup&&!skipped.includes(sid)&&!regIds.includes(sid))regIds.push(sid);
     });
   });
   const extraIds=[];
   SLOTS.forEach(sl=>{
     getExtraSlotSids(date,sl.id).forEach(x=>{
       const s=gS(x.sid);
-      if((!s||isActiveStu(s))&&(!s||(s.group||'저학년')===ActiveGroup)&&!regIds.includes(x.sid)&&!extraIds.includes(x.sid))extraIds.push(x.sid);
+      if((s&&isActiveStu(s))&&(s.group||'저학년')===ActiveGroup&&!regIds.includes(x.sid)&&!extraIds.includes(x.sid))extraIds.push(x.sid);
     });
   });
-  const legacyOT=Object.entries(recs).filter(([sid2,r])=>{const s=gS(sid2);return r._oneTime&&!regIds.includes(sid2)&&!extraIds.includes(sid2)&&(!s||(s.group||'저학년')===ActiveGroup);}).map(([sid2])=>sid2);
+  const legacyOT=Object.entries(recs).filter(([sid2,r])=>{const s=gS(sid2);return r._oneTime&&!regIds.includes(sid2)&&!extraIds.includes(sid2)&&(s&&(s.group||'저학년')===ActiveGroup);}).map(([sid2])=>sid2);
   return [...regIds,...extraIds,...legacyOT];
 }
 function updHdr(){
@@ -3238,11 +3238,11 @@ function rSch(){
     // _skipSlots: 오늘만 이 슬롯에서 제외된 학생 목록
     const todaySkipped=Object.entries(recs).filter(([sid2,r])=>Array.isArray(r._skipSlots)&&r._skipSlots.includes(sl.id)).map(([sid2])=>sid2);
     // 📌 저학년/고학년 그룹 전환: 다른 그룹 학생은 이 목록에서 아예 보이지 않도록 필터링
-    const regIds=(sc[sl.id]||[]).filter(Boolean).filter(sid2=>{const s2=gS(sid2);return (!s2||isActiveStu(s2))&&(!s2||(s2.group||'저학년')===ActiveGroup)&&!todaySkipped.includes(sid2)&&sagoTeacherOk(sid2,DAY,sl.id,TEACHER_FILTER,date);});
+    const regIds=(sc[sl.id]||[]).filter(Boolean).filter(sid2=>{const s2=gS(sid2);return (s2&&isActiveStu(s2))&&(s2.group||'저학년')===ActiveGroup&&!todaySkipped.includes(sid2)&&sagoTeacherOk(sid2,DAY,sl.id,TEACHER_FILTER,date);});
     // 이 날 이 슬롯에 임시 추가된 학생 (정규 등록이 아닌)
-    const extraEntries=getExtraSlotSids(date,sl.id).filter(x=>{const sx=gS(x.sid);return (!sx||(sx.group||'저학년')===ActiveGroup)&&sagoTeacherOk(x.sid,DAY,sl.id,TEACHER_FILTER,date);}); // [{sid,type}]
+    const extraEntries=getExtraSlotSids(date,sl.id).filter(x=>{const sx=gS(x.sid);return (sx&&(sx.group||'저학년')===ActiveGroup)&&sagoTeacherOk(x.sid,DAY,sl.id,TEACHER_FILTER,date);}); // [{sid,type}]
     // 구버전 _oneTime 호환
-    const legacyOT=Object.entries(recs).filter(([sid2,r])=>{const sx=gS(sid2);return r._oneTime===sl.id&&!regIds.includes(sid2)&&(!sx||(sx.group||'저학년')===ActiveGroup)&&sagoTeacherOk(sid2,DAY,sl.id,TEACHER_FILTER,date);}).map(([sid2])=>sid2);
+    const legacyOT=Object.entries(recs).filter(([sid2,r])=>{const sx=gS(sid2);return r._oneTime===sl.id&&!regIds.includes(sid2)&&(sx&&(sx.group||'저학년')===ActiveGroup)&&sagoTeacherOk(sid2,DAY,sl.id,TEACHER_FILTER,date);}).map(([sid2])=>sid2);
     const extraSids=[...new Set([...extraEntries.map(x=>x.sid),...legacyOT])].filter(s=>!regIds.includes(s));
     const ids=[...regIds,...extraSids];
     const att=ids.filter(s=>{const r=recs[s];return !r||r.attend==='출석';}).length;
@@ -3369,11 +3369,11 @@ function rOvr(){
   let hasAny=false;
   SLOTS.forEach(sl=>{
     const ovrSkipped=Object.entries(recs).filter(([sid2,r])=>Array.isArray(r._skipSlots)&&r._skipSlots.includes(sl.id)).map(([sid2])=>sid2);
-    const regIds=(sc[sl.id]||[]).filter(Boolean).filter(sid2=>{const s2=gS(sid2);return (!s2||isActiveStu(s2))&&(!s2||(s2.group||'저학년')===ActiveGroup)&&!ovrSkipped.includes(sid2)&&sagoTeacherOk(sid2,DAY,sl.id,OVR_TEACHER_FILTER,date);});
+    const regIds=(sc[sl.id]||[]).filter(Boolean).filter(sid2=>{const s2=gS(sid2);return (s2&&isActiveStu(s2))&&(s2.group||'저학년')===ActiveGroup&&!ovrSkipped.includes(sid2)&&sagoTeacherOk(sid2,DAY,sl.id,OVR_TEACHER_FILTER,date);});
     // 이 날 이 슬롯에 보강/시간변동/대체수업으로 임시 추가된 학생도 수업입력 화면과 동일하게 포함
     const extraEntries=getExtraSlotSids(date,sl.id);
     const legacyOT=Object.entries(recs).filter(([sid2,r])=>r._oneTime===sl.id&&!regIds.includes(sid2)).map(([sid2])=>sid2);
-    const extraSids=[...new Set([...extraEntries.map(x=>x.sid),...legacyOT])].filter(s=>!regIds.includes(s)).filter(sid2=>{const s2=gS(sid2);return (!s2||isActiveStu(s2))&&(!s2||(s2.group||'저학년')===ActiveGroup)&&sagoTeacherOk(sid2,DAY,sl.id,OVR_TEACHER_FILTER,date);});
+    const extraSids=[...new Set([...extraEntries.map(x=>x.sid),...legacyOT])].filter(s=>!regIds.includes(s)).filter(sid2=>{const s2=gS(sid2);return (s2&&isActiveStu(s2))&&(s2.group||'저학년')===ActiveGroup&&sagoTeacherOk(sid2,DAY,sl.id,OVR_TEACHER_FILTER,date);});
     const ids=[...regIds,...extraSids];
     if(!ids.length)return;
     hasAny=true;
