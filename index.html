@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-16-hwsms-template-v63'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-16-bookinv-array-fix-v64'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1639,6 +1639,12 @@ function getBookInv(){
   // (bookInvBrandOrder)에는 항목이 있든 없든 브랜드 이름이 그대로 남으므로, 거기 있는데
   // bookInv엔 없는 브랜드는 빈 채로 되살려서 최소한 브랜드 존재 자체는 항상 보존되게 한다.
   (D.bookInvBrandOrder||[]).forEach(b=>{ if(!D.bookInv[b])D.bookInv[b]={}; });
+  // 이미 기기에 저장된 재고에 배열 모양·빈 칸(null)이 섞여 있으면(위 병합 수정 전에 받은 데이터) 한 번에 정리한다
+  Object.keys(D.bookInv).forEach(b=>{
+    const it=D.bookInv[b];
+    if(Array.isArray(it)){ const o={}; it.forEach((v,i)=>{ if(v!=null&&typeof v==='object')o[String(i)]=v; }); D.bookInv[b]=o; }
+    else if(it&&typeof it==='object'){ Object.keys(it).forEach(k=>{ if(it[k]==null||typeof it[k]!=='object')delete it[k]; }); }
+  });
   return D.bookInv;
 }
 function getInvLowThreshold(){ return D.bookInvLowThreshold||3; }
@@ -15230,13 +15236,21 @@ function mergeBookInv(localInv,serverInv,tombstoneItems,tombstoneBrands){
   localInv=localInv||{}; serverInv=serverInv||{};
   const brands=new Set([...Object.keys(localInv),...Object.keys(serverInv)]);
   const merged={};
+  // ⚠ 교재 이름이 "1","2","3"처럼 숫자뿐인 브랜드(예: 팩토타임키즈)는 Firebase가 객체 대신 배열
+  // ([null, {...}, {...}])로 돌려줘서, 빈 칸(null)이 교재 항목처럼 섞여 들어와 교재관리 화면을 그리다가 오류가 났다.
+  // 배열이면 번호를 이름으로 하는 객체로 바꾸고, 비어있는 칸은 버린다.
+  const asItems=x=>{
+    if(Array.isArray(x)){ const o={}; x.forEach((v,i)=>{ if(v!=null&&typeof v==='object')o[String(i)]=v; }); return o; }
+    return x||{};
+  };
   brands.forEach(brand=>{
-    const l=localInv[brand]||{}, s=serverInv[brand]||{};
+    const l=asItems(localInv[brand]), s=asItems(serverInv[brand]);
     const items=new Set([...Object.keys(l),...Object.keys(s)]);
     const mergedItems={};
     items.forEach(item=>{
       const li=l[item], si=s[item];
       const winner=(li&&si)?((si._updatedAt||0)>(li._updatedAt||0)?si:li):(li||si);
+      if(!winner||typeof winner!=='object')return;
       // ⚠ 삭제 기록(tombstone)은 한번 생기면 합집합으로만 쌓여서 다른 기기가 아직 예전 캐시에
       // 들고 있는 걸 계속 다시 퍼뜨릴 수 있다 — 그래서 삭제 시각보다 더 최근에 실제로 수정된
       // (=되살린) 항목까지 영원히 걸러내면, 실수로 지운 걸 나중에 복구해도 다른 기기가 저장할
