@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-16-ghost-count-fix-v65'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-20-sc-removal-guard-v66'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -16462,6 +16462,8 @@ function pushCloudNow() {
       const srvAlias=(COURSE_SERVER_RAW&&COURSE_SERVER_RAW.sagoAlias)||{};
       Object.entries(aliasAll).forEach(([orig,alias])=>{ const ek=fbEscapeKey(orig); if(alias&&srvAlias[ek]===undefined)payload['sagoAlias/'+ek]=alias; });
     }
+    // 시간표 슬롯: 이 기기가 직접 수정하지 않은 학생의 배정은 서버에서 지우지 않는다(위 protectScRemovals 설명 참고).
+    protectScRemovals(payload, COURSE_SERVER_RAW, id=>id);
     // 서버가 이미 같은 값을 갖고 있는 항목은 다시 쓰지 않는다(저장 보호 — 위 설명 참고).
     dropUnchangedPaths(payload, COURSE_SERVER_RAW, COURSE_SENT);
     const p = db.ref('braining').update(payload);
@@ -16691,6 +16693,25 @@ function fbCanon(v){
 }
 function fbCanonStr(v){ const c=fbCanon(v); return c===undefined?'':JSON.stringify(c); }
 function fbGetPath(root,path){ return String(path).split('/').reduce((o,seg)=>(o==null?undefined:o[seg]),root); }
+// ⚠ 시간표(SC) 슬롯은 "그 시간대 학생 명단 전체"를 한 번에 쓴다. 그래서 오래된 기기가 아직 모르는 학생이라는 이유만으로
+// 그 학생이 명단에서 빠진 채 저장되면 서버에서 그 학생의 배정이 통째로 지워졌다(2026-10-20: 9/28~29에 새 시간표로 옮긴
+// 학생 31명의 배정 66건이 이렇게 사라져서 요일 탭 인원이 확 줄었다). 이제는 "이 기기가 그 학생의 시간표를 서버보다
+// 더 최근에 직접 수정했을 때"(학생 저장·시간 이동·제거 등은 모두 scMeta 수정 시각을 남김)만 빼기를 반영하고,
+// 그 외에는 서버에 있는 학생을 명단에 그대로 둔다.
+function protectScRemovals(payload,raw,toLocalId){
+  const srvMeta=(raw&&raw.scMeta)||{};
+  Object.keys(payload).forEach(k=>{
+    if(!k.startsWith('SC/'))return;
+    const loc=Array.isArray(payload[k])?payload[k]:Object.values(payload[k]||{});
+    const srvV=fbGetPath(raw,k); const srv=Array.isArray(srvV)?srvV:Object.values(srvV||{});
+    const keep=srv.filter(sid=>sid&&!loc.includes(sid)).filter(sid=>{
+      const lt=(((D.scMeta||{})[toLocalId(sid)])||{}).updatedAt||0;
+      const st=((srvMeta[fbEscapeKey(sid)])||{}).updatedAt||0;
+      return !(lt>st);
+    });
+    if(keep.length)payload[k]=loc.concat(keep);
+  });
+}
 // payload에서 "서버가 이미 그 값을 갖고 있는" 항목을 뺀다. 명시적 삭제(null)는 그대로 보낸다.
 function dropUnchangedPaths(payload,raw,sent){
   Object.keys(payload).forEach(k=>{
@@ -17319,6 +17340,7 @@ function pushSagoNow(){
     // 되어(전각 슬래시로 바뀜) 경로가 아니라 그냥 이상한 이름의 필드가 되어버려 쪼개 올리는 의미가
     // 없어진다(pushCloudNow가 값만 선택적으로 이스케이프하는 것과 동일한 이유).
     Object.keys(payload).forEach(k=>{ if(!k.includes('/'))payload[k]=fbSanitizeForWrite(payload[k]); });
+    protectScRemovals(payload, SAGO_SERVER_RAW, id=>sagoIn(id));
     dropUnchangedPaths(payload, SAGO_SERVER_RAW, SAGO_SENT);
     const p=sagoDb.ref(SAGO_ROOT).update(payload);
     try{ p.catch(err=>console.warn('[사고력 동기화] 저장 실패 — 이 기기에는 정상 저장되었습니다:',err)); }catch(e2){}
