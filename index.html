@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-20-sc-removal-guard-v66'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-22-me-stale-input-v67'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -6287,6 +6287,12 @@ function openEdit(sid,slot,date){
     if(emNote)emNote.value=me.note||'';
     const emMonth=document.getElementById('em-me-month');
     if(emMonth)emMonth.value=me.meMonth||'';
+  } else {
+    // 월말평가 기록이 없는 학생을 열 때는 숨은 입력칸을 반드시 비운다 — 안 비우면 직전에 열었던
+    // 다른 학생의 점수·결과·메모·월이 남아 있다가 "월말평가 봤어요"만 체크해도 그대로 저장된다.
+    ['me-score','me-pass','me-note','em-me-score','em-me-pass','em-me-note','em-me-month'].forEach(id=>{
+      const el=document.getElementById(id);if(el)el.value='';
+    });
   }
   // 🔗 연동 학생 안내 — 결석 버튼을 누르면 반대쪽 반도 함께 결석 처리된다는 걸 미리 알려줌
   {
