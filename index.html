@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-22-me-stale-input-v67'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-27-me-stray-record-v68'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2009,9 +2009,28 @@ function getSessionForDate(date){
 }
 function getCurrentSession(){return getSessionForDate(tdk());}
 // 날짜+학생 조합이 실제 수업인지 판단하는 공통 필터
+// 그 날짜 시간표에 이 학생이 배정된 슬롯 id (없으면 '')
+function scheduledSlotOf(date,sid){
+  const dow=WD[new Date(date+'T00:00:00').getDay()];
+  const daySC=getSCForDate(date)[dow]||{};
+  for(const[slId,ids]of Object.entries(daySC)){if((ids||[]).includes(sid))return slId;}
+  return '';
+}
+// 성적관리에서 수업 없는 날짜로 월말평가 점수를 입력하면(예전 버전) 빈 "출석" 기록이 따로 생겼다.
+// 월말평가 표시 외엔 아무 내용도 없고, 슬롯도 없고, 그 날 시간표에도 없는 기록 = 실제 수업이 아님.
+function isScoreOnlyStray(date,sid,r){
+  if(!r||!r.monthlyEval||r.slot)return false;
+  if(r.slotData&&typeof r.slotData==='object'&&Object.keys(r.slotData).length)return false;
+  if(r.todayHw||r.note||r.unitTest||r.curriculum||r.sessionSubject||r.newBook||r.classMove||r._retest)return false;
+  if((r.attend&&r.attend!=='출석')||(r.hwStatus&&r.hwStatus!=='완료')||(r.attitude&&r.attitude!==80))return false;
+  if((r._skipSlots&&r._skipSlots.length)||(r._extraSlots&&r._extraSlots.length))return false;
+  if(r.sagoBook||r.sagoUnit||r.sagoPage||r.sagoUnderstand)return false;
+  return !scheduledSlotOf(date,sid);
+}
 function isRealLesson(date, sid, r){
   if(!r||!hasRealData(r))return false;
   if(isClosure(date))return false;
+  if(isScoreOnlyStray(date,sid,r))return false; // 점수만 입력된 수업 없는 날 기록은 출석일로 세지 않음
   if(r._sessionExcluded)return false; // 세션 출석 집계에서 수동으로 제외 처리된 기록(테스트 데이터 등)
   // 📌 2026-09-18: 예전엔 여기서 "그 날짜의 시간표(getSCForDate)에 이 학생이 배정되어 있는지"를
   // 추가로 확인했는데, 과거 날짜의 시간표는 스냅샷(D.SCH)이 있어야 정확히 알 수 있다. 스냅샷 이력이
@@ -12498,14 +12517,17 @@ function saveMEGrade(){
   // 월말평가 표시를 함께 남겨서 학생기록의 해당 날짜 수업 카드에도 바로 나타나게 함.
   // (수업입력에서 "오늘 월말평가 봤어요"를 따로 체크하지 않고 성적관리에서만 입력해도
   // 학생기록에 표시되도록 하기 위함)
+  // ⚠ 수업이 없는 날(시간표에 없고 기존 수업 기록도 없는 날짜)로 점수를 입력하면 예전엔 거기에
+  // 빈 "출석" 기록이 새로 생겨서 월간리포트 출석일에 잘못 잡히고 수업 목록에도 없어 지울 수도 없었다.
+  // 이제는 그런 날짜에는 수업 기록을 만들지 않고 점수(D.meScores)만 저장한다.
+  let slot0='';
   if(date){
+    slot0=D.R[date]?.[sid]?.slot||'';
+    if(!slot0)slot0=scheduledSlotOf(date,sid);
+  }
+  if(date&&(slot0||D.R[date]?.[sid])){
     const r=gR(date,sid);
-    let slot=r.slot||'';
-    if(!slot){
-      const dow=WD[new Date(date+'T00:00:00').getDay()];
-      const daySC=getSCForDate(date)[dow]||{};
-      for(const[slId,ids]of Object.entries(daySC)){if(ids.includes(sid)){slot=slId;break;}}
-    }
+    let slot=slot0;
     const meVal={score,pass,note,meMonth,notTaken,reason};
     if(slot){
       if(!r.slot)r.slot=slot; // 슬롯이 비어있으면(=이 날짜 수업 기록을 아직 한번도 열어본 적 없으면) 채워둠 — 학생기록의 슬롯 표시/매칭에 필요
