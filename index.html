@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-28-book-stock-fix-v78'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-28-admin-lock-keep-v79'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7337,6 +7337,7 @@ function touchBookInvBrandOrder(){ D.bookInvBrandOrderUpdatedAt=Date.now(); }
 // ═══ 교재 순서 잠금 — 선생님들이 ▲▼를 모르고 눌러 순서가 바뀌는 일을 막는다 ═══
 // 관리자 비밀번호(숫자 4자리 이상, 서버에 공유)를 아는 사람만 15분 동안 순서를 바꿀 수 있다. 처음 한 번만 정하면 된다.
 let INV_SORT_UNTIL=0;
+const INV_SORT_MS=30*60*1000; // 관리자 잠금 해제 유지 시간 — 관리자 작업을 할 때마다 다시 30분으로 늘어난다
 function invSortAllowed(){ return Date.now()<INV_SORT_UNTIL; }
 function invSortGuard(){
   if(invSortAllowed())return true;
@@ -7345,8 +7346,17 @@ function invSortGuard(){
 }
 // 시험지 템플릿 등 "관리자만" 하는 작업의 공통 확인 — 같은 관리자 비밀번호·같은 15분 잠금 해제를 쓴다
 function adminGuard(msg){
-  if(invSortAllowed())return true;
+  if(invSortAllowed()){ INV_SORT_UNTIL=Date.now()+INV_SORT_MS; return true; }
   toast(msg||'🔒 관리자만 할 수 있어요');
+  return false;
+}
+function tplGuard(){
+  if(invSortAllowed()){ INV_SORT_UNTIL=Date.now()+INV_SORT_MS; return true; }
+  // ⚠ 템플릿을 오래 입력하는 사이 잠금 시간이 지나면 예전에는 저장 순간에 막혀서 쓴 내용을 저장할 수 없었다.
+  // 지금은 입력한 내용(화면)은 그대로 둔 채 비밀번호만 다시 받고 이어서 저장한다.
+  requestInvSortUnlock();
+  if(invSortAllowed()){ INV_SORT_UNTIL=Date.now()+INV_SORT_MS; return true; }
+  toast(TPL_ADMIN_MSG);
   return false;
 }
 const TPL_ADMIN_MSG='🔒 시험지 템플릿은 관리자만 만들고 고칠 수 있어요 — 성적관리의 "시험지 템플릿 관리 (관리자)"에서 비밀번호로 풀어주세요';
@@ -7373,9 +7383,9 @@ function requestInvSortUnlock(){
     if(inp===null)return;
     if(String(inp).trim()!==pin){ alert('비밀번호가 맞지 않아요.'); return; }
   }
-  INV_SORT_UNTIL=Date.now()+15*60*1000;
+  INV_SORT_UNTIL=Date.now()+INV_SORT_MS;
   renderAll();
-  toast('🔓 15분 동안 순서를 바꿀 수 있어요');
+  toast('🔓 관리자 모드를 켰어요 (작업이 없으면 30분 뒤 자동으로 잠겨요)');
 }
 function changeInvSortPin(){
   if(!invSortGuard())return;
@@ -13268,7 +13278,7 @@ function toggleMEReportLock(){
   toast(r.locked?'템플릿 값을 다시 고정했어요':'템플릿 값을 직접 수정할 수 있어요');
 }
 function saveCurrentAsTemplate(){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   readMEReportFormIntoData();
   const m=meReportRecord();if(!m)return;
   const r=getMEReport(m);
@@ -13296,7 +13306,7 @@ function saveCurrentAsTemplate(){
 // ═══ 시험지 템플릿 관리 화면 (학생 성적표를 거치지 않고 템플릿만 바로 만들고 수정) ═══
 let SCORE_TPL_DRAFT=null; // null=목록 화면, 객체=편집중인 템플릿(신규 또는 기존)
 function openScoreTplManager(){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   SCORE_TPL_DRAFT=null;
   renderScoreTplManager();
   openM('score-tpl-modal');
@@ -13314,7 +13324,7 @@ function blankScoreTplDraft(){
   };
 }
 function newScoreTpl(){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   SCORE_TPL_DRAFT=blankScoreTplDraft();
   renderScoreTplManager();
 }
@@ -13331,7 +13341,7 @@ function normalizeScoreTpl(t){
   return t;
 }
 function editScoreTplInManager(id){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   const tpl=getScoreTemplates().find(x=>String(x.id)===String(id));
   if(!tpl)return;
   // 원본을 바로 건드리지 않도록 깊은 복사해서 편집
@@ -13346,6 +13356,7 @@ function cancelScoreTplDraft(){
 }
 function readScoreTplDraftForm(){
   if(!SCORE_TPL_DRAFT)return;
+  if(invSortAllowed())INV_SORT_UNTIL=Date.now()+INV_SORT_MS; // 입력하는 동안은 잠기지 않게
   const d=SCORE_TPL_DRAFT;
   const gv=id=>{const el=document.getElementById(id);return el?el.value:null;};
   const nameV=gv('tpl-name');if(nameV!=null)d.name=nameV;
@@ -13391,7 +13402,7 @@ function autoAssignScoreTplAreas(){
   alert(autoAssignResultMessage(res));
 }
 function saveScoreTplDraft(){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   readScoreTplDraftForm();
   const d=SCORE_TPL_DRAFT;
   if(!d.name||!d.name.trim()){toast('템플릿 이름을 입력해주세요');return;}
@@ -13410,7 +13421,7 @@ function saveScoreTplDraft(){
 // 목록에서 바로 템플릿 이름만 바꾼다 (문항·배점 등 내용은 그대로). 이미 이 템플릿으로 작성한 성적표에는
 // 템플릿 id로 연결돼 있어서, 화면에 보이는 이름도 새 이름으로 같이 바뀐다.
 function renameScoreTplInManager(id){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   const tpl=getScoreTemplates().find(x=>String(x.id)===String(id));
   if(!tpl)return;
   const nv=prompt('새 템플릿 이름을 입력하세요',tpl.name||'');
@@ -13427,7 +13438,7 @@ function renameScoreTplInManager(id){
   toast(`이름을 "${name}"(으)로 바꿨어요`);
 }
 function deleteScoreTplInManager(id){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   const tpl=getScoreTemplates().find(x=>x.id===id);
   if(!tpl)return;
   if(!confirm(`"${tpl.name}" 템플릿을 삭제할까요?\n(이미 작성해둔 성적표에는 영향 없어요)`))return;
@@ -13511,7 +13522,7 @@ function renderScoreTplManager(){
   body.innerHTML=h;
 }
 function deleteScoreTemplate(){
-  if(!adminGuard(TPL_ADMIN_MSG))return;
+  if(!tplGuard())return;
   const sel=document.getElementById('mer-tpl-select');
   const tid=sel?.value;
   if(!tid){toast('삭제할 템플릿을 선택해주세요');return;}
