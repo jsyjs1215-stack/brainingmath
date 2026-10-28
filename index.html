@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-28-score-tpl-rename-v77'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-28-book-stock-fix-v78'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7422,7 +7422,7 @@ function ensureItemOrder(brand){
       if(seen.has(v.order)){
         let o=v.order;
         do{ o=Math.round((o+0.5)*1000)/1000; }while(seen.has(o)||used.has(o));
-        v.order=o; v._updatedAt=now; v._orderAt=now;
+        v.order=o; v._orderAt=now;
       }
       seen.add(v.order);
     });
@@ -7441,7 +7441,7 @@ function ensureItemOrder(brand){
         if(o<=prev||o>=next||Object.values(items).some(x=>x.order===o))o=null;
       }
       if(o==null)o=++maxOrder; else maxOrder=Math.max(maxOrder,o);
-      v.order=o; v._updatedAt=now; v._orderAt=now;
+      v.order=o; v._orderAt=now;
     });
   }
   return true;
@@ -7477,7 +7477,7 @@ function moveInvItem(brand,item,dir){
   if(idx<0||swapIdx<0||swapIdx>=items.length)return;
   const a=items[idx][1],b=items[swapIdx][1];
   const tmp=a.order;a.order=b.order;b.order=tmp;
-  a._updatedAt=Date.now();b._updatedAt=Date.now();a._orderAt=Date.now();b._orderAt=Date.now();
+  a._orderAt=Date.now();b._orderAt=Date.now();
   SD();renderAll();
 }
 // ═══ 교재 한꺼번에 정렬 — 끌어서 옮기기 / 번호로 옮기기 / 자동정렬을 한 화면에서 하고 저장 한 번으로 끝낸다 ═══
@@ -7600,7 +7600,7 @@ function sortModalSave(){
     keys.forEach((k,i)=>{
       const v=inv[brand]&&inv[brand][k];
       if(!v)return;
-      if(v.order!==i+1){ v.order=i+1; v._updatedAt=now; v._orderAt=now; }
+      if(v.order!==i+1){ v.order=i+1; v._orderAt=now; }
     });
   }
   SD();
@@ -7864,7 +7864,7 @@ function rBookInvSection(){
   });
   let orderFixed=false;
   const brandStats=brands.map(brand=>{
-    if(ensureItemOrder(brand))orderFixed=true;
+    if(COURSE_SERVER_RAW!==null&&ensureItemOrder(brand))orderFixed=true;
     const items=Object.entries(inv[brand]||{}).sort(invItemSort);
     const lowCnt=items.filter(([k,v])=>(v.stock||0)<=threshold).length;
     return {brand,items,lowCnt};
@@ -15581,7 +15581,9 @@ function mergeBookInv(localInv,serverInv,tombstoneItems,tombstoneBrands){
     const mergedItems={};
     items.forEach(item=>{
       const li=l[item], si=s[item];
-      let winner=(li&&si)?((si._updatedAt||0)>(li._updatedAt||0)?si:li):(li||si);
+      // ⚠ 수정시각이 같을 때(특히 둘 다 없을 때) 예전에는 이 기기 값이 이겼다. 이 기기의 값이 "처음 만든 재고 0짜리 기본
+      // 항목"이면 서버의 진짜 재고를 0으로 덮어쓰게 되므로, 같으면 서버 값을 따른다. 직접 고친 항목은 항상 수정시각이 있다.
+      let winner=(li&&si)?((si._updatedAt||0)>=(li._updatedAt||0)?si:li):(li||si);
       if(!winner||typeof winner!=='object')return;
       // ⚠ 순서(order)는 재고와 따로 최신을 고른다. 예전에는 한 항목이 통째로 "수정시각이 더 최근인 쪽"으로 정해져서,
       // 선생님 기기가 (예전 순서를 들고 있는 채로) 재고만 +1/-1 해도 그 항목이 더 최신이 되어 관리자가 정한
