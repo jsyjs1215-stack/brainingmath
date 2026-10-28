@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-28-book-bulk-sort-v72'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-28-book-sort-lock-v73'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7334,7 +7334,44 @@ function getBookInvBrandOrder(){
 // 순서를 덮어써버렸다 — "비어있는지 여부"만으로는 최신/과거를 구분 못 하기 때문. 그래서 마지막
 // 수정 시각(_updatedAt과 같은 개념)을 따로 기억해뒀다가, 더 최근에 바뀐 쪽만 이기도록 한다.
 function touchBookInvBrandOrder(){ D.bookInvBrandOrderUpdatedAt=Date.now(); }
+// ═══ 교재 순서 잠금 — 선생님들이 ▲▼를 모르고 눌러 순서가 바뀌는 일을 막는다 ═══
+// 관리자 비밀번호(숫자 4자리 이상, 서버에 공유)를 아는 사람만 15분 동안 순서를 바꿀 수 있다. 처음 한 번만 정하면 된다.
+let INV_SORT_UNTIL=0;
+function invSortAllowed(){ return Date.now()<INV_SORT_UNTIL; }
+function invSortGuard(){
+  if(invSortAllowed())return true;
+  toast('🔒 교재 순서는 관리자만 바꿀 수 있어요 — 교재관리 맨 위 "순서 편집(관리자)"에서 비밀번호로 풀어주세요');
+  return false;
+}
+function requestInvSortUnlock(){
+  if(invSortAllowed()){ INV_SORT_UNTIL=0; renderAll(); toast('🔒 다시 잠갔어요'); return; }
+  const pin=String(D.bookSortPin||'');
+  if(!pin){
+    // 서버 값을 아직 못 받은 상태에서 새로 정하면 이미 정해둔 비밀번호를 덮어쓸 수 있어서, 서버와 연결된 뒤에만 정하게 한다
+    if(typeof COURSE_SERVER_RAW==='undefined'||!COURSE_SERVER_RAW){ alert('서버와 연결된 뒤에 다시 눌러주세요.'); return; }
+    const np=(prompt('처음 한 번만 정하는 관리자 비밀번호를 입력하세요 (숫자 4자리 이상).\n이 비밀번호를 아는 사람만 교재 순서를 바꿀 수 있습니다. 꼭 기억해두세요.')||'').trim();
+    if(!np)return;
+    if(!/^\d{4,}$/.test(np)){ alert('숫자 4자리 이상으로 입력해주세요.'); return; }
+    D.bookSortPin=np; D.bookSortPinUpdatedAt=Date.now(); SD();
+  } else {
+    const inp=prompt('관리자 비밀번호를 입력하세요');
+    if(inp===null)return;
+    if(String(inp).trim()!==pin){ alert('비밀번호가 맞지 않아요.'); return; }
+  }
+  INV_SORT_UNTIL=Date.now()+15*60*1000;
+  renderAll();
+  toast('🔓 15분 동안 순서를 바꿀 수 있어요');
+}
+function changeInvSortPin(){
+  if(!invSortGuard())return;
+  const np=(prompt('새 관리자 비밀번호를 입력하세요 (숫자 4자리 이상)')||'').trim();
+  if(!np)return;
+  if(!/^\d{4,}$/.test(np)){ alert('숫자 4자리 이상으로 입력해주세요.'); return; }
+  D.bookSortPin=np; D.bookSortPinUpdatedAt=Date.now(); SD();
+  toast('비밀번호를 바꿨어요');
+}
 function moveInvBrand(brand,dir){
+  if(!invSortGuard())return;
   const inv=getBookInv();
   const brands=sortBookBrands(Object.keys(inv)); // 지금 화면에 보이는 순서를 기준으로 이동
   const idx=brands.indexOf(brand);
@@ -7415,6 +7452,7 @@ function addInvItem(brand){
   SD();renderAll();
 }
 function moveInvItem(brand,item,dir){
+  if(!invSortGuard())return;
   const inv=getBookInv();
   if(!inv[brand])return;
   ensureItemOrder(brand);
@@ -7431,6 +7469,7 @@ function moveInvItem(brand,item,dir){
 let SORTM=null;
 let SORTM_BOUND=false;
 function openSortModal(mode,brand){
+  if(!invSortGuard())return;
   const inv=getBookInv();
   let keys;
   if(mode==='brands')keys=sortBookBrands(Object.keys(inv));
@@ -7521,6 +7560,7 @@ function sortModalReset(){
   renderSortModal();
 }
 function sortModalSave(){
+  if(!invSortGuard())return;
   if(!SORTM)return;
   const {mode,brand,keys}=SORTM;
   if(mode==='brands'){
@@ -7807,7 +7847,9 @@ function rBookInvSection(){
   <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">여기 등록해둔 교재는, 학생이 진도체크·새 책 시작으로 그 교재를 나가기 시작하면 재고가 자동으로 1권씩 줄어듭니다. 재고가 ${threshold}권 이하로 남으면 "부족"으로 표시돼요. 브랜드를 눌러서 펼치면 교재 목록이 보여요.</div>
   <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
     <button onclick="addInvBrand()" style="padding:7px 13px;border-radius:20px;border:1px dashed var(--pri2);background:#fff;color:var(--pri2);font-size:12px;font-weight:700;cursor:pointer;">+ 브랜드 추가</button>
-    <button onclick="openSortModal('brands')" style="padding:7px 13px;border-radius:20px;border:1px solid var(--pri2);background:var(--pri-l);color:var(--pri2);font-size:12px;font-weight:700;cursor:pointer;">↕ 브랜드 한꺼번에 정렬</button>
+    ${invSortAllowed()?`<button onclick="openSortModal('brands')" style="padding:7px 13px;border-radius:20px;border:1px solid var(--pri2);background:var(--pri-l);color:var(--pri2);font-size:12px;font-weight:700;cursor:pointer;">↕ 브랜드 한꺼번에 정렬</button>
+    <button onclick="changeInvSortPin()" style="padding:7px 13px;border-radius:20px;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">비밀번호 변경</button>
+    <button onclick="requestInvSortUnlock()" style="padding:7px 13px;border-radius:20px;border:1px solid #16A34A;background:#F0FDF4;color:#15803D;font-size:12px;font-weight:700;cursor:pointer;">🔓 순서 편집 중 · 잠그기</button>`:`<button onclick="requestInvSortUnlock()" style="padding:7px 13px;border-radius:20px;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;">🔒 순서 편집 (관리자)</button>`}
     <button onclick="setInvLowThreshold()" style="padding:7px 13px;border-radius:20px;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">부족 기준: ${threshold}권 이하 ✎</button>
     ${totalLow?`<button onclick='InvOpenBrands=Object.fromEntries(${JSON.stringify(lowBrandNames)}.map(b=>[b,true]));renderAll();' style="padding:7px 13px;border-radius:20px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-size:12px;font-weight:700;cursor:pointer;">⚠ 부족한 교재 ${totalLow}건 모아보기</button>`:''}
   </div>`;
@@ -7820,10 +7862,11 @@ function rBookInvSection(){
     out+=`<div style="border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:8px;background:#FAFAFA;overflow:hidden;">
       <div onclick="toggleInvBrand('${escAttr(brand)}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;user-select:none;">
         <div style="display:flex;align-items:center;gap:7px;">
-          <div style="display:flex;flex-direction:column;flex-shrink:0;" onclick="event.stopPropagation();">
+          ${invSortAllowed()?`          <div style="display:flex;flex-direction:column;flex-shrink:0;" onclick="event.stopPropagation();">
             <button onclick="moveInvBrand('${escAttr(brand)}',-1)" ${bFirst?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${bFirst?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${bFirst?'default':'pointer'};padding:0;line-height:1;">▲</button>
             <button onclick="moveInvBrand('${escAttr(brand)}',1)" ${bLast?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${bLast?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${bLast?'default':'pointer'};padding:0;line-height:1;">▼</button>
           </div>
+`:''}
           <i class="ti ti-chevron-${open?'down':'right'}" style="font-size:14px;color:var(--muted);"></i>
           <span style="font-size:13px;font-weight:700;">${esc(brand)}</span>
           <span style="font-size:11px;color:var(--muted);">교재 ${items.length}개</span>
@@ -7834,7 +7877,7 @@ function rBookInvSection(){
       ${open?`<div style="padding:0 12px 12px;border-top:1px solid var(--bdr);">
         <div style="display:flex;gap:5px;margin:10px 0;flex-wrap:wrap;">
           <button onclick="event.stopPropagation();addInvItem('${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px dashed var(--bdr);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;">+ 교재 추가</button>
-          <button onclick="event.stopPropagation();openSortModal('items','${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px solid var(--pri2);background:var(--pri-l);color:var(--pri2);font-size:11px;font-weight:700;cursor:pointer;">↕ 한꺼번에 정렬</button>
+          ${invSortAllowed()?`<button onclick="event.stopPropagation();openSortModal('items','${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px solid var(--pri2);background:var(--pri-l);color:var(--pri2);font-size:11px;font-weight:700;cursor:pointer;">↕ 한꺼번에 정렬</button>`:''}
           <button onclick="event.stopPropagation();renameInvBrand('${escAttr(brand)}')" style="padding:4px 10px;border-radius:14px;border:1px solid var(--bdr);background:#fff;color:var(--pri2);font-size:11px;cursor:pointer;">✎ 이름 수정</button>
           <button onclick="event.stopPropagation();removeInvBrand('${escAttr(brand)}')" style="padding:4px 8px;border-radius:14px;border:1px solid var(--dan-b);background:var(--dan-l);color:var(--dan);font-size:11px;cursor:pointer;">브랜드 삭제</button>
         </div>
@@ -7843,10 +7886,11 @@ function rBookInvSection(){
             const low=(data.stock||0)<=threshold;
             const pendingQty=pendingByKey[`${brand}|${item}`]||0;
             return `<div onclick="event.stopPropagation();" style="display:flex;align-items:center;gap:10px;padding:7px 4px;${idx?'border-top:1px solid #EEE;':''}background:${low?'#FEF2F2':'transparent'};">
-              <div style="display:flex;flex-direction:column;flex-shrink:0;">
+              ${invSortAllowed()?`              <div style="display:flex;flex-direction:column;flex-shrink:0;">
                 <button onclick="moveInvItem('${escAttr(brand)}','${escAttr(item)}',-1)" ${idx===0?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${idx===0?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${idx===0?'default':'pointer'};padding:0;line-height:1;">▲</button>
                 <button onclick="moveInvItem('${escAttr(brand)}','${escAttr(item)}',1)" ${idx===items.length-1?'disabled':''} style="width:16px;height:14px;border:none;background:transparent;color:${idx===items.length-1?'#D1D5DB':'var(--muted)'};font-size:10px;cursor:${idx===items.length-1?'default':'pointer'};padding:0;line-height:1;">▼</button>
               </div>
+`:''}
               <span style="font-size:12.5px;font-weight:600;width:108px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${low?'color:#991B1B;':''}" title="${escAttr(item)}">${esc(item)}</span>
               <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;width:112px;">
                 <button onclick="bumpInvStock('${escAttr(brand)}','${escAttr(item)}',-1)" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--bdr);background:#fff;color:var(--muted);font-size:13px;cursor:pointer;line-height:1;padding:0;">−</button>
@@ -8174,6 +8218,7 @@ function addBillKeyword(){
 // 브랜드 순서 바꾸기 — 교재관리의 브랜드 순서(bookInvBrandOrder)를 그대로 공유한다(여기서 바꾸면 교재관리·새 책 선택지 순서도 같이 바뀐다).
 let BILL_BRAND_LIST=[];
 function moveBillBrand(brand,dir){
+  if(!invSortGuard())return;
   const vis=BILL_BRAND_LIST.slice(); const i=vis.indexOf(brand), j=i+dir;
   if(i<0||j<0||j>=vis.length)return;
   const all=new Set(Object.keys(getBookInv()).filter(b=>b&&!/^-{3,}/.test(b))); vis.forEach(b=>all.add(b));
@@ -16173,6 +16218,11 @@ function startCloudListen() {
       D.bookInvBrandOrder = data.bookInvBrandOrder;
       D.bookInvBrandOrderUpdatedAt = data.bookInvBrandOrderUpdatedAt||0;
     }
+    // 교재 순서 잠금 비밀번호 — 수정 시각이 더 최근인 쪽만 받아들인다
+    if (data.bookSortPin != null && data.bookSortPin !== '' && (data.bookSortPinUpdatedAt||0) > (D.bookSortPinUpdatedAt||0)) {
+      D.bookSortPin = String(data.bookSortPin);
+      D.bookSortPinUpdatedAt = data.bookSortPinUpdatedAt||0;
+    }
     if (data.closureDays) D.closureDays = Array.from(new Set([...(D.closureDays||[]), ...(data.closureDays||[])]));
     if (data.dayDefs && Object.keys(data.dayDefs).length > 0) {
       // sid별로 병합 (요일별 고정설정도 학생별 병합 - S와 동일한 이유)
@@ -16486,6 +16536,8 @@ function buildCoursePayload(){
     bookInvLowThreshold: D.bookInvLowThreshold||3,
     bookInvBrandOrder: D.bookInvBrandOrder||[],
     bookInvBrandOrderUpdatedAt: D.bookInvBrandOrderUpdatedAt||0,
+    bookSortPin: D.bookSortPin||'',
+    bookSortPinUpdatedAt: D.bookSortPinUpdatedAt||0,
   };
 }
 let LAST_PUSH_CLOUD_ERROR=null; // pushCloudNow()가 마지막으로 만난 실제 오류 — "저장 요청을 보내지 못했습니다"라는
@@ -16651,6 +16703,11 @@ function pushCloudNow() {
     if(!D.bookInvBrandOrderUpdatedAt){
       delete payload.bookInvBrandOrder;
       delete payload.bookInvBrandOrderUpdatedAt;
+    }
+    // 비밀번호는 이 기기가 직접 정했을 때만, 그리고 서버에 있는 것보다 더 최근일 때만 올린다(옛 값으로 덮어쓰기 방지)
+    if(!D.bookSortPinUpdatedAt||!D.bookSortPin||((COURSE_SERVER_RAW&&COURSE_SERVER_RAW.bookSortPinUpdatedAt)||0)>=D.bookSortPinUpdatedAt){
+      delete payload.bookSortPin;
+      delete payload.bookSortPinUpdatedAt;
     }
     // ⚠ 레벨명("Lv.1")처럼 "."이 들어간 값이 학생 데이터 어디 한 곳에라도 있으면, update() 호출
     // 전체가 예외도 없이 조용히 거부되어 이 기기의 저장이 통째로 실패한다 (신규/연동 등록이 계속
