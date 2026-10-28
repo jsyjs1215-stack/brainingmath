@@ -1306,7 +1306,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-28-score-tpl-sync-v74'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-28-score-tpl-admin-v75'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -7343,13 +7343,28 @@ function invSortGuard(){
   toast('🔒 교재 순서는 관리자만 바꿀 수 있어요 — 교재관리 맨 위 "순서 편집(관리자)"에서 비밀번호로 풀어주세요');
   return false;
 }
+// 시험지 템플릿 등 "관리자만" 하는 작업의 공통 확인 — 같은 관리자 비밀번호·같은 15분 잠금 해제를 쓴다
+function adminGuard(msg){
+  if(invSortAllowed())return true;
+  toast(msg||'🔒 관리자만 할 수 있어요');
+  return false;
+}
+const TPL_ADMIN_MSG='🔒 시험지 템플릿은 관리자만 만들고 고칠 수 있어요 — 성적관리의 "시험지 템플릿 관리 (관리자)"에서 비밀번호로 풀어주세요';
+// 성적관리의 템플릿 관리 버튼: 잠겨 있으면 비밀번호를 받고, 풀리면 바로 관리 화면을 연다
+function openScoreTplManagerAdmin(){
+  if(!invSortAllowed()){
+    requestInvSortUnlock();
+    if(!invSortAllowed())return;
+  }
+  openScoreTplManager();
+}
 function requestInvSortUnlock(){
   if(invSortAllowed()){ INV_SORT_UNTIL=0; renderAll(); toast('🔒 다시 잠갔어요'); return; }
   const pin=String(D.bookSortPin||'');
   if(!pin){
     // 서버 값을 아직 못 받은 상태에서 새로 정하면 이미 정해둔 비밀번호를 덮어쓸 수 있어서, 서버와 연결된 뒤에만 정하게 한다
     if(typeof COURSE_SERVER_RAW==='undefined'||!COURSE_SERVER_RAW){ alert('서버와 연결된 뒤에 다시 눌러주세요.'); return; }
-    const np=(prompt('처음 한 번만 정하는 관리자 비밀번호를 입력하세요 (숫자 4자리 이상).\n이 비밀번호를 아는 사람만 교재 순서를 바꿀 수 있습니다. 꼭 기억해두세요.')||'').trim();
+    const np=(prompt('처음 한 번만 정하는 관리자 비밀번호를 입력하세요 (숫자 4자리 이상).\n이 비밀번호를 아는 사람만 교재 순서와 시험지 템플릿을 바꿀 수 있습니다. 꼭 기억해두세요.')||'').trim();
     if(!np)return;
     if(!/^\d{4,}$/.test(np)){ alert('숫자 4자리 이상으로 입력해주세요.'); return; }
     D.bookSortPin=np; D.bookSortPinUpdatedAt=Date.now(); SD();
@@ -7472,14 +7487,15 @@ function openSortModal(mode,brand){
   if(!invSortGuard())return;
   const inv=getBookInv();
   let keys;
-  if(mode==='brands')keys=sortBookBrands(Object.keys(inv));
+  if(mode==='tpls')keys=getScoreTemplatesSorted().map(t=>String(t.id));
+  else if(mode==='brands')keys=sortBookBrands(Object.keys(inv));
   else{
     if(!inv[brand])return;
     ensureItemOrder(brand);
     keys=Object.entries(inv[brand]).sort(invItemSort).map(([k])=>k);
   }
   SORTM={mode,brand,keys:keys.slice(),orig:keys.slice()};
-  document.getElementById('sortm-title').textContent=mode==='brands'?'브랜드 순서 한꺼번에 정렬':`${brand} 교재 순서 한꺼번에 정렬`;
+  document.getElementById('sortm-title').textContent=mode==='tpls'?'시험지 템플릿 순서 한꺼번에 정렬':mode==='brands'?'브랜드 순서 한꺼번에 정렬':`${brand} 교재 순서 한꺼번에 정렬`;
   renderSortModal();
   if(!SORTM_BOUND)bindSortModal();
   openM('sortm');
@@ -7491,16 +7507,22 @@ function renderSortModal(){
   const n=SORTM.keys.length;
   list.innerHTML=SORTM.keys.map((k,i)=>{
     const stock=SORTM.mode==='items'?((inv[SORTM.brand]||{})[k]||{}).stock:null;
+    const label=sortModalLabel(k);
     return `<div class="sm-row" data-i="${i}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid #EEE;background:#fff;">
       <span class="sm-handle" title="잡고 위아래로 끌어서 옮기세요" style="cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;font-size:20px;line-height:1;color:var(--muted);padding:6px 8px;border-radius:6px;background:#F1F5F9;">☰</span>
       <input type="number" min="1" max="${n}" value="${i+1}" onchange="sortModalJump(${i},this.value)" title="옮기고 싶은 번호를 입력하면 그 자리로 갑니다" style="width:52px;padding:5px 4px;border:1px solid var(--bdr);border-radius:6px;text-align:center;font-size:13px;font-weight:700;color:var(--pri2);">
-      <span style="flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(k)}</span>
+      <span style="flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(label)}</span>
       ${stock!=null?`<span style="font-size:11px;color:var(--muted);flex-shrink:0;">재고 ${stock||0}</span>`:''}
     </div>`;
   }).join('');
   const changed=SORTM.keys.some((k,i)=>k!==SORTM.orig[i]);
   const st=document.getElementById('sortm-state');
   if(st)st.textContent=changed?'✏ 순서가 바뀌었어요 — 아래 "저장"을 눌러야 적용됩니다':'아직 바꾼 게 없어요';
+}
+// 정렬 창에 보여줄 이름 — 템플릿은 id가 아니라 이름을 보여준다
+function sortModalLabel(k){
+  if(SORTM&&SORTM.mode==='tpls'){ const t=getScoreTemplates().find(x=>String(x.id)===String(k)); return t?String(t.name||''):String(k); }
+  return k;
 }
 function bindSortModal(){
   SORTM_BOUND=true;
@@ -7551,7 +7573,7 @@ function sortModalJump(i,val){
 }
 function sortModalAuto(){
   if(!SORTM)return;
-  SORTM.keys.sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+  SORTM.keys.sort((a,b)=>sortModalLabel(a).localeCompare(sortModalLabel(b),'ko',{numeric:true}));
   renderSortModal();
 }
 function sortModalReset(){
@@ -7563,7 +7585,13 @@ function sortModalSave(){
   if(!invSortGuard())return;
   if(!SORTM)return;
   const {mode,brand,keys}=SORTM;
-  if(mode==='brands'){
+  if(mode==='tpls'){
+    const now=Date.now();
+    keys.forEach((k,i)=>{
+      const t=getScoreTemplates().find(x=>String(x.id)===String(k));
+      if(t&&t.order!==i+1){ t.order=i+1; t._updatedAt=now; }
+    });
+  } else if(mode==='brands'){
     D.bookInvBrandOrder=keys.slice();
     touchBookInvBrandOrder();
   }else{
@@ -7577,8 +7605,10 @@ function sortModalSave(){
   }
   SD();
   closeM('sortm');
+  const wasTpl=mode==='tpls';
   SORTM=null;
   renderAll();
+  if(wasTpl)renderScoreTplManager();
   toast('순서를 저장했어요 ✓');
 }
 function removeInvItem(brand,item){
@@ -11918,7 +11948,8 @@ function rGradeList(){
     ${GRADE_TEST==='TOMA'?`<button onclick="openTomaModal(null)" style="padding:7px 14px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> TOMA 입력</button>`
     :GRADE_TEST==='FACTO'?`<div style="display:flex;gap:6px;flex-wrap:wrap;">
       <button onclick="openFactoScoreModal(null)" style="padding:7px 14px;background:#7C3AED;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 팩토시험 입력</button>
-      <button onclick="openScoreTplManager()" style="padding:7px 14px;background:#fff;color:#7C3AED;border:1px solid #C4B5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-analytics"></i> 시험지 템플릿 관리</button>
+      <button onclick="openScoreTplManagerAdmin()" style="padding:7px 14px;background:#fff;color:#7C3AED;border:1px solid #C4B5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-analytics"></i> ${invSortAllowed()?'시험지 템플릿 관리':'🔒 시험지 템플릿 관리 (관리자)'}</button>
+      ${invSortAllowed()?`<button onclick="requestInvSortUnlock()" style="padding:7px 14px;background:#F0FDF4;color:#15803D;border:1px solid #16A34A;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">🔓 관리자 모드 · 잠그기</button>`:''}
     </div>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
   </div>
   <div style="display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;">
@@ -13193,7 +13224,14 @@ function getScoreTemplates(){ if(!Array.isArray(D.scoreTemplates))D.scoreTemplat
 // 않는다 — 그래서 저장·수정·삭제 쪽은 반드시 getScoreTemplates()(원본)를 그대로 쓰고, 화면에
 // 목록을 그릴 때만 이 함수를 쓴다.
 function getScoreTemplatesSorted(){
-  return [...getScoreTemplates()].sort((a,b)=>String(a?.name||'').localeCompare(String(b?.name||''),'ko',{numeric:true}));
+  // 관리자가 정해둔 순서(order)가 있으면 그 순서대로, 순서가 없는 템플릿은 이름순으로 그 뒤에
+  return [...getScoreTemplates()].sort((a,b)=>{
+    const ao=a&&a.order, bo=b&&b.order;
+    if(ao!=null&&bo!=null&&ao!==bo)return ao-bo;
+    if(ao!=null&&bo==null)return -1;
+    if(ao==null&&bo!=null)return 1;
+    return String(a?.name||'').localeCompare(String(b?.name||''),'ko',{numeric:true});
+  });
 }
 function applyScoreTemplate(){
   const sel=document.getElementById('mer-tpl-select');
@@ -13221,6 +13259,7 @@ function applyScoreTemplate(){
 }
 // 템플릿 잠금 해제/재잠금 토글 — 드물게 템플릿 값을 직접 손봐야 할 때 사용
 function toggleMEReportLock(){
+  if(!adminGuard('🔒 템플릿 값은 관리자만 직접 고칠 수 있어요'))return;
   readMEReportFormIntoData();
   const m=meReportRecord();if(!m)return;
   const r=getMEReport(m);
@@ -13229,6 +13268,7 @@ function toggleMEReportLock(){
   toast(r.locked?'템플릿 값을 다시 고정했어요':'템플릿 값을 직접 수정할 수 있어요');
 }
 function saveCurrentAsTemplate(){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   readMEReportFormIntoData();
   const m=meReportRecord();if(!m)return;
   const r=getMEReport(m);
@@ -13256,6 +13296,7 @@ function saveCurrentAsTemplate(){
 // ═══ 시험지 템플릿 관리 화면 (학생 성적표를 거치지 않고 템플릿만 바로 만들고 수정) ═══
 let SCORE_TPL_DRAFT=null; // null=목록 화면, 객체=편집중인 템플릿(신규 또는 기존)
 function openScoreTplManager(){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   SCORE_TPL_DRAFT=null;
   renderScoreTplManager();
   openM('score-tpl-modal');
@@ -13273,6 +13314,7 @@ function blankScoreTplDraft(){
   };
 }
 function newScoreTpl(){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   SCORE_TPL_DRAFT=blankScoreTplDraft();
   renderScoreTplManager();
 }
@@ -13289,6 +13331,7 @@ function normalizeScoreTpl(t){
   return t;
 }
 function editScoreTplInManager(id){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   const tpl=getScoreTemplates().find(x=>String(x.id)===String(id));
   if(!tpl)return;
   // 원본을 바로 건드리지 않도록 깊은 복사해서 편집
@@ -13348,6 +13391,7 @@ function autoAssignScoreTplAreas(){
   alert(autoAssignResultMessage(res));
 }
 function saveScoreTplDraft(){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   readScoreTplDraftForm();
   const d=SCORE_TPL_DRAFT;
   if(!d.name||!d.name.trim()){toast('템플릿 이름을 입력해주세요');return;}
@@ -13364,6 +13408,7 @@ function saveScoreTplDraft(){
   toast('템플릿을 저장했어요');
 }
 function deleteScoreTplInManager(id){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   const tpl=getScoreTemplates().find(x=>x.id===id);
   if(!tpl)return;
   if(!confirm(`"${tpl.name}" 템플릿을 삭제할까요?\n(이미 작성해둔 성적표에는 영향 없어요)`))return;
@@ -13377,7 +13422,10 @@ function renderScoreTplManager(){
   const body=document.getElementById('score-tpl-body');if(!body)return;
   if(!SCORE_TPL_DRAFT){
     const list=getScoreTemplatesSorted();
-    let h=`<button type="button" onclick="newScoreTpl()" style="width:100%;padding:10px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;"><i class="ti ti-plus"></i> 새 템플릿 만들기</button>`;
+    let h=`<div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button type="button" onclick="newScoreTpl()" style="flex:1;padding:10px;background:var(--pri2);color:#fff;border:none;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 새 템플릿 만들기</button>
+      ${list.length>1?`<button type="button" onclick="openSortModal('tpls')" style="padding:10px 12px;background:var(--pri-l);color:var(--pri2);border:1px solid var(--pri2);border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">↕ 순서 정렬</button>`:''}
+    </div>`;
     if(!list.length){
       h+=`<div class="empty"><i class="ti ti-file-off"></i>아직 저장된 템플릿이 없어요.<br><span style="font-size:12px;color:var(--muted);">레벨·권마다 하나씩 만들어두면 성적표 작성이 훨씬 빨라져요.</span></div>`;
     } else {
@@ -13443,6 +13491,7 @@ function renderScoreTplManager(){
   body.innerHTML=h;
 }
 function deleteScoreTemplate(){
+  if(!adminGuard(TPL_ADMIN_MSG))return;
   const sel=document.getElementById('mer-tpl-select');
   const tid=sel?.value;
   if(!tid){toast('삭제할 템플릿을 선택해주세요');return;}
@@ -13588,7 +13637,7 @@ function renderMEReportEditor(){
         ${tpls.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}
       </select>
       <button type="button" onclick="applyScoreTemplate()" style="font-size:11px;font-weight:700;color:#fff;background:#0369A1;border:none;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;">불러오기</button>
-      <button type="button" onclick="saveCurrentAsTemplate()" style="font-size:11px;font-weight:700;color:#0369A1;background:#fff;border:1px solid #7DD3FC;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;">현재 내용 저장</button>
+      ${invSortAllowed()?`<button type="button" onclick="saveCurrentAsTemplate()" style="font-size:11px;font-weight:700;color:#0369A1;background:#fff;border:1px solid #7DD3FC;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;">현재 내용 저장</button>`:''}
     </div>
   </div>`;
   const L=!!r.locked; // 잠금 상태 — 템플릿에서 가져온 값은 읽기전용으로, 학생 득점/실시일/코멘트는 항상 입력 가능
@@ -13596,7 +13645,7 @@ function renderMEReportEditor(){
   if(L){
     h+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--rs);padding:9px 11px;margin-bottom:12px;">
       <div style="font-size:12px;font-weight:700;color:#92400E;">🔒 ${r.tplName?`"${esc(r.tplName)}" `:''}템플릿 값이 고정되어 있어요 — 학생 득점만 입력하면 돼요</div>
-      <button type="button" onclick="toggleMEReportLock()" style="flex-shrink:0;font-size:11px;font-weight:700;color:#92400E;background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;">🔓 직접 수정</button>
+      ${invSortAllowed()?`<button type="button" onclick="toggleMEReportLock()" style="flex-shrink:0;font-size:11px;font-weight:700;color:#92400E;background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap;">🔓 직접 수정</button>`:''}
     </div>`;
   } else if(r.tplId){
     h+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--rs);padding:9px 11px;margin-bottom:12px;">
