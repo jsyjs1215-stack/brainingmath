@@ -308,7 +308,15 @@ button,input,textarea,select{font-family:inherit;}
   .modal{max-height:none!important;overflow:visible!important;}
   .report-print{box-shadow:none!important;border:none!important;}
   .report-print,.report-print *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
+  /* 팩토 시험 결과지는 A4 한 장에 맞춘다 — 여백을 8mm로 줄이고(이름 붙인 페이지), 넘치면 아래 JS가 한 장에 들어가게 축소한다 */
+  .me-report-print{page:me-report;}
 }
+@page me-report{size:A4;margin:8mm;}
+/* 인쇄 직전에만 붙는 압축 모양(화면에서는 안 붙음) */
+.me-print-fit .sr-sec{margin-bottom:9px!important;}
+.me-print-fit .sr-tbl td{padding:3px 6px!important;}
+.me-print-fit .sr-tbl th{padding:4px 6px!important;}
+.me-print-fit>div:nth-child(2){padding:10px 14px!important;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -1306,7 +1314,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-28-admin-lock-keep-v79'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-10-28-facto-print-1page-v80'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -13786,6 +13794,43 @@ function buildDiffBarChart(diffs){
     <g transform="translate(${w-92},2)"><rect width="9" height="9" fill="#185FA5"/><text x="12" y="8" font-size="8.5" fill="#333">득점</text><rect x="46" width="9" height="9" fill="#DC2626"/><text x="58" y="8" font-size="8.5" fill="#333">평균</text></g>
   </svg>`;
 }
+// 🖨️ 팩토 시험 결과지를 A4 한 장에 맞춘다. 인쇄 화면은 인쇄 직전에야 레이아웃이 바뀌어서 높이를 미리 알 수 없으므로,
+// 인쇄 직전(beforeprint)에 A4 인쇄 폭(여백 8mm 제외 194mm)으로 맞춰 놓고 한 장 높이(281mm)에 들어오는 가장 큰 배율을
+// 찾아 축소한다(넘치지 않으면 축소하지 않음). 인쇄가 끝나면(afterprint) 원래대로 되돌린다.
+function fitMEReportToOnePage(on){
+  const el=document.querySelector('.me-report-print');
+  const main=document.getElementById('main');
+  if(!el)return;
+  if(!on){
+    el.classList.remove('me-print-fit');
+    el.style.transform='';el.style.transformOrigin='';el.style.width='';el.style.marginBottom='';
+    if(main)main.style.padding='';
+    return;
+  }
+  const PW=Math.round(194/25.4*96), PH=Math.round(281/25.4*96)-6; // 인쇄 가능 영역(px) — 여백 8mm, 약간 여유
+  el.classList.add('me-print-fit');
+  if(main)main.style.padding='0';
+  el.style.transform='';el.style.marginBottom='';
+  const fits=z=>{ el.style.width=(PW/z)+'px'; return el.offsetHeight*z<=PH; };
+  let z=1;
+  if(!fits(1)){
+    let lo=0.4,hi=1;
+    for(let i=0;i<14;i++){ const mid=(lo+hi)/2; if(fits(mid))lo=mid; else hi=mid; }
+    z=lo;
+  }
+  el.style.width=(PW/z)+'px';
+  const h=el.offsetHeight;
+  el.style.transformOrigin='top left';
+  el.style.transform=z<1?`scale(${z})`:'';
+  el.style.marginBottom=z<1?`-${Math.ceil(h*(1-z))}px`:'';
+}
+(function(){
+  const onBefore=()=>{ if(typeof TAB!=='undefined'&&TAB==='mereport')fitMEReportToOnePage(true); };
+  const onAfter=()=>{ fitMEReportToOnePage(false); };
+  window.addEventListener('beforeprint',onBefore);
+  window.addEventListener('afterprint',onAfter);
+  try{ const mq=window.matchMedia('print'); const h=e=>{ if(e.matches)onBefore(); else onAfter(); }; if(mq.addEventListener)mq.addEventListener('change',h); else if(mq.addListener)mq.addListener(h); }catch(e){}
+})();
 function printMEReport(meId){
   ME_REPORT_ID=meId;
   ME_REPORT_RETURN_TAB=(TAB==='mereport')?ME_REPORT_RETURN_TAB:TAB;
