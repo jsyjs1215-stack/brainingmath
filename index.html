@@ -1314,7 +1314,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-10-28-facto-print-1page-v80'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-03-lesson-count-fix-v81'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1353,6 +1353,11 @@ function syncActiveSlots(){ SLOTS = slotsForPeriod(activeSlotPeriod()); }
 // WS 기준이어야 하므로 그대로 두고, 등록 모달에서만 이 함수로 따로 계산해서 쓴다).
 function regSlots(){ return slotsForPeriod(activeSlotPeriod(tdk())); }
 function allSlotDefs(){ return [...SLOTS_LEGACY, ...SLOTS_AUG]; }
+// 📌 v81: "그 날짜에 실제로 유효한 시간대"만 돌려준다. 수업 횟수(목표 일수)를 셀 때 allSlotDefs()로
+// 옛 시간표(A~F)와 새 시간표(G1~G8)를 한꺼번에 보면, 9/14 전환 때 지워지지 않고 남은 옛 배정
+// (예: 화요일 G3 + 옛 목요일 C)까지 수업 요일로 잡혀 주 1회 학생이 주 2회로 계산됐다.
+// 토요일은 SAT_SLOTS를 써야 토요일 수업이 빠지지 않는다.
+function slotDefsForDate(dateStr,dayName){ return dayName==='토'?SAT_SLOTS:slotsForPeriod(activeSlotPeriod(dateStr)); }
 // 같은 요일에 한 학생이 시간대 여러 곳에 동시에 배정되어 있는지 검사 (7월/8월 시간표 포함 전체 검사)
 function findDuplicateAssignments(){
   const dups=[];
@@ -2086,18 +2091,17 @@ function getMonthStats(sid,ym){
 function getMonthExpectedCount(sid,ym){
   const{start,end,y,m,lastDay}=monthRange(ym);
   const today=tdk();
-  const midDate=`${ym}-15`;
-  const sc=getSCForDate(midDate);
-  const period=activeSlotPeriod(midDate);
-  const slots=slotsForPeriod(period);
-  const schedDays=DAYS.filter(d=>slots.some(sl=>(sc[d]?.[sl.id]||[]).includes(sid)));
+  // 📌 v81: 예전엔 15일 하루의 시간표로 한 달 전체를 셌고 토요일은 아예 세지 않았다.
+  // 월간리포트와 같은 방식으로 날짜마다 그날 시간표·그날 시간대(토요일 포함)로 센다.
   let cnt=0;
   for(let day=1;day<=lastDay;day++){
     const dt=new Date(y,m-1,day);
     const dateStr=dk(dt);
     if(dateStr>today)break; // 아직 안 지난 날짜는 목표에서 제외 (이번달 진행 중일 때)
+    if(isClosure(dateStr))continue;
     const dayName=WD[dt.getDay()];
-    if(schedDays.includes(dayName)&&!isClosure(dateStr))cnt++;
+    const sc=getSCForDate(dateStr);
+    if(slotDefsForDate(dateStr,dayName).some(sl=>(sc[dayName]?.[sl.id]||[]).includes(sid)))cnt++;
   }
   return cnt;
 }
@@ -2136,7 +2140,8 @@ function runSessionDetailSearch(){
   const session=getAcadSessions().find(s=>s.name===sessName);
   if(!session){resultEl.innerHTML='<div style="font-size:12px;color:var(--muted);">세션을 선택해주세요.</div>';return;}
   if(!gS(sid)){resultEl.innerHTML='<div style="font-size:12px;color:var(--dan);">해당 이름의 학생을 찾을 수 없습니다.</div>';return;}
-  const daysPerWeekS=DAYS.filter(d=>activeDaySids(d).includes(sid)).length;
+  // v81: 토요일 수업도 등원 요일로 센다 (getStuDays는 토요일 포함)
+  const daysPerWeekS=getStuDays(sid).length;
   const target=daysPerWeekS>=2?8:4;
   const detail=getSessionAttendanceDetail(sid,session);
   const countedCnt=detail.filter(x=>!x.excluded&&x.attend!=='결석').length;
@@ -14074,7 +14079,8 @@ function buildMonthlyReport(sid,session){
       if(isClosure(dateStr))continue;
       const sc=getSCForDate(dateStr);
       const dayName=WD[dt.getDay()];
-      const scheduledSids=sidList.filter(msid=>allSlotDefs().some(sl=>(sc[dayName]?.[sl.id]||[]).includes(msid)));
+      const dayDefs=slotDefsForDate(dateStr,dayName);
+      const scheduledSids=sidList.filter(msid=>dayDefs.some(sl=>(sc[dayName]?.[sl.id]||[]).includes(msid)));
       if(!scheduledSids.length)continue;
       target++;
       const hasRealAny=scheduledSids.some(msid=>{const rec=D.R[dateStr]?.[msid];return rec&&isRealLesson(dateStr,msid,rec);});
