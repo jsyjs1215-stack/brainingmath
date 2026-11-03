@@ -1314,7 +1314,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-03-lesson-count-fix-v81'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-03-report-me-month-v83'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -2407,12 +2407,18 @@ function slotLabel(id){return SLOTS.find(s=>s.id===id)?.label||SAT_SLOTS.find(s=
 // 표시할 때는 라벨을 못 찾고 알파벳 ID(C, D, G3 등)가 그대로 보이는 문제가 있었음.
 // 어느 기간인지 확실할 때는 이 함수로 정확한 기간에서 라벨을 찾는다.
 function slotLabelForPeriod(period,id){return slotsForPeriod(period).find(s=>s.id===id)?.label||id;}
-function findSlot(sid,day){const sc=D.SC[day]||{};for(const[sl,ids]of Object.entries(sc)){if(ids.includes(sid))return sl;}return'';}
+// 📌 v82: 예전엔 D.SC[day]의 모든 시간대(옛 A~F + 새 G1~G8)를 저장된 순서대로 훑어서, 9/14 전환 때 지워지지 않은
+// 옛 배정이 먼저 걸리면 "수업 없는 요일인데 수업 있음"(결석 빠른 등록 경고 누락)이나 "G5인데 F로 기록"이 생겼다.
+// 그 날짜에 유효한 시간대(토요일은 SAT_SLOTS)만, 시간 순서대로 찾는다.
+function findSlot(sid,day,dateStr){const sc=D.SC[day]||{};for(const sl of slotDefsForDate(dateStr||tdk(),day)){if((sc[sl.id]||[]).includes(sid))return sl.id;}return'';}
 // 현재 시간표 기준 학생 등록 요일 목록 반환 (예: '월/수', '화/목')
 // 🗓 토요일(원장T)은 DAYS 배열에 없어서 DAYS.filter만으로는 절대 안 잡히므로, 실제 토요일
 // 배정이 있으면(activeDaySids('토')) 맨 뒤에 '토'를 따로 덧붙인다.
 function getStuDays(sid){
-  const wd=DAYS.filter(d=>activeDaySids(d).includes(sid));
+  // 📌 v82: activeDaySids는 "지금 화면에서 보고 있는 주"의 시간대를 쓰기 때문에, 9/14 이전 주를 보다가
+  // 학생관리로 오면 옛 배정(A~F) 기준 요일이 뜨고 세션 목표(4회/8회)도 틀렸다. 항상 오늘 기준 시간대로 센다.
+  const cur=regSlots();
+  const wd=DAYS.filter(d=>cur.some(sl=>(D.SC[d]?.[sl.id]||[]).includes(sid)));
   return activeDaySids('토').includes(sid)?[...wd,'토']:wd;
 }
 function getStuDaysLabel(sid){
@@ -2663,7 +2669,7 @@ function dispSubj(r,s,date,slotId){
   if(date&&s){
     const dt=new Date(date+'T00:00:00');
     const dow=WD[dt.getDay()];
-    const resolvedSlot=slotId||findSlot(s.id,WD[dt.getDay()]);
+    const resolvedSlot=slotId||findSlot(s.id,WD[dt.getDay()],date);
     const def=getDayDef(s.id,dow,resolvedSlot);
     if(def&&def.subject)return def.subject;
   }
@@ -2683,7 +2689,7 @@ function dispCurr(r,s,date,slotId){
   if(date&&s){
     const dt=new Date(date+'T00:00:00');
     const dow=WD[dt.getDay()];
-    const resolvedSlot=slotId||findSlot(s.id,WD[dt.getDay()]);
+    const resolvedSlot=slotId||findSlot(s.id,WD[dt.getDay()],date);
     const def=getDayDef(s.id,dow,resolvedSlot);
     if(def&&def.curriculum)return def.curriculum;
   }
@@ -2718,7 +2724,7 @@ function getTodayBooksList(r,s,date,slotId){
   if(date&&s){
     const dt=new Date(date+'T00:00:00');
     const dow=WD[dt.getDay()];
-    const resolvedSlot=slotId||findSlot(s.id,dow);
+    const resolvedSlot=slotId||findSlot(s.id,dow,date);
     const def=getDayDef(s.id,dow,resolvedSlot);
     if(def&&Array.isArray(def.books)&&def.books.length)return def.books.filter(b=>b.subject||b.curriculum);
     if(def&&(def.subject||def.curriculum))return [{subject:def.subject||'',curriculum:def.curriculum||''}];
@@ -5471,7 +5477,7 @@ function rUniAbsenceQuick(sid){
   const s=gS(sid);if(!s)return'';
   const date=tdk();
   const dow=WD[new Date(date+'T00:00:00').getDay()];
-  const slot=findSlot(sid,dow);
+  const slot=findSlot(sid,dow,date);
   const already=D.R[date]?.[sid]?.attend==='결석';
   if(!slot&&!already)return'';
   return `<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;padding:9px 12px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--rs);">
@@ -5550,7 +5556,7 @@ function confirmClearAllRecords(sid){
 function markStudentAbsent(sid,date){
   const s=gS(sid);if(!s){toast('학생을 찾을 수 없습니다');return;}
   const dow=WD[new Date(date+'T00:00:00').getDay()];
-  const slot=findSlot(sid,dow);
+  const slot=findSlot(sid,dow,date);
   if(!slot&&!confirm(`${dispStuName(sid)} 학생은 ${date}(${dow}요일)에 정규 수업이 없습니다. 그래도 결석으로 기록할까요?`))return;
   const r=gR(date,sid);
   if(slot&&!r.slot)r.slot=slot;
@@ -14117,7 +14123,16 @@ function buildMonthlyReport(sid,session){
     });
     return Object.values(byMonth).sort((a,b)=>(b.meMonth||0)-(a.meMonth||0));
   })():getLatestMEScorePerMonth(sid);
-  const meScore=meScoresLatest.find(m=>m.meMonth===Number(start.slice(5,7)))
+  // 📌 v83: 예전엔 세션 "시작일의 달"로 찾았는데, 세션은 전달 말일 무렵 시작한다(10월 세션 = 9/30~10/28).
+  // 그래서 10월 세션 리포트가 10월이 아니라 9월 월말평가를 찾아 점수가 안 나왔다.
+  // 세션 이름의 "N월"을 우선 쓰고, 없으면 세션 기간 한가운데 날짜의 달을 쓴다.
+  const sessMeMonth=(()=>{
+    const nm=String(session.name||'').match(/(\d{1,2})\s*월/);
+    if(nm&&Number(nm[1])>=1&&Number(nm[1])<=12)return Number(nm[1]);
+    const a=new Date(start+'T00:00:00'),b=new Date(end+'T00:00:00');
+    return new Date((a.getTime()+b.getTime())/2).getMonth()+1;
+  })();
+  const meScore=meScoresLatest.find(m=>Number(m.meMonth)===sessMeMonth)
     ||meScoresLatest.find(m=>!m.meMonth&&m.date>=start&&m.date<=end);
   const meTier=(meScore&&!meScore.notTaken)?meScoreStyle(meScore.score):{bg:'',border:'',color:'',icon:'',label:''};
   const attitudeLabel=avgAttitude>=90?'매우 좋음':avgAttitude>=75?'좋음':avgAttitude>=60?'보통':'지도 필요';
