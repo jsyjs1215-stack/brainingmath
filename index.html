@@ -1314,7 +1314,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-03-report-me-month-v83'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-04-sago-newbook-fix-v84'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1553,7 +1553,7 @@ function findCurriculumDuplicates(monthOffset){
     if(entry.parsed){
       const {brand,level,unit}=entry.parsed;
       if(bc[brand]&&bc[brand][level]){
-        const map=bc[brand][level]; const key=String(unit);
+        const map=bookUnitMap(bc,brand,level); const key=String(unit); // v84: 배열로 온 데이터도 단원 번호로 바르게 읽음
         if(Object.prototype.hasOwnProperty.call(map,key)&&!isTargetMonth(map[key])) out.push({sid:s.id, label:entry.label, date:map[key]||''});
       }
     }else if(entry.label.startsWith('필즈 ')){
@@ -4236,6 +4236,9 @@ function setStuLevel(sid,level){
 // 필즈: 고정 12단계(FIELDS_STAGES) → s.bookCheck['필즈']={단계명:시작날짜}
 function getBookCheck(s){
   if(!s.bookCheck)s.bookCheck={};
+  // 📌 v84: 수학이재밌어처럼 레벨 이름이 "0","1","2"인 브랜드는 Firebase가 레벨 묶음 자체를 배열로 돌려준다.
+  // 배열인 채로 두면 다른 이름의 키가 저장 때 빠질 수 있어 객체로 바꿔 둔다(칸 번호=레벨 이름).
+  ['팩토','수학이재밌어'].forEach(b=>{ const c=s.bookCheck[b]; if(Array.isArray(c)){ const o={}; c.forEach((x,i)=>{ if(x!=null)o[String(i)]=x; }); s.bookCheck[b]=o; } });
   if(!s.bookCheck['팩토'])s.bookCheck['팩토']={};
   if(!s.bookCheck['수학이재밌어'])s.bookCheck['수학이재밌어']={};
   if(!s.bookCheck['필즈'])s.bookCheck['필즈']={};
@@ -4248,7 +4251,18 @@ function bookUnitMap(bc,brand,level){
   let v=bc[brand][level];
   // ⚠ 예전 배열 데이터에 빈 값이 섞여 있으면 빈 문자열 키가 생기고, 그게 클라우드 저장 요청
   // 전체를 거부시킴 — 빈 값은 변환할 때 걸러낸다.
-  if(Array.isArray(v)){ const obj={}; v.forEach(u=>{ const k=String(u).trim(); if(k) obj[k]=''; }); v=obj; }
+  // 📌 v84: Firebase는 {"1":"날짜","2":"날짜",...}처럼 번호 키가 촘촘한 객체를 [null,"날짜","날짜",...] 배열로
+  // 바꿔서 돌려준다(칸 번호=단원 번호, 값=시작 날짜). 예전엔 배열이면 무조건 "옛 방식(단원 번호 목록)"으로 보고
+  // 값(날짜)을 단원 번호처럼 키로 만들어서, 체크한 단원이 전부 사라지고 "2026-05-13" 같은 쓰레기 키만 남았다.
+  // 값이 전부 1~12 숫자일 때만 옛 방식으로 보고, 그 외에는 칸 번호를 단원 번호로 되살린다.
+  if(Array.isArray(v)){
+    const vals=v.filter(u=>u!=null);
+    const isLegacyList=vals.length>0&&vals.every(u=>{ const n=Number(String(u).trim()); return /^d{1,2}$/.test(String(u).trim())&&n>=1&&n<=BOOK_UNITS; });
+    const obj={};
+    if(isLegacyList) vals.forEach(u=>{ obj[String(u).trim()]=''; });
+    else v.forEach((u,i)=>{ if(u!=null&&i>=1) obj[String(i)]=String(u); });
+    v=obj;
+  }
   if(!v)v={};
   bc[brand][level]=v;
   return v;
@@ -5928,8 +5942,20 @@ function saveSpNewBook(date,sid,r,s){
       const map=bookUnitMap(bc,row.brand,row.level);
       const key=String(row.unit);
       if(Object.prototype.hasOwnProperty.call(map,key)){
-        toast(`${row.brand} ${bookLevelLabel(row.brand,row.level)} ${row.unit}번은 이미 체크되어 있어요 — 재고는 차감하지 않았어요`);
-        return;
+        // 📌 v84: 예전엔 이미 체크된 단원이면 알림만 잠깐 띄우고 아무것도 저장하지 않아서, 날짜 없이 예전에
+        // 체크돼 있던 단원(옛 데이터 변환 흔적)을 새책으로 입력하면 "입력이 안 된다"로 보였다. 같은 날 이미
+        // 기록한 경우만 조용히 건너뛰고, 그 외엔 선생님께 물어서 오늘 새책으로 다시 기록할 수 있게 한다.
+        const prevD=map[key]||'';
+        const lbl=`${row.brand} ${bookLevelLabel(row.brand,row.level)} ${row.unit}번`;
+        if(prevD===date){ toast(`${lbl}은 오늘 이미 새책으로 체크되어 있어요`); return; }
+        if(!confirm(`${lbl}은 진도체크에 ${prevD?prevD+' 날짜로':'날짜 없이'} 이미 체크되어 있어요.
+
+오늘(${date}) 새 책으로 다시 기록할까요?
+· 확인: 오늘 날짜로 새책 기록 + 재고 1권 차감
+· 취소: 기록하지 않음`)){
+          toast(`${lbl}은 새책으로 기록하지 않았어요`);
+          return;
+        }
       }
       map[key]=date;
       deductInvStock(row.brand,`${row.level}-${row.unit}`);
@@ -5945,8 +5971,17 @@ function saveSpNewBook(date,sid,r,s){
       const bc=getBookCheck(s);
       const map=bookFieldsMap(bc);
       if(Object.prototype.hasOwnProperty.call(map,row.stage)){
-        toast(`필즈 ${row.stage}는 이미 체크되어 있어요 — 재고는 차감하지 않았어요`);
-        return;
+        // 📌 v84: 위 팩토·수학이재밌어와 같은 이유로, 이미 체크된 단계도 물어보고 다시 기록할 수 있게 한다.
+        const prevD=map[row.stage]||'';
+        if(prevD===date){ toast(`필즈 ${row.stage}는 오늘 이미 새책으로 체크되어 있어요`); return; }
+        if(!confirm(`필즈 ${row.stage}는 진도체크에 ${prevD?prevD+' 날짜로':'날짜 없이'} 이미 체크되어 있어요.
+
+오늘(${date}) 새 책으로 다시 기록할까요?
+· 확인: 오늘 날짜로 새책 기록 + 재고 1권 차감
+· 취소: 기록하지 않음`)){
+          toast(`필즈 ${row.stage}는 새책으로 기록하지 않았어요`);
+          return;
+        }
       }
       map[row.stage]=date;
       deductInvStock('필즈',row.stage);
