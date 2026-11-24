@@ -1314,7 +1314,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-19-speed-fix-v86'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-24-report-pick-fix-v87'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3104,7 +3104,15 @@ function renderAll(){
   // 한글 등 조합 중(IME composition)에는 절대 DOM을 다시 그리지 않음.
   // 클라우드 동기화 같은, 검색과 무관한 곳에서 렌더링이 걸려도 조합이 깨지지 않도록
   // 이 진입점에서 한 번에 막아준다. 조합이 끝나면 compositionend에서 다시 호출해줌.
-  if(_isComposing){_renderPending=true;return;}
+  // v87: 태블릿·휴대폰에서 자동완성 목록으로 이름을 고르거나, 글자 조합 중에 버튼을 누르면
+  // compositionend가 아예 안 오는 경우가 있다. 그러면 _isComposing이 계속 true로 남아서
+  // 그 뒤 모든 화면 갱신이 막힌다(예: 월간리포트에서 다른 학생을 골라도 이전 학생 리포트가 그대로 보임).
+  // 그래서 "지금 포커스된 입력칸이 실제로 조합 중일 때"만 막고, 아니면 표시를 풀어준다.
+  if(_isComposing){
+    const ae=document.activeElement;
+    if(ae&&ae.composing&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')){_renderPending=true;return;}
+    _isComposing=false;_renderPending=false;
+  }
   updWL();updDB();updHdr();updateGroupBarUI();updateGroupTabsUI();renderOv();renderNotices();updAdminBadge();renderLinkAlertBar();
   const active=document.activeElement;
   const isSearchInput=active&&active.id&&active.id.endsWith('-search-input');
@@ -14138,13 +14146,19 @@ function saveReportNoteEdit(){
   toast('학부모용 특이사항이 수정되었습니다');
 }
 function generateReport(){
-  const sid=document.getElementById('report-sid').value.trim();
+  // v87: 이름 칸의 한글 조합을 확실히 끝내고, 조합 중 표시도 풀어서 리포트가 바로 다시 그려지게 함
+  const sidEl=document.getElementById('report-sid');
+  sidEl.composing=false;_isComposing=false;_renderPending=false;
+  try{sidEl.blur();}catch(e){}
+  const sid=sidEl.value.trim();
   const sessionName=document.getElementById('report-session').value;
   if(!sid||!gS(sid)){alert('학생을 정확히 선택해주세요.');return;}
   if(!sessionName){alert('세션을 선택해주세요.');return;}
   REPORT_SID=sid;REPORT_SESSION_NAME=sessionName;
   TAB='report';
   closeM('reportm');renderAll();
+  try{window.scrollTo(0,0);const mn=document.getElementById('main');if(mn)mn.scrollTop=0;}catch(e){}
+  toast(`${gS(sid)?.name||sid} · ${sessionName} 리포트를 만들었습니다`);
 }
 function rReport(){
   let out=`<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
