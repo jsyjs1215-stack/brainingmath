@@ -1238,6 +1238,18 @@ button,input,textarea,select{font-family:inherit;}
   <div id="schh-result" style="margin-top:10px;"></div>
 </div></div>
 
+<!-- 월말평가 결과지(매쓰홀릭 PDF) 불러오기 -->
+<div class="overlay" id="mepdfm">
+<div class="modal" style="max-width:640px;">
+  <div class="mhdr"><div><div class="mtitle">📄 월말평가 결과지 불러오기</div><div class="msub">매쓰홀릭 결과지 PDF를 읽어 부족한 단원·다음 수업 보충 내용을 성적관리에 저장합니다</div></div><button class="mclose" onclick="closeM('mepdfm')"><i class="ti ti-x"></i></button></div>
+  <label style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border:2px dashed #A5B4FC;border-radius:8px;background:#EEF2FF;color:#3730A3;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:10px;"><i class="ti ti-file-upload"></i> 결과지 PDF 고르기 (여러 개 가능)<input type="file" id="mepdf-file" accept="application/pdf,.pdf" multiple style="display:none;" onchange="onMEPdfFiles(this)"></label>
+  <div id="mepdf-list" style="max-height:52vh;overflow:auto;"></div>
+  <div class="btn-row">
+    <button class="btn btn-sec" onclick="closeM('mepdfm')">취소</button>
+    <button class="btn btn-pri" id="mepdf-save" onclick="saveMEPdfImport()" disabled><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
+  </div>
+</div></div>
+
 <!-- MONTHLY PARENT REPORT PICKER MODAL (월간 리포트 선택) -->
 <div class="overlay" id="reportm">
 <div class="modal">
@@ -1314,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-24-report-pick-fix-v87'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-me-pdf-analysis-v88'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -1803,7 +1815,8 @@ function LD(){
     // 교재비 청구: 교재/브랜드별 기본 가격표({키:{p,_u}})와, 새 책 기록 건별로 선생님이 손본 가격·메모({키:{price,note,_u}})
     bookPrices:JSON.parse(localStorage.getItem('br5_book_prices')||'{}'),
     bookBillOv:JSON.parse(localStorage.getItem('br5_book_bill_ov')||'{}'),
-  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[],meRanges:{},bookPrices:{},bookBillOv:{}};}
+    meAnalysis:JSON.parse(localStorage.getItem('br5_me_analysis')||'{}'),
+  };}catch(e){return{S:DS,SC:DSCH,R:{},C:DCON,notices:[],makeups:[],closureDays:[],dayDefs:{},acadSessions:null,SCH:[],parentConsult:[],tomaScores:[],meScores:[],tomaDist:{},pendingMoves:[],scMeta:{},dismissedMakeups:[],tombstones:{},recentRemovals:[],bookLevelConfig:null,highClassNames:{},scoreTemplates:[],meRanges:{},bookPrices:{},bookBillOv:{},meAnalysis:{}};}
 }
 let D=LD();
 
@@ -5243,7 +5256,11 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
         ${attemptTag}
       </div>`;
     });
-    out+=`</div></div>`;
+    out+=`</div>`;
+    // v88: 가장 최근 월말평가 결과지 분석(부족한 부분·다음 수업 보충)을 학생기록에도 보여줌
+    const meLatestAn=meScoresHist.map(m=>getMEAnalysisAny(m)).find(Boolean);
+    if(meLatestAn)out+=`<div style="font-size:11px;font-weight:700;color:#3730A3;margin-top:8px;">${meLatestAn.meMonth}월 월말평가 결과지 분석</div>${renderMEAnalysisBox(meLatestAn,{compact:true})}`;
+    out+=`</div>`;
   }
 
   // ═══ 📚 새책 시작 이력 ═══ (하루에 여러 권이면 그 날짜에 여러 줄로 나열)
@@ -11516,7 +11533,7 @@ function mergeMeRanges(local,server){
 }
 function getMeRangeRec(ym,sid){ return (D.meRanges&&D.meRanges[ym]&&D.meRanges[ym][sid])||null; }
 function setMeRangeField(ym,sid,subject,field,val){
-  if(!D.meRanges)D.meRanges={};if(!D.bookPrices)D.bookPrices={};if(!D.bookBillOv)D.bookBillOv={};
+  if(!D.meRanges)D.meRanges={};if(!D.bookPrices)D.bookPrices={};if(!D.bookBillOv)D.bookBillOv={};if(!D.meAnalysis)D.meAnalysis={};
   if(!D.meRanges[ym])D.meRanges[ym]={};
   const rec=D.meRanges[ym][sid]||{subs:{},note:'',skip:false};
   if(!rec.subs)rec.subs={};
@@ -12188,7 +12205,8 @@ function rGradeListME(stuList){
       <div style="font-size:11px;color:var(--muted);margin-top:1px;">이 달만 따로 확인 · 다른 달은 화살표로 이동</div>
     </div>
     <button onclick="shiftMEMonth(1)" style="border:none;background:none;font-size:16px;color:#1E40AF;cursor:pointer;padding:2px 8px;">▶</button>
-  </div>`;
+  </div>
+  <button onclick="openMEPdfImport()" style="width:100%;padding:9px;margin:-4px 0 12px;background:#EEF2FF;color:#3730A3;border:1px solid #A5B4FC;border-radius:var(--rs);font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;"><i class="ti ti-file-upload"></i> 월말평가 결과지 PDF 불러오기 <span style="font-weight:500;font-size:11px;">(여러 학생 한꺼번에 · 부족한 부분·다음 수업 보충 자동 정리)</span></button>`;
   let hasAny=false;
   grades.forEach(g=>{
     const gl=stuList.filter(s=>s.grade===g&&(GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true));
@@ -12219,7 +12237,7 @@ function rGradeListME(stuList){
               <div style="font-size:10px;color:var(--muted);">${thisMonth.date}</div>`
             :thisMonth
             ?`<div style="font-size:10px;color:${hasTier?tier.color:'#1E40AF'};font-weight:${hasTier?700:600};">${thisMonth.score?thisMonth.score+'점':'점수 미입력'} ${thisMonth.pass?`<span style="color:${passColor};">· ${thisMonth.pass}</span>`:''}${hasTier?` · ${tier.label}`:''}</div>
-              <div style="font-size:10px;color:var(--muted);">${thisMonth.date}</div>`
+              <div style="font-size:10px;color:var(--muted);">${thisMonth.date}</div>${meListAnalysisLine(thisMonth)}`
             :`<div style="font-size:10px;color:var(--muted);">이 달 기록 없음</div>`}
         </div>
       </div>`;
@@ -12245,6 +12263,7 @@ function rGradeDetME(sid){
     </div>
     <div style="display:flex;gap:6px;">
       <button onclick="printScoreReport('${esc(sid)}')" style="padding:7px 14px;background:#042C53;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 성적표 인쇄</button>
+      <button onclick="openMEPdfImport('${esc(sid)}')" style="padding:7px 12px;background:#EEF2FF;color:#3730A3;border:1px solid #A5B4FC;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-upload"></i> 결과지 PDF</button>
       <button onclick="openMEModal('${esc(sid)}')" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 입력</button>
     </div>
   </div>`;
@@ -12329,6 +12348,8 @@ function rGradeDetME(sid){
           :`<button onclick="saveMERetestScore('${esc(m.id)}')" style="font-size:11px;font-weight:700;color:#fff;background:var(--dan);border:none;border-radius:10px;padding:3px 10px;cursor:pointer;">🔄 재시험 점수 입력</button>`
         ):''}
       </div>
+      ${renderMEAnalysisBox(getMEAnalysis(m),{sid})}
+      ${getMEAnalysis(m,true)?`<div style="font-size:11px;font-weight:700;color:#065F46;margin-top:8px;">🔄 재시험 결과지</div>${renderMEAnalysisBox(getMEAnalysis(m,true),{sid})}`:''}
     </div>`;
   });
   } // end of mes.length else-block
@@ -12370,6 +12391,378 @@ function rGradeDetME(sid){
     });
   }
   return out;
+}
+
+// ═══ 📄 월말평가 결과지(매쓰홀릭 PDF) 불러오기·분석 (v88) ═══════════════════════
+// 학부모님께 보내는 매쓰홀릭 결과지 PDF를 그대로 올리면, 단원별 점수·단원별 성취도(STEP1~3)·
+// 행동영역·틀린 문항·재학습 추천을 읽어서 "이번 월말평가에서 부족한 부분"과
+// "다음 수업 때 보충할 내용"을 만들어 성적관리에 저장한다.
+// 저장 위치: D.meAnalysis["학생|월|응시일"] = {sid,meMonth,date,recId,a,file,by,_u}
+//  - 월말평가 점수 기록(D.meScores)과 따로 두고 키 단위(_u 최신 우선)로 동기화한다.
+//    (점수 기록 쪽은 같은 id면 기기 쪽 값이 이기는 방식이라, 다른 기기에서 붙인 분석이 늦게 퍼질 수 있음)
+let _pdfjsP=null;
+function loadPdfJs(){
+  if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+  if(_pdfjsP)return _pdfjsP;
+  _pdfjsP=new Promise((res,rej)=>{
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload=()=>{try{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';res(window.pdfjsLib);}catch(e){_pdfjsP=null;rej(e);}};
+    sc.onerror=()=>{_pdfjsP=null;rej(new Error('PDF 읽기 도구를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.'));};
+    document.head.appendChild(sc);
+  });
+  return _pdfjsP;
+}
+async function mePdfPages(file){
+  const lib=await loadPdfJs();
+  const pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;
+  const out=[];
+  for(let i=1;i<=pdf.numPages;i++){
+    const tc=await (await pdf.getPage(i)).getTextContent();
+    out.push(tc.items.map(t=>t.str+(t.hasEOL?'\n':'')).join(''));
+  }
+  return out;
+}
+const ME_AREAS=['계산력','추론력','이해력','문제해결력'];
+function meNz(s){return String(s||'').replace(/\s+/g,'');}
+// 매쓰홀릭 결과지 글자에서 필요한 값을 뽑는다. 결과지가 아니면 null.
+function parseMathholicPdf(pages){
+  // 결과지 PDF에는 띄어쓰기가 보이지 않는 제어문자(\u0001)로 들어있는 경우가 있어 공백으로 바꿔준다
+  pages=(pages||[]).map(t=>String(t||'').replace(/\r/g,'').replace(/[\u0000-\u0009\u000B-\u001F 　]/g,' ').replace(/[ ]{2,}/g,' '));
+  const all=pages.join('\n');
+  const allNz=meNz(all);
+  if(!allNz.includes('매쓰홀릭')||!allNz.includes('나의점수이야기'))return null;
+  const pg=key=>pages.find(t=>meNz(t).includes(key))||'';
+  const lines=t=>t.split('\n').map(l=>l.trim()).filter(Boolean);
+  const a={src:'mathholic'};
+  // 이름·월
+  const p1=pages[0]||'';
+  const nmM=p1.match(/([^\n]+?)\s*학생\s*(?:\n|$)/);
+  a.name=nmM?nmM[1].replace(/\s+/g,'').replace(/^.*월말평가/,''):'';
+  const moM=meNz(p1).match(/(\d{1,2})월월말평가/)||allNz.match(/(\d{1,2})월월말평가/);
+  a.meMonth=moM?Number(moM[1]):null;
+  // 총점·맞은 문항
+  const ps=pg('나의점수이야기');
+  const tM=ps.match(/총점\s*\n?\s*(\d{1,3})\s*점/);
+  a.total=tM?Number(tM[1]):null;
+  const cM=ps.match(/(\d+)\s*문항\s*\/\s*총\s*(\d+)\s*문항/);
+  if(cM){a.correct=Number(cM[1]);a.count=Number(cM[2]);}
+  // 난이도별 점수(기본·실력·심화·고난도)
+  const dIdx=ps.search(/01\s*종합평가/);
+  if(dIdx>=0){
+    const toks=(ps.slice(dIdx).match(/(\d{1,3})\s*점|(^|\s)-(?=\s|$)/gm)||[]).slice(0,4).map(x=>{const n=x.match(/\d+/);return n?Number(n[0]):null;});
+    a.diff=['기본','실력','심화','고난도'].map((k,i)=>({k,v:toks[i]===undefined?null:toks[i]})).filter(x=>x.v!==null);
+  }
+  // 단원별 점수
+  a.units=[];
+  lines(ps).forEach(l=>{const m=l.match(/^(\d+)\.\s*(.+?)\s+(\d{1,3})\s*점$/);if(m)a.units.push({no:Number(m[1]),name:m[2].trim(),score:Number(m[3])});});
+  // 예상 백분위·성취수준
+  const pp=pg('나의위치이야기');
+  const pcM=pp.match(/예상\s*백분위\s*\n\s*(\d{1,3})\s*\n?\s*%/);
+  if(pcM)a.pct=Number(pcM[1]);
+  const lvM=pp.match(/현재[\s\S]{0,12}?(\d)\s*수준/);
+  if(lvM)a.level=Number(lvM[1]);
+  const rlM=pp.match(/현재[\s\S]{0,12}?\d\s*수준[\s\S]{0,12}?추천[\s\S]{0,12}?(\d)\s*수준/);
+  if(rlM)a.nextLevel=Number(rlM[1]);
+  // 행동영역(내 점수·평균)
+  const pa=pg('나의행동영역이야기');
+  a.areas=[];
+  const avgBy={};
+  (pa.match(/(\d{1,3})\s+(\d{1,3})\s*\n\s*(계산력|추론력|이해력|문제\s*해결력)/g)||[]).forEach(x=>{const m=x.match(/(\d{1,3})\s+(\d{1,3})\s*\n\s*(.+)/);avgBy[meNz(m[3])]=Number(m[2]);});
+  const aIdx=pa.search(/03\s*영역별\s*분석/);
+  const aTxt=aIdx>=0?pa.slice(aIdx):pa;
+  let am;const aRe=/(계산력|추론력|이해력|문제\s*해결력)\s*\n?\s*(\d{1,3})\s*점\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/g;
+  while((am=aRe.exec(aTxt))){const k=meNz(am[1]);if(!a.areas.some(x=>x.name===k))a.areas.push({name:k,score:Number(am[2]),ok:Number(am[3]),n:Number(am[4]),avg:avgBy[k]!=null?avgBy[k]:null});}
+  // 개념 이해도·응용 심화도, 단원별 성취도(STEP)
+  const pu=pg('나의단원이야기');
+  const ciM=pu.match(/개념\s*이해도\s*점수\s*(\d{1,3})\s*점\s*백분위\s*(\d{1,3})\s*%/);
+  if(ciM)a.concept={score:Number(ciM[1]),pct:Number(ciM[2])};
+  const apM=pu.match(/응용\s*심화도\s*점수\s*(\d{1,3})\s*점\s*백분위\s*(\d{1,3})\s*%/);
+  if(apM)a.apply={score:Number(apM[1]),pct:Number(apM[2])};
+  lines(pu).forEach(l=>{
+    const m=l.match(/^(\d+)\.\s*(.+?)\s+((?:\d{1,3}\s*%\s*)+)$/);if(!m)return;
+    const steps=(m[3].match(/\d{1,3}/g)||[]).map(Number);
+    const u=a.units.find(x=>x.no===Number(m[1]))||a.units.find(x=>meNz(x.name)===meNz(m[2]));
+    if(u)u.steps=steps;else a.units.push({no:Number(m[1]),name:m[2].trim(),score:null,steps});
+  });
+  // 문항별 정오
+  const pi=pg('나의문항이야기').replace(/\n\s*(?=(?:O|X|○|×)\s+(?:\d{1,3}\s*%|-))/g,' ');
+  a.items=[];
+  lines(pi).forEach(l=>{
+    const m=l.match(/^(\d{1,2})\s+(.+?)\s+(계산력|추론력|이해력|문제\s*해결력)\s+(O|X|○|×)\s+(\d{1,3}\s*%|-)$/);
+    if(!m)return;
+    const it={no:Number(m[1]),content:m[2].trim(),area:meNz(m[3]),ok:(m[4]==='O'||m[4]==='○')};
+    const av=m[5].match(/\d+/);if(av)it.avg=Number(av[0]);
+    a.items.push(it);
+  });
+  // 틀린 문항 상세(보충학습 피드백): 단원·띄어쓰기된 내용요소·난이도
+  pages.filter(t=>meNz(t).includes('나의보충학습이야기')).forEach(t=>{
+    const blocks=[];let bm;
+    const bRe=/문항\s*분석\s*문제\s*([^\n]+?)\s*\n\s*내용요소\s*([^\n]+?)\s*평균정답률\s*(\S+)\s*\n\s*행동영역\s*([^\n]+?)\s*문항\s*난이도\s*([^\n\s]+)/g;
+    while((bm=bRe.exec(t)))blocks.push({unit:bm[1].trim(),content:bm[2].trim(),diff:bm[5].trim()});
+    const nos=[];let nm;const nRe=/문제\s+(\d{1,2})\s*(?:\n|$)/g;
+    while((nm=nRe.exec(t)))nos.push(Number(nm[1]));
+    blocks.forEach((b,i)=>{
+      let it=nos[i]!=null?a.items.find(x=>x.no===nos[i]):null;
+      if(!it||meNz(it.content)!==meNz(b.content))it=a.items.find(x=>!x.ok&&!x.unit&&meNz(x.content)===meNz(b.content))||it;
+      if(it){it.unit=b.unit;it.diff=b.diff;if(meNz(it.content)===meNz(b.content))it.content=b.content;}
+    });
+  });
+  // 시험 범위
+  const rgM=all.match(/\d{1,2}\s*월\s*월말\s*평가\s+([^\n]+?)\s*\n\s*총점/);
+  if(rgM)a.range=rgM[1].trim();
+  // 재학습 추천
+  a.recs=[];
+  pages.filter(t=>meNz(t).includes('나의재학습이야기')).forEach(t=>{
+    const parts=t.split(/추천\s+([A-Z])\s+/);
+    for(let i=1;i<parts.length;i+=2){
+      const body=parts[i+1]||'';
+      const title=(body.split('\n')[0]||'').trim();
+      const s=body.indexOf('해당 평가에서')>=0?body.indexOf('해당 평가에서')+7:body.indexOf('\n');
+      const e=body.search(/학습\s*과정을/);
+      const pts=lines(body.slice(s,e>0?e:undefined)).filter(x=>!/^해당\s*평가에서/.test(x)&&!/^0\d\s/.test(x));
+      if(title)a.recs.push({tag:parts[i],title,points:pts.slice(0,6)});
+    }
+  });
+  if(a.total==null&&!a.items.length)return null;
+  return a;
+}
+// 결과지 분석 → 부족한 부분·다음 수업 보충 내용
+function meInsights(a){
+  if(!a)return null;
+  const items=a.items||[];
+  const wrong=items.filter(i=>!i.ok);
+  const units=(a.units||[]).map(u=>{
+    const st=u.steps||[];
+    const uw=wrong.filter(w=>w.unit&&meNz(w.unit)===meNz(u.name));
+    let diag='';
+    if(st[0]!=null&&st[0]<80)diag='개념 이해(STEP1)부터 부족 — 개념 설명부터 다시 짚어주기';
+    else if(st[1]!=null&&st[1]<80)diag='개념은 알지만 응용(STEP2)에서 막힘 — 같은 유형 문제 반복 연습';
+    else if(st[2]!=null&&st[2]<80)diag='심화(STEP3) 문제에서 막힘 — 심화 문제 풀이 과정 함께 보기';
+    else if(u.score!=null&&u.score<100)diag='개념·응용은 잘함 — 틀린 문제 실수 점검';
+    const lvl=u.score==null?'':u.score<60?'집중 보충':u.score<80?'보충 필요':u.score<100?'실수 점검':'';
+    return Object.assign({},u,{wrong:uw,diag,lvl});
+  });
+  const weakUnits=units.filter(u=>u.lvl).sort((x,y)=>(x.score||0)-(y.score||0));
+  const weakAreas=(a.areas||[]).filter(x=>x.score<60||(x.avg!=null&&x.score<x.avg-5)).sort((x,y)=>x.score-y.score);
+  const easyWrong=wrong.filter(w=>w.avg!=null&&w.avg>=80);
+  // 다음 수업 보충 목록: 단원별로 틀린 내용요소(중복 제거), 점수 낮은 단원부터
+  const plan=[];
+  weakUnits.forEach(u=>{
+    const cs=[...new Set(u.wrong.map(w=>w.content))];
+    if(cs.length||u.diag)plan.push({unit:u.name,score:u.score,lvl:u.lvl,contents:cs,diag:u.diag});
+  });
+  const unitless=wrong.filter(w=>!w.unit);
+  if(unitless.length)plan.push({unit:'기타',score:null,lvl:'',contents:[...new Set(unitless.map(w=>w.content))],diag:''});
+  // 보충 안내 한 줄(수업입력 화면 배너에 그대로 보임)
+  const contentsAll=[...new Set(plan.flatMap(p=>p.contents))];
+  let note='';
+  if(wrong.length){
+    const unitTxt=weakUnits.slice(0,3).map(u=>`${u.name} ${u.score}점`).join(', ');
+    const cTxt=contentsAll.slice(0,4).join(', ')+(contentsAll.length>4?` 외 ${contentsAll.length-4}개`:'');
+    note=`📄결과지 ${a.total!=null?a.total+'점':''}${unitTxt?' · 부족: '+unitTxt:''} → 보충: ${cTxt}`;
+  }
+  return {wrong,units,weakUnits,weakAreas,easyWrong,plan,note};
+}
+// 재시험 결과지(같은 기록의 retestScore와 점수가 같은 결과지)는 "|re"를 붙여 본시험 분석과 따로 저장
+function meAnalysisKey(sid,meMonth,date,re){return `${sid}|${meMonth}|${date}${re?'|re':''}`;}
+function getMEAnalysis(m,re){
+  if(!m||!D.meAnalysis)return null;
+  const v=D.meAnalysis[meAnalysisKey(m.sid,m.meMonth,m.date,re)]||Object.values(D.meAnalysis).find(x=>x&&!x.del&&x.recId&&x.recId===m.id&&!!x.re===!!re);
+  return v&&!v.del&&v.a?v:null;
+}
+// 화면에 대표로 보여줄 분석: 본시험 결과지 우선, 없으면 재시험 결과지
+function getMEAnalysisAny(m){return getMEAnalysis(m)||getMEAnalysis(m,true);}
+// 성적관리·학생기록에 보이는 분석 상자
+function renderMEAnalysisBox(entry,opts){
+  opts=opts||{};
+  const a=entry?.a;if(!a)return'';
+  const ins=meInsights(a);
+  const bar=(v,c)=>`<div style="flex:1;height:7px;background:#E5E7EB;border-radius:4px;overflow:hidden;min-width:50px;"><div style="width:${Math.max(0,Math.min(100,v||0))}%;height:100%;background:${c};"></div></div>`;
+  const colorOf=v=>v==null?'#94A3B8':v<60?'#DC2626':v<80?'#D97706':v<100?'#2563EB':'#16A34A';
+  let h=`<div style="margin-top:9px;background:#fff;border:1px solid #C7D2FE;border-radius:8px;padding:10px 12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px;">
+      <div style="font-size:12px;font-weight:800;color:#3730A3;">📄 결과지 분석${a.range?` <span style="font-weight:500;color:var(--muted);font-size:10.5px;">· ${esc(a.range)}</span>`:''}</div>
+      <div style="font-size:10.5px;color:var(--muted);">${a.correct!=null?`${a.correct}/${a.count}문항`:''}${a.pct!=null?` · 예상백분위 ${a.pct}%`:''}${a.level?` · ${a.level}수준`:''}</div>
+    </div>`;
+  if(!ins.wrong.length){
+    h+=`<div style="font-size:12px;color:#166534;font-weight:700;background:#F0FDF4;border-radius:6px;padding:7px 9px;">🎉 모든 문항을 맞혔어요 — 보충할 부분이 없습니다. 심화 문제로 실력을 이어가면 좋아요.</div>`;
+  } else {
+    h+=`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:6px;padding:8px 10px;margin-bottom:8px;">
+      <div style="font-size:11.5px;font-weight:800;color:#9A3412;margin-bottom:4px;">📌 다음 수업 때 보충해 주세요</div>
+      ${ins.plan.map(p=>`<div style="font-size:11.5px;line-height:1.55;margin-bottom:3px;"><b style="color:${colorOf(p.score)};">${esc(p.unit)}${p.score!=null?` ${p.score}점`:''}</b>${p.lvl?` <span style="font-size:10px;font-weight:700;color:${colorOf(p.score)};">[${p.lvl}]</span>`:''}${p.contents.length?` — ${p.contents.map(esc).join(', ')}`:''}${p.diag?`<div style="font-size:10.5px;color:#7C2D12;padding-left:8px;">↳ ${esc(p.diag)}</div>`:''}</div>`).join('')}
+      ${ins.weakAreas.length?`<div style="font-size:10.5px;color:#7C2D12;margin-top:3px;">🧠 약한 영역: ${ins.weakAreas.map(x=>`${x.name} ${x.score}점${x.avg!=null?`(평균 ${x.avg})`:''}`).join(', ')}</div>`:''}
+      ${ins.easyWrong.length?`<div style="font-size:10.5px;color:#7C2D12;margin-top:2px;">⚠ 평균 정답률 80% 이상인데 틀린 문제: ${ins.easyWrong.map(w=>`${w.no}번(${esc(w.content)})`).join(', ')} — 실수인지 개념 구멍인지 확인</div>`:''}
+    </div>`;
+  }
+  if(!opts.compact){
+    h+=`<div style="font-size:10.5px;font-weight:700;color:var(--muted);margin:4px 0 3px;">단원별 점수 · 성취율(개념이해/개념응용/심화활용)</div>`;
+    ins.units.forEach(u=>{
+      const st=u.steps||[];
+      h+=`<div style="display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:3px;">
+        <div style="width:96px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(u.name)}">${u.no}. ${esc(u.name)}</div>
+        ${bar(u.score,colorOf(u.score))}
+        <div style="width:34px;text-align:right;font-weight:700;color:${colorOf(u.score)};">${u.score!=null?u.score:'-'}</div>
+        <div style="width:96px;flex-shrink:0;font-size:10px;color:var(--muted);text-align:right;">${[0,1,2].map(i=>st[i]!=null?`<span style="color:${colorOf(st[i])};">${st[i]}</span>`:'-').join(' / ')}</div>
+      </div>`;
+    });
+    if((a.areas||[]).length)h+=`<div style="font-size:10.5px;color:var(--muted);margin-top:5px;">영역: ${a.areas.map(x=>`${x.name} <b style="color:${colorOf(x.score)};">${x.score}</b>${x.avg!=null?`<span style="font-size:9.5px;">(평균${x.avg})</span>`:''}`).join(' · ')}</div>`;
+    if(ins.wrong.length)h+=`<div style="font-size:10.5px;color:var(--muted);margin-top:4px;">틀린 문항: ${ins.wrong.map(w=>`${w.no}번 ${esc(w.content)}${w.diff?`(${esc(w.diff)})`:''}`).join(', ')}</div>`;
+    if((a.recs||[]).length)h+=`<div style="font-size:10.5px;color:var(--muted);margin-top:4px;">재학습 추천: ${a.recs.map(r=>`${esc(r.tag)}. ${esc(r.title)}`).join(' / ')}</div>`;
+    h+=`<div style="font-size:9.5px;color:#94A3B8;margin-top:5px;">${esc(entry.file||'')}${entry.by?` · ${esc(entry.by)} 불러옴`:''}${opts.sid?` · <a href="javascript:void(0)" onclick="deleteMEAnalysis('${esc(meAnalysisKey(entry.sid,entry.meMonth,entry.date,entry.re))}')" style="color:#94A3B8;">분석 지우기</a>`:''}</div>`;
+  }
+  h+=`</div>`;
+  return h;
+}
+// 성적관리 목록 카드에 붙는 한 줄 (결과지 분석이 있을 때만)
+function meListAnalysisLine(m){
+  const an=getMEAnalysisAny(m);if(!an)return'';
+  const wu=meInsights(an.a).weakUnits;
+  return `<div style="font-size:10px;color:${wu.length?'#9A3412':'#166534'};font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(wu.map(u=>u.name+' '+u.score+'점').join(', '))}">📄 ${wu.length?'보충: '+esc(wu.map(u=>u.name).join(', ')):'보충할 부분 없음'}</div>`;
+}
+function deleteMEAnalysis(key){
+  const v=(D.meAnalysis||{})[key];if(!v)return;
+  if(!confirm('이 결과지 분석을 지울까요? (점수 기록은 그대로 남습니다)'))return;
+  D.meAnalysis[key]=Object.assign({},v,{del:true,a:null,_u:Date.now()});
+  SD();renderAll();toast('결과지 분석을 지웠습니다');
+}
+// 파일 이름·결과지 이름으로 학생 찾기 (예: "김도하(신풍).pdf" → 신풍초 김도하, "김도하(소화).pdf" → 김도하(소화))
+function meMatchStudent(fileName,pdfName){
+  const pool=(D.S||[]).filter(s=>s&&s.id&&s.status!=='퇴원'&&(s.group||'저학년')!=='사고력');
+  const base=String(fileName||'').replace(/\.pdf$/i,'').replace(/\s+/g,'').trim();
+  const exact=pool.find(s=>s.id===base);
+  if(exact)return{sid:exact.id,sure:true};
+  const pm=base.match(/^([^()]+)\((.+)\)$/);
+  const nm=pm?pm[1]:(base||meNz(pdfName));
+  const tag=pm?pm[2]:'';
+  let cands=pool.filter(s=>s.id===nm||s.id.replace(/\(.*\)$/,'')===nm);
+  if(!cands.length&&pdfName)cands=pool.filter(s=>s.id===meNz(pdfName)||s.id.replace(/\(.*\)$/,'')===meNz(pdfName));
+  if(!cands.length)return{sid:'',sure:false};
+  if(tag){const bySchool=cands.filter(s=>s.school&&s.school.startsWith(tag));if(bySchool.length===1)return{sid:bySchool[0].id,sure:true};}
+  if(cands.length===1)return{sid:cands[0].id,sure:true};
+  const low=cands.filter(s=>(s.group||'저학년')==='저학년'&&s.id===nm);
+  return{sid:(low[0]||cands[0]).id,sure:false};
+}
+// 이 결과지를 어느 월말평가 기록에 붙일지 고른다 (같은 점수 → 재시험 점수 같음 → 점수 비어있음 → 가장 최근)
+function meTargetOptions(sid,meMonth,total){
+  const recs=sid&&meMonth?getMEScores(sid).filter(m=>m.meMonth===meMonth&&!m.notTaken):[];
+  const same=recs.find(m=>m.score!==''&&Number(m.score)===total)||recs.find(m=>m.retestScore!=null&&m.retestScore!==''&&Number(m.retestScore)===total);
+  const empty=recs.find(m=>m.score===''||m.score==null);
+  const def=same||empty||recs[0]||null;
+  return{recs,def:def?def.id:'new',scoreMismatch:!!(def&&!same&&!empty)};
+}
+let ME_PDF_ROWS=[];
+function openMEPdfImport(presetSid){
+  ME_PDF_ROWS=[];
+  const inp=document.getElementById('mepdf-file');
+  if(inp){inp.value='';inp.dataset.presetSid=presetSid||'';}
+  document.getElementById('mepdf-list').innerHTML=`<div style="font-size:12px;color:var(--muted);padding:14px;text-align:center;line-height:1.7;">매쓰홀릭 월말평가 결과지 PDF를 고르세요.<br>여러 학생 파일을 한꺼번에 골라도 됩니다.<br><span style="font-size:11px;">(파일 이름이 학생 이름이면 자동으로 찾아요 · 월간리포트·가정통신문 PDF는 자동으로 건너뜁니다)</span></div>`;
+  document.getElementById('mepdf-save').disabled=true;
+  openM('mepdfm');
+}
+async function onMEPdfFiles(inp){
+  const files=[...(inp.files||[])];if(!files.length)return;
+  const preset=inp.dataset.presetSid||'';
+  const listEl=document.getElementById('mepdf-list');
+  listEl.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:14px;text-align:center;">PDF 읽는 중… (0/${files.length})</div>`;
+  ME_PDF_ROWS=[];
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    const row={file:f.name,a:null,err:'',sid:'',sure:false,target:'new',reinforce:false,include:false};
+    try{
+      const a=parseMathholicPdf(await mePdfPages(f));
+      if(!a)row.err='매쓰홀릭 결과지가 아니라서 건너뜀';
+      else{
+        row.a=a;
+        const mt=(preset&&files.length===1)?{sid:preset,sure:true}:meMatchStudent(f.name,a.name);
+        row.sid=mt.sid;row.sure=mt.sure;
+        if(!a.meMonth)a.meMonth=ME_MONTH_FILTER||(new Date().getMonth()+1);
+        const t=meTargetOptions(row.sid,a.meMonth,a.total);row.target=t.def;
+        row.reinforce=!!(a.items||[]).some(x=>!x.ok);
+        row.include=!!row.sid;
+      }
+    }catch(e){console.error('[결과지 PDF]',f.name,e);row.err='PDF를 읽지 못함: '+(e?.message||e);}
+    ME_PDF_ROWS.push(row);
+    listEl.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:14px;text-align:center;">PDF 읽는 중… (${i+1}/${files.length})</div>`;
+  }
+  renderMEPdfRows();
+}
+function renderMEPdfRows(){
+  const listEl=document.getElementById('mepdf-list');
+  const pool=(D.S||[]).filter(s=>s&&s.id&&s.status!=='퇴원'&&(s.group||'저학년')!=='사고력').map(s=>s.id).sort((x,y)=>x.localeCompare(y,'ko'));
+  const ok=ME_PDF_ROWS.filter(r=>r.a),skip=ME_PDF_ROWS.filter(r=>!r.a);
+  let h=`<div style="font-size:11.5px;color:var(--muted);margin-bottom:7px;">결과지 ${ok.length}개${skip.length?` · 건너뜀 ${skip.length}개`:''} — 학생과 붙일 기록을 확인하고 저장하세요.</div>`;
+  if(skip.length)h+=`<details style="font-size:11px;color:#94A3B8;margin-bottom:8px;"><summary style="cursor:pointer;">⏭ 건너뛴 파일 ${skip.length}개 (월간리포트·가정통신문·성적표 등 결과지가 아닌 PDF)</summary>${skip.map(r=>`<div style="padding:2px 4px;">${esc(r.file)} — ${esc(r.err)}</div>`).join('')}</details>`;
+  ME_PDF_ROWS.forEach((r,i)=>{
+    if(!r.a)return;
+    const a=r.a,ins=meInsights(a);
+    const t=meTargetOptions(r.sid,a.meMonth,a.total);
+    const tgt=t.recs.find(m=>m.id===r.target);
+    const mismatch=tgt&&tgt.score!==''&&tgt.score!=null&&Number(tgt.score)!==a.total&&!(tgt.retestScore!=null&&Number(tgt.retestScore)===a.total);
+    h+=`<div style="border:1px solid ${r.include?(r.sure?'#C7D2FE':'#FCD34D'):'var(--bdr)'};background:${r.include?'#fff':'#F8FAFC'};border-radius:8px;padding:8px 10px;margin-bottom:7px;">
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+        <input type="checkbox" ${r.include?'checked':''} onchange="ME_PDF_ROWS[${i}].include=this.checked;renderMEPdfRows()" style="width:16px;height:16px;">
+        <div style="font-size:12px;font-weight:700;">${esc(r.file)}</div>
+        <div style="font-size:11px;color:var(--muted);">결과지: ${esc(a.name||'?')} · ${a.meMonth}월 · <b style="color:#1E40AF;">${a.total!=null?a.total+'점':'-'}</b> · 틀린 문항 ${ins.wrong.length}개</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center;">
+        <select onchange="ME_PDF_ROWS[${i}].sid=this.value;ME_PDF_ROWS[${i}].sure=true;ME_PDF_ROWS[${i}].target=meTargetOptions(this.value,ME_PDF_ROWS[${i}].a.meMonth,ME_PDF_ROWS[${i}].a.total).def;ME_PDF_ROWS[${i}].include=!!this.value;renderMEPdfRows()" style="font-size:12px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;max-width:150px;">
+          <option value="">학생 선택</option>${pool.map(id=>`<option value="${esc(id)}"${id===r.sid?' selected':''}>${esc(id)}</option>`).join('')}
+        </select>
+        <select onchange="ME_PDF_ROWS[${i}].target=this.value;renderMEPdfRows()" style="font-size:12px;padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;max-width:230px;" ${r.sid?'':'disabled'}>
+          ${t.recs.map(m=>`<option value="${esc(m.id)}"${m.id===r.target?' selected':''}>${esc(m.date)} 기록에 붙이기 (${m.score!==''&&m.score!=null?m.score+'점':'점수 없음'})</option>`).join('')}
+          <option value="new"${r.target==='new'?' selected':''}>새 월말평가 기록으로 추가 (${a.total}점)</option>
+        </select>
+        <label style="font-size:11.5px;display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" ${r.reinforce?'checked':''} onchange="ME_PDF_ROWS[${i}].reinforce=this.checked">수업입력에 "보충 필요" 표시</label>
+      </div>
+      ${!r.sure&&r.sid?`<div style="font-size:10.5px;color:#B45309;margin-top:4px;">⚠ 같은 이름 학생이 여럿이라 자동으로 골랐어요 — 맞는 학생인지 확인해주세요.</div>`:''}
+      ${!r.sid?`<div style="font-size:10.5px;color:#B45309;margin-top:4px;">⚠ 학생을 찾지 못했어요 — 직접 골라주세요.</div>`:''}
+      ${mismatch?`<div style="font-size:10.5px;color:#B45309;margin-top:4px;">⚠ 앱에 적힌 점수(${esc(String(tgt.score))}점)와 결과지 점수(${a.total}점)가 달라요. 앱 점수는 바꾸지 않고 분석만 붙입니다.</div>`:''}
+      ${ins.note?`<div style="font-size:10.5px;color:#9A3412;margin-top:4px;">${esc(ins.note)}</div>`:''}
+    </div>`;
+  });
+  listEl.innerHTML=h;
+  document.getElementById('mepdf-save').disabled=!ME_PDF_ROWS.some(r=>r.a&&r.include&&r.sid);
+}
+function saveMEPdfImport(){
+  const rows=ME_PDF_ROWS.filter(r=>r.a&&r.include&&r.sid);
+  if(!rows.length)return;
+  if(!D.meScores)D.meScores=[];
+  if(!D.meAnalysis)D.meAnalysis={};
+  const by=getTeacherName()||'이름 미설정';
+  let n=0,created=0,reinf=0;
+  rows.forEach((r,idx)=>{
+    const a=r.a,sid=r.sid,meMonth=a.meMonth,now=Date.now();
+    const ins=meInsights(a);
+    let rec=r.target!=='new'?D.meScores.find(m=>m.id===r.target):null;
+    if(!rec){
+      const date=findPendingMESession(sid)||tdk();
+      rec=D.meScores.find(m=>m.sid===sid&&m.meMonth===meMonth&&m.date===date&&!m.notTaken)||null;
+      if(!rec){
+        rec={id:String(now+idx),sid,meMonth,date,score:a.total!=null?String(a.total):'',pass:'',note:'',notTaken:false,reason:'',reinforceNeeded:false,reinforceNote:'',_updatedAt:now};
+        D.meScores.push(rec);created++;
+      }
+    }
+    if((rec.score===''||rec.score==null)&&a.total!=null){rec.score=String(a.total);rec._updatedAt=now;}
+    const isRe=a.total!=null&&rec.retestScore!=null&&rec.retestScore!==''&&Number(rec.retestScore)===a.total&&Number(rec.score)!==a.total;
+    D.meAnalysis[meAnalysisKey(sid,rec.meMonth,rec.date,isRe)]={sid,meMonth:rec.meMonth,date:rec.date,recId:rec.id,re:isRe,a,file:r.file,by,_u:now};
+    if(r.reinforce&&ins.note){
+      const prevNote=String(rec.reinforceNote||'');
+      const keep=prevNote&&!prevNote.startsWith('📄')?prevNote+' / ':'';
+      rec.reinforceNeeded=true;rec.reinforceNote=keep+ins.note;rec._updatedAt=now;
+      const s=gS(sid);
+      // 지난달 결과지를 나중에 올린 경우, 이번 달 보충 안내를 덮어쓰지 않도록 가장 최근 시험일 때만 학생 배너에 반영
+      const newestDate=getMEScores(sid).filter(m=>!m.notTaken).reduce((mx,m)=>(m.date||'')>mx?(m.date||''):mx,'');
+      if(s&&(rec.date||'')>=newestDate){
+        s._reinforceNeeded=true;s._reinforceNote=rec.reinforceNote;s._reinforceMonth=rec.meMonth;
+        s._reinforceSourceDate=rec.date;s._reinforceUpdatedAt=now;s._updatedAt=now;
+      }
+      reinf++;
+    }
+    n++;
+  });
+  SD();closeM('mepdfm');renderAll();
+  toast(`결과지 ${n}개 분석 저장${created?` · 새 기록 ${created}개`:''}${reinf?` · 보충 필요 ${reinf}명 표시`:''}`);
 }
 
 function rGradeDet(sid){
@@ -16548,6 +16941,7 @@ function startCloudListen() {
     // 교재비 가격표·건별 조정: 키 단위로 "더 최근에 수정된(_u) 쪽"을 신뢰 (지우는 게 아니라 null로 덮어쓰는 구조)
     if (data.bookPrices) D.bookPrices = mergeKeyedByU(D.bookPrices, data.bookPrices);
     if (data.bookBillOv) D.bookBillOv = mergeKeyedByU(D.bookBillOv, data.bookBillOv);
+    if (data.meAnalysis) D.meAnalysis = mergeKeyedByU(D.meAnalysis, data.meAnalysis);
     if (data.acadSessions) D.acadSessions = data.acadSessions;
     if (data.parentConsult) D.parentConsult = mergeArrById(D.parentConsult, data.parentConsult, null, D.tombstones?.parentConsult);
     if (data.tomaScores) D.tomaScores = mergeArrById(D.tomaScores, data.tomaScores, null, D.tombstones?.tomaScores);
@@ -16819,6 +17213,7 @@ function buildCoursePayload(){
     meRanges: D.meRanges||{},
     bookPrices: D.bookPrices||{},
     bookBillOv: D.bookBillOv||{},
+    meAnalysis: D.meAnalysis||{},
     slots: SLOTS_LEGACY,
     slotsAug: SLOTS_AUG,
     // ⚠ 사고력↔저학년/고학년 이름 겹침 별칭(SAGO_ID_ALIAS)은 예전엔 이 기기의 localStorage에만
@@ -16875,7 +17270,7 @@ function pushCloudNow() {
       Object.entries(bySid||{}).forEach(([sid,rec])=>{ payload['meRanges/'+ym+'/'+fbEscapeKey(sid)]=fbSanitizeForWrite(rec); });
     });
     // 교재비 가격표·건별 조정도 키별 경로로 쪼개서 올린다(통째로 올리면 이 기기가 모르는 다른 항목이 지워질 수 있음)
-    ['bookPrices','bookBillOv'].forEach(f=>{
+    ['bookPrices','bookBillOv','meAnalysis'].forEach(f=>{
       const m=payload[f]||{}; delete payload[f];
       Object.entries(m).forEach(([k,v])=>{ payload[f+'/'+fbEscapeKey(k)]=fbSanitizeForWrite(v); });
     });
@@ -17079,6 +17474,7 @@ function SD() {
   localStorage.setItem('br5_me_ranges', JSON.stringify(D.meRanges||{}));
   localStorage.setItem('br5_book_prices', JSON.stringify(D.bookPrices||{}));
   localStorage.setItem('br5_book_bill_ov', JSON.stringify(D.bookBillOv||{}));
+  localStorage.setItem('br5_me_analysis', JSON.stringify(D.meAnalysis||{}));
   // 사고력 그룹 데이터는 별도의 사고력 전용 클라우드(braining_sagoryeok)로도 함께 보냄.
   // 기본 클라우드(braining)에는 지금까지처럼 전체가 저장되므로, 어느 한쪽이 끊겨도 데이터가 유실되지 않음.
   scheduleSagoPush();
@@ -17118,6 +17514,7 @@ function SD_local() {
   localStorage.setItem('br5_me_ranges', JSON.stringify(D.meRanges||{}));
   localStorage.setItem('br5_book_prices', JSON.stringify(D.bookPrices||{}));
   localStorage.setItem('br5_book_bill_ov', JSON.stringify(D.bookBillOv||{}));
+  localStorage.setItem('br5_me_analysis', JSON.stringify(D.meAnalysis||{}));
 }
 
 // Auto-reconnect on init
@@ -17964,7 +18361,7 @@ function init(){
     if(!s.impNotes)s.impNotes=[];
     if(!s.progress)s.progress={series:'',level:'',unit:''};
   });
-  if(!D.notices)D.notices=[];if(!D.makeups)D.makeups=[];if(!D.dismissedMakeups)D.dismissedMakeups=[];if(!D.closureDays)D.closureDays=[];if(!D.dayDefs)D.dayDefs={};if(!D.recentRemovals)D.recentRemovals=[];if(!D.tomaDist)D.tomaDist={};if(!D.pendingMoves)D.pendingMoves=[];if(!D.scMeta)D.scMeta={};if(!D.highClassNames)D.highClassNames={};if(!D.meRanges)D.meRanges={};if(!D.bookPrices)D.bookPrices={};if(!D.bookBillOv)D.bookBillOv={};
+  if(!D.notices)D.notices=[];if(!D.makeups)D.makeups=[];if(!D.dismissedMakeups)D.dismissedMakeups=[];if(!D.closureDays)D.closureDays=[];if(!D.dayDefs)D.dayDefs={};if(!D.recentRemovals)D.recentRemovals=[];if(!D.tomaDist)D.tomaDist={};if(!D.pendingMoves)D.pendingMoves=[];if(!D.scMeta)D.scMeta={};if(!D.highClassNames)D.highClassNames={};if(!D.meRanges)D.meRanges={};if(!D.bookPrices)D.bookPrices={};if(!D.bookBillOv)D.bookBillOv={};if(!D.meAnalysis)D.meAnalysis={};
   if(!D.bookLevelConfig)D.bookLevelConfig=JSON.parse(JSON.stringify(DEFAULT_BOOK_LEVELS));
   applyDuePendingMoves();
   // 🔧 학생 ID 중복 제거: 같은 id가 여러 개 있으면(예: 과거 데이터 병합 과정에서 생성됨),
