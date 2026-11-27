@@ -367,7 +367,6 @@ button,input,textarea,select{font-family:inherit;}
   <button class="nb" onclick="setTab('grade')"><i class="ti ti-chart-bar"></i>성적관리</button>
   <button class="nb" onclick="setTab('mku')"><i class="ti ti-refresh"></i>결석&보강</button>
   <button class="nb" onclick="setTab('pct')"><i class="ti ti-phone"></i>학부모상담</button>
-  <button class="nb" onclick="setTab('report')"><i class="ti ti-printer"></i>월간리포트</button>
   <button class="nb" onclick="setTab('hov')"><i class="ti ti-transfer"></i>인수인계</button>
   <button class="nb" onclick="setTab('admin')" style="position:relative;"><i class="ti ti-settings"></i>관리<span class="nbadge" id="admin-hwsms-badge" style="display:none;top:2px;right:10px;">0</span></button>
   <button class="nb" onclick="setTab('uni')"><i class="ti ti-users"></i>통합검색</button>
@@ -1326,7 +1325,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-grade-report-v96'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-report-nav-merge-v97'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3045,6 +3044,8 @@ function dismissNotice(id){
 
 // ═══ NAVIGATION ═══════════════════════════
 function setTab(t){
+  // v97: 월간리포트는 성적관리 안(🖨 월간리포트)으로 옮겨짐 — 예전 경로로 들어와도 그쪽으로 보냄
+  if(t==='report'){t='grade';GRADE_TEST='RPT';GRADE_SID=null;}
   TAB=t;
   // ⚠ 예전엔 여기서 버튼 순서를 손으로 다시 적은 배열(['full','sch','ovr','his',...])과 실제 HTML의
   // 버튼 순서(전체시간표·수업입력·한눈에보기·진도체크·학생기록·성적관리·보충관리·...)를 위치(인덱스)로
@@ -14724,7 +14725,7 @@ function generateReport(){
   if(!sid||!gS(sid)){alert('학생을 정확히 선택해주세요.');return;}
   if(!sessionName){alert('세션을 선택해주세요.');return;}
   REPORT_SID=sid;REPORT_SESSION_NAME=sessionName;
-  if(!(TAB==='grade'&&GRADE_TEST==='RPT'))TAB='report'; // v96: 성적관리 > 월간리포트에서 만들면 그 자리에 그대로 보여줌
+  TAB='grade';GRADE_TEST='RPT';GRADE_SID=null; // v97: 월간리포트는 성적관리 안에서 보여줌
   closeM('reportm');renderAll();
   try{window.scrollTo(0,0);const mn=document.getElementById('main');if(mn)mn.scrollTop=0;}catch(e){}
   toast(`${gS(sid)?.name||sid} · ${sessionName} 리포트를 만들었습니다`);
@@ -14987,7 +14988,7 @@ function buildMonthlyReport(sid,session){
 // 앱과 별도 파일을 왔다갔다 하지 않고 바로 가정통신문을 만들 수 있게 함.
 // 미리보기는 서버 문자열이 아니라 gtsmRenderPreview()가 직접 DOM을 채우는 방식(원래 파일과 동일한 방식)이라
 // 입력할 때마다 전체 화면을 다시 그리지 않아 포커스/커서가 끊기지 않음.
-let GTSM_SID=null, GTSM_RETURN_TAB='report';
+let GTSM_SID=null, GTSM_RETURN_TAB='grade';
 // ⚠ 공용 esc()는 \n을 <br>로 바꿔주기 때문에 화면 표시(미리보기)엔 맞지만,
 // textarea/input value에 그대로 쓰면 줄바꿈이 문자 그대로 "<br>"로 저장돼버려서
 // (textarea는 HTML로 해석하지 않고 그대로 텍스트로 보여주므로) 원문이 깨짐.
