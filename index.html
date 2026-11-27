@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-me-result-tab-v91'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-grade-tab-groups-v92'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11596,9 +11596,19 @@ function meRangeRows(ym,s){
     return{subject:x.subject,curr,auto,unit,custom,text,removed:!!sub.skip};
   });
 }
-function meRangePills(active){
-  const btn=(key,label,color)=>`<button onclick="GRADE_TEST='${key}';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${active===key?color:'var(--bdr)'};background:${active===key?color:'#fff'};color:${active===key?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">${label}</button>`;
-  return `<div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">${btn('ME','🏆 월말평가','#1E40AF')}${btn('MEA','📊 월말평가 결과','#C2410C')}${btn('RANGE','📋 월말평가 범위','#B45309')}${btn('TOMA','🏅 TOMA','#0C447C')}${btn('DIST','📄 시험지 배부','#059669')}${btn('FACTO','📝 팩토시험','#7C3AED')}</div>`;
+function meRangePills(active){ return gradeTabsBar(active); }
+// v92: 성적관리 탭을 큰 틀(월말평가 · TOMA · 팩토시험) + 그 안의 세부 탭으로 정리
+const GRADE_TAB_GROUPS=[
+  {key:'MEG',label:'🏆 월말평가',color:'#1E40AF',subs:[['ME','점수','#1E40AF'],['MEA','월말평가 결과 (보충)','#C2410C'],['RANGE','월말평가 범위','#B45309']]},
+  {key:'TOMAG',label:'🏅 TOMA',color:'#0C447C',subs:[['TOMA','점수','#0C447C'],['DIST','시험지 배부','#059669']]},
+  {key:'FACTOG',label:'📝 팩토시험',color:'#7C3AED',subs:[['FACTO','점수','#7C3AED']]},
+];
+function gradeTabsBar(active){
+  const grp=GRADE_TAB_GROUPS.find(g=>g.subs.some(s=>s[0]===active))||GRADE_TAB_GROUPS[0];
+  const go=k=>`GRADE_TEST='${k}';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()`;
+  const top=GRADE_TAB_GROUPS.map(g=>{const on=g===grp;return `<button onclick="${go(g.subs[0][0])}" style="padding:8px 20px;border-radius:20px;border:2px solid ${on?g.color:'var(--bdr)'};background:${on?g.color:'#fff'};color:${on?'#fff':'var(--muted)'};font-size:13px;font-weight:700;cursor:pointer;">${g.label}</button>`;}).join('');
+  const sub=grp.subs.length>1?`<div style="display:flex;gap:0;margin:-4px 0 12px;border-bottom:2px solid var(--bdr);flex-wrap:wrap;">${grp.subs.map(([k,l,c])=>{const on=k===active;return `<button onclick="${go(k)}" style="padding:7px 16px;border:none;border-bottom:3px solid ${on?c:'transparent'};margin-bottom:-2px;background:none;color:${on?c:'var(--muted)'};font-size:12.5px;font-weight:${on?800:600};cursor:pointer;">${l}</button>`;}).join('')}</div>`:'';
+  return `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">${top}</div>${sub}`;
 }
 function meRangeCollect(ym){
   const gOrder=['07','1','2','3','4','5','6','m1','m2','m3','h1','h2','h3'];
@@ -11737,14 +11747,7 @@ function rGradeDist(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
   </div>
-  <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">
-    <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
-    <button onclick="GRADE_TEST='MEA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='MEA'?'#C2410C':'var(--bdr)'};background:${GRADE_TEST==='MEA'?'#C2410C':'#fff'};color:${GRADE_TEST==='MEA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📊 월말평가 결과</button>
-    <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
-    <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
-    <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid #059669;background:#059669;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
-    <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
-  </div>
+  ${gradeTabsBar(GRADE_TEST)}
   <div style="display:flex;align-items:center;justify-content:space-between;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--rs);padding:10px 12px;margin-bottom:10px;">
     <button onclick="shiftDistMonth(-1)" style="border:none;background:none;font-size:16px;color:#059669;cursor:pointer;padding:2px 8px;">◀</button>
     <div style="text-align:center;">
@@ -12129,14 +12132,7 @@ function rGradeList(){
     ${gWdCnt?`<button style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--bdr);background:${GradeStatusFilter==='퇴원'?'#475569':'#fff'};color:${GradeStatusFilter==='퇴원'?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onclick="window.GradeStatusFilter='퇴원';renderAll()">🚪 퇴원생 (${gWdCnt})</button>`:''}
   </div>
   <!-- TOMA / 월말평가 탭 -->
-  <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">
-    <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='ME'?'#1E40AF':'var(--bdr)'};background:${GRADE_TEST==='ME'?'#1E40AF':'#fff'};color:${GRADE_TEST==='ME'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
-    <button onclick="GRADE_TEST='MEA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='MEA'?'#C2410C':'var(--bdr)'};background:${GRADE_TEST==='MEA'?'#C2410C':'#fff'};color:${GRADE_TEST==='MEA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📊 월말평가 결과</button>
-    <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
-    <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='TOMA'?'var(--pri2)':'var(--bdr)'};background:${GRADE_TEST==='TOMA'?'var(--pri2)':'#fff'};color:${GRADE_TEST==='TOMA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
-    <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
-    <button onclick="GRADE_TEST='FACTO';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='FACTO'?'#7C3AED':'var(--bdr)'};background:${GRADE_TEST==='FACTO'?'#7C3AED':'#fff'};color:${GRADE_TEST==='FACTO'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📝 팩토시험</button>
-  </div>`;
+  ${gradeTabsBar(GRADE_TEST)}`;
 
   if(GRADE_TEST==='ME') return out+rGradeListME(stuList);
   if(GRADE_TEST==='MEA') return out+rGradeListMEA(stuList);
