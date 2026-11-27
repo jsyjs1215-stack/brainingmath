@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-grade-reinforce-board-v90'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-me-result-tab-v91'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11498,7 +11498,7 @@ function rGrade(){
   if(!GRADE_DIST_MONTH)GRADE_DIST_MONTH=tdk().slice(0,7);
   if(GRADE_TEST==='DIST')return rGradeDist();
   if(GRADE_TEST==='RANGE')return rGradeRange();
-  if(GRADE_SID)return GRADE_TEST==='ME'?rGradeDetME(GRADE_SID):GRADE_TEST==='FACTO'?rGradeDetFacto(GRADE_SID):rGradeDet(GRADE_SID);
+  if(GRADE_SID)return GRADE_TEST==='ME'?rGradeDetME(GRADE_SID):GRADE_TEST==='MEA'?rGradeDetMEA(GRADE_SID):GRADE_TEST==='FACTO'?rGradeDetFacto(GRADE_SID):rGradeDet(GRADE_SID);
   return rGradeList();
 }
 
@@ -11598,7 +11598,7 @@ function meRangeRows(ym,s){
 }
 function meRangePills(active){
   const btn=(key,label,color)=>`<button onclick="GRADE_TEST='${key}';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${active===key?color:'var(--bdr)'};background:${active===key?color:'#fff'};color:${active===key?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">${label}</button>`;
-  return `<div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">${btn('ME','🏆 월말평가','#1E40AF')}${btn('RANGE','📋 월말평가 범위','#B45309')}${btn('TOMA','🏅 TOMA','#0C447C')}${btn('DIST','📄 시험지 배부','#059669')}${btn('FACTO','📝 팩토시험','#7C3AED')}</div>`;
+  return `<div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">${btn('ME','🏆 월말평가','#1E40AF')}${btn('MEA','📊 월말평가 결과','#C2410C')}${btn('RANGE','📋 월말평가 범위','#B45309')}${btn('TOMA','🏅 TOMA','#0C447C')}${btn('DIST','📄 시험지 배부','#059669')}${btn('FACTO','📝 팩토시험','#7C3AED')}</div>`;
 }
 function meRangeCollect(ym){
   const gOrder=['07','1','2','3','4','5','6','m1','m2','m3','h1','h2','h3'];
@@ -11739,6 +11739,7 @@ function rGradeDist(){
   </div>
   <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
+    <button onclick="GRADE_TEST='MEA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='MEA'?'#C2410C':'var(--bdr)'};background:${GRADE_TEST==='MEA'?'#C2410C':'#fff'};color:${GRADE_TEST==='MEA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📊 월말평가 결과</button>
     <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
     <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid #059669;background:#059669;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
@@ -12118,7 +12119,7 @@ function rGradeList(){
       <button onclick="openFactoScoreModal(null)" style="padding:7px 14px;background:#7C3AED;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 팩토시험 입력</button>
       <button onclick="openScoreTplManagerAdmin()" style="padding:7px 14px;background:#fff;color:#7C3AED;border:1px solid #C4B5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-analytics"></i> ${invSortAllowed()?'시험지 템플릿 관리':'🔒 시험지 템플릿 관리 (관리자)'}</button>
       ${invSortAllowed()?`<button onclick="requestInvSortUnlock()" style="padding:7px 14px;background:#F0FDF4;color:#15803D;border:1px solid #16A34A;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">🔓 관리자 모드 · 잠그기</button>`:''}
-    </div>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
+    </div>`:GRADE_TEST==='MEA'?`<button onclick="openMEPdfImport()" style="padding:7px 14px;background:#C2410C;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-upload"></i> 결과지 PDF 불러오기</button>`:`<button onclick="openMEModal(null)" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 월말평가 입력</button>`}
   </div>
   <div style="display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;">
     <button style="flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--bdr);background:${GradeStatusFilter==='active'?'var(--pri)':'#fff'};color:${GradeStatusFilter==='active'?'#fff':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onclick="window.GradeStatusFilter='active';renderAll()">재원생 (${curS().filter(isActiveStu).length})</button>
@@ -12130,6 +12131,7 @@ function rGradeList(){
   <!-- TOMA / 월말평가 탭 -->
   <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;">
     <button onclick="GRADE_TEST='ME';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='ME'?'#1E40AF':'var(--bdr)'};background:${GRADE_TEST==='ME'?'#1E40AF':'#fff'};color:${GRADE_TEST==='ME'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏆 월말평가</button>
+    <button onclick="GRADE_TEST='MEA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='MEA'?'#C2410C':'var(--bdr)'};background:${GRADE_TEST==='MEA'?'#C2410C':'#fff'};color:${GRADE_TEST==='MEA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">📊 월말평가 결과</button>
     <button onclick="GRADE_TEST='RANGE';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📋 월말평가 범위</button>
     <button onclick="GRADE_TEST='TOMA';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid ${GRADE_TEST==='TOMA'?'var(--pri2)':'var(--bdr)'};background:${GRADE_TEST==='TOMA'?'var(--pri2)':'#fff'};color:${GRADE_TEST==='TOMA'?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer;">🏅 TOMA</button>
     <button onclick="GRADE_TEST='DIST';GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="padding:7px 18px;border-radius:20px;border:2px solid var(--bdr);background:#fff;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;">📄 시험지 배부</button>
@@ -12137,6 +12139,7 @@ function rGradeList(){
   </div>`;
 
   if(GRADE_TEST==='ME') return out+rGradeListME(stuList);
+  if(GRADE_TEST==='MEA') return out+rGradeListMEA(stuList);
   if(GRADE_TEST==='FACTO') return out+rGradeListFacto(stuList);
 
   // ── TOMA 목록 (월별로 확인) ──────────────
@@ -12206,8 +12209,7 @@ function rGradeListME(stuList){
     </div>
     <button onclick="shiftMEMonth(1)" style="border:none;background:none;font-size:16px;color:#1E40AF;cursor:pointer;padding:2px 8px;">▶</button>
   </div>
-  <button onclick="openMEPdfImport()" style="width:100%;padding:9px;margin:-4px 0 12px;background:#EEF2FF;color:#3730A3;border:1px solid #A5B4FC;border-radius:var(--rs);font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;"><i class="ti ti-file-upload"></i> 월말평가 결과지 PDF 불러오기 <span style="font-weight:500;font-size:11px;">(여러 학생 한꺼번에 · 부족한 부분·다음 수업 보충 자동 정리)</span></button>`;
-  out+=meReinforceOverview(stuList.filter(s=>GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true),ME_MONTH_FILTER);
+`;
   let hasAny=false;
   grades.forEach(g=>{
     const gl=stuList.filter(s=>s.grade===g&&(GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true));
@@ -12238,7 +12240,7 @@ function rGradeListME(stuList){
               <div style="font-size:10px;color:var(--muted);">${thisMonth.date}</div>`
             :thisMonth
             ?`<div style="font-size:10px;color:${hasTier?tier.color:'#1E40AF'};font-weight:${hasTier?700:600};">${thisMonth.score?thisMonth.score+'점':'점수 미입력'} ${thisMonth.pass?`<span style="color:${passColor};">· ${thisMonth.pass}</span>`:''}${hasTier?` · ${tier.label}`:''}</div>
-              <div style="font-size:10px;color:var(--muted);">${thisMonth.date}</div>${meListAnalysisLine(thisMonth)}`
+              <div style="font-size:10px;color:var(--muted);">${thisMonth.date}</div>`
             :`<div style="font-size:10px;color:var(--muted);">이 달 기록 없음</div>`}
         </div>
       </div>`;
@@ -12264,7 +12266,6 @@ function rGradeDetME(sid){
     </div>
     <div style="display:flex;gap:6px;">
       <button onclick="printScoreReport('${esc(sid)}')" style="padding:7px 14px;background:#042C53;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 성적표 인쇄</button>
-      <button onclick="openMEPdfImport('${esc(sid)}')" style="padding:7px 12px;background:#EEF2FF;color:#3730A3;border:1px solid #A5B4FC;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-upload"></i> 결과지 PDF</button>
       <button onclick="openMEModal('${esc(sid)}')" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 입력</button>
     </div>
   </div>`;
@@ -12349,8 +12350,7 @@ function rGradeDetME(sid){
           :`<button onclick="saveMERetestScore('${esc(m.id)}')" style="font-size:11px;font-weight:700;color:#fff;background:var(--dan);border:none;border-radius:10px;padding:3px 10px;cursor:pointer;">🔄 재시험 점수 입력</button>`
         ):''}
       </div>
-      ${renderMEAnalysisBox(getMEAnalysis(m),{sid})}
-      ${getMEAnalysis(m,true)?`<div style="font-size:11px;font-weight:700;color:#065F46;margin-top:8px;">🔄 재시험 결과지</div>${renderMEAnalysisBox(getMEAnalysis(m,true),{sid})}`:''}
+      ${getMEAnalysisAny(m)?`<button onclick="GRADE_TEST='MEA';renderAll()" style="margin-top:7px;font-size:11px;font-weight:700;color:#C2410C;background:#FFF7ED;border:1px solid #FDBA74;border-radius:10px;padding:3px 10px;cursor:pointer;">📊 이 시험 결과 분석 보기 →</button>`:''}
     </div>`;
   });
   } // end of mes.length else-block
@@ -12621,6 +12621,66 @@ function meListAnalysisLine(m){
   const wu=meInsights(an.a).weakUnits;
   return `<div style="font-size:10.5px;color:${wu.length?'#9A3412':'#166534'};font-weight:700;line-height:1.35;margin-top:2px;white-space:normal;word-break:keep-all;">📄 ${wu.length?'보충: '+esc(wu.map(u=>`${u.name} ${u.score}점`).join(', ')):'보충할 부분 없음'}</div>`;
 }
+// v91: 성적관리 > "📊 월말평가 결과" 탭 — 점수(🏆 월말평가 탭)와 결과지 분석을 따로 보여줌
+function rGradeListMEA(stuList){
+  if(!ME_MONTH_FILTER)ME_MONTH_FILTER=new Date().getMonth()+1;
+  const curMonth=new Date().getMonth()+1;
+  const list=stuList.filter(s=>GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true);
+  let out=`<div style="display:flex;align-items:center;justify-content:space-between;background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--rs);padding:10px 12px;margin-bottom:12px;">
+    <button onclick="shiftMEMonth(-1)" style="border:none;background:none;font-size:16px;color:#C2410C;cursor:pointer;padding:2px 8px;">◀</button>
+    <div style="text-align:center;">
+      <div style="font-size:14px;font-weight:700;color:#C2410C;">${ME_MONTH_FILTER}월 월말평가 결과${ME_MONTH_FILTER===curMonth?' <span style="font-size:10px;background:#FFEDD5;color:#C2410C;padding:1px 6px;border-radius:10px;font-weight:600;">이번달</span>':''}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:1px;">결과지 분석 · 부족한 부분과 다음 수업 보충 내용</div>
+    </div>
+    <button onclick="shiftMEMonth(1)" style="border:none;background:none;font-size:16px;color:#C2410C;cursor:pointer;padding:2px 8px;">▶</button>
+  </div>
+  <button onclick="openMEPdfImport()" style="width:100%;padding:9px;margin:-4px 0 12px;background:#EEF2FF;color:#3730A3;border:1px solid #A5B4FC;border-radius:var(--rs);font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;"><i class="ti ti-file-upload"></i> 월말평가 결과지 PDF 불러오기 <span style="font-weight:500;font-size:11px;">(여러 학생 한꺼번에)</span></button>`;
+  const board=meReinforceOverview(list,ME_MONTH_FILTER);
+  // 이 달 점수는 있는데 결과지를 아직 안 올린 학생
+  const noAn=list.filter(s=>{const m=getLatestMEScorePerMonth(s.id).find(x=>x.meMonth===ME_MONTH_FILTER&&!x.notTaken);return m&&!getMEAnalysisAny(m)&&!getMEScores(s.id).some(x=>x.meMonth===ME_MONTH_FILTER&&getMEAnalysisAny(x));});
+  if(!board&&!noAn.length){
+    out+=`<div class="empty"><i class="ti ti-file-search"></i>${ME_MONTH_FILTER}월 결과지 분석이 없습니다.<br><span style="font-size:12px;color:var(--muted);">위 버튼으로 매쓰홀릭 결과지 PDF를 불러오세요.</span></div>`;
+    return out;
+  }
+  out+=board;
+  if(noAn.length)out+=`<div style="background:#F8FAFC;border:1px solid var(--bdr);border-radius:var(--rs);padding:9px 12px;font-size:12px;color:var(--muted);line-height:1.6;">📭 점수는 있지만 결과지를 아직 안 올린 학생 ${noAn.length}명: ${noAn.map(s=>`<span onclick="GRADE_TEST='MEA';GRADE_SID='${esc(s.id)}';renderAll()" style="cursor:pointer;color:var(--txt);font-weight:600;">${esc(dispStuName(s.id))}</span>`).join(', ')}</div>`;
+  return out;
+}
+function rGradeDetMEA(sid){
+  const s=gS(sid);if(!s)return`<div class="empty">학생 없음</div>`;
+  const mes=getMEScores(sid).filter(m=>!m.notTaken);
+  let out=`<button onclick="GRADE_SID=null;GRADE_SEARCH='';clearSearchBoxUI();renderAll()" style="display:flex;align-items:center;gap:5px;background:none;border:none;color:#C2410C;font-size:13px;font-weight:600;margin-bottom:12px;cursor:pointer;padding:3px 0;"><i class="ti ti-arrow-left"></i> 월말평가 결과 목록</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      ${avEl(sid,40)}
+      <div>
+        <div style="font-size:17px;font-weight:700;">${esc(dispStuName(sid))}</div>
+        <div style="font-size:11px;color:var(--muted);">${GL[s.grade]||s.grade}${s.school?` · 🏫 ${esc(s.school)}`:''} · 📊 월말평가 결과 분석</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="GRADE_TEST='ME';renderAll()" style="padding:7px 12px;background:#fff;color:#1E40AF;border:1px solid #93C5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">🏆 점수 보기</button>
+      <button onclick="openMEPdfImport('${esc(sid)}')" style="padding:7px 12px;background:#C2410C;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-upload"></i> 결과지 PDF</button>
+    </div>
+  </div>`;
+  let any=false;
+  mes.forEach(m=>{
+    [false,true].forEach(re=>{
+      const an=getMEAnalysis(m,re);if(!an)return;
+      any=true;
+      out+=`<div style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:800;color:#C2410C;">${m.meMonth}월 월말평가${re?' · 🔄 재시험':''}</span>
+          <span style="font-size:14px;font-weight:800;color:#1E40AF;">${an.a.total!=null?an.a.total+'점':''}</span>
+          <span style="font-size:11px;color:var(--muted);">📅 ${esc(m.date||'')}</span>
+        </div>
+        ${renderMEAnalysisBox(an,{sid})}
+      </div>`;
+    });
+  });
+  if(!any)out+=`<div class="empty"><i class="ti ti-file-search"></i>아직 불러온 결과지가 없습니다.<br><span style="font-size:12px;color:var(--muted);">오른쪽 위 「결과지 PDF」로 불러오세요.</span></div>`;
+  return out;
+}
 // v90: 성적관리 월말평가 목록 맨 위에 "이번 달 보충할 학생"을 한눈에 정리 — 학생을 하나씩 눌러보지 않아도
 // 누가 어떤 단원·어떤 내용을 보충해야 하는지 바로 보이게 함 (점수 낮은 학생부터)
 let ME_RF_OPEN=true;
@@ -12648,7 +12708,7 @@ function meReinforceOverview(stuList,month){
     rows.forEach(({s,an,ins})=>{
       const a=an.a;
       const done=!s._reinforceNeeded&&s._reinforceCompletedAt&&s._reinforceCompletedAt>=(an._u||0);
-      h+=`<div onclick="GRADE_TEST='ME';GRADE_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid ${done?'#BBF7D0':'#FED7AA'};border-radius:8px;padding:9px 11px;cursor:pointer;${done?'opacity:.75;':''}">
+      h+=`<div onclick="GRADE_TEST='MEA';GRADE_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid ${done?'#BBF7D0':'#FED7AA'};border-radius:8px;padding:9px 11px;cursor:pointer;${done?'opacity:.75;':''}">
         <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;">
           <span style="font-size:14px;font-weight:800;color:var(--txt);">${esc(dispStuName(s.id))}</span>
           <span style="font-size:14px;font-weight:800;color:${colorOf(a.total)};">${a.total!=null?a.total+'점':''}</span>
