@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-grade-tab-groups-v92'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-ovr-me-result-v94'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3533,6 +3533,8 @@ function rOvr(){
       })());
       // 📌 월말평가 보충 필요 (카드뷰와 동일한 학생 단위 플래그) — 모든 선생님이 공유해서 볼 수 있게
       const hasReinforceNeededOvr=!!s._reinforceNeeded;
+      // v94: 보충 필요를 체크하지 않았어도, 최근 월말평가 결과지에서 부족한 단원이 있으면 작게 알려줌 (보충 필요 상자가 이미 있으면 중복 표시 안 함)
+      const meResChipOvr=hasReinforceNeededOvr?'':meOvrResultChip(sid,date);
       const hasImportantImpOvr=activeImpNotes.some(n=>n.important);
       const rowBg=absent?'background:#FFF5F5;':isOtherClass?'background:#F5F3FF;':hasWrongAnswerOvr?'background:#FEF2F2;':hasReinforceNeededOvr?'background:#F5F3FF;':hasImportantImpOvr?'background:#FEF2F2;':activeImpNotes.length>0?'background:#FFFBEB;':hasN?'background:#F0F9FF;':'';
       out+=`<tr style="${rowBg};cursor:pointer;${absent?'border-left:4px solid #DC2626;':''}" onclick="openEdit('${esc(sid)}','${sl.id}','${date}')">
@@ -3598,8 +3600,9 @@ function rOvr(){
           ${meRec?(meRec.notTaken?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🚫 월말평가 미응시${meRec.reason?' · '+esc(meRec.reason):''}</div>`:`<div style="font-size:11px;color:#075985;font-weight:600;line-height:1.4;white-space:nowrap;">🏆 월말평가${meRec.score?' · '+esc(meRec.score):''}${meRec.pass?' · '+esc(meRec.pass):''}</div>`):''}
           ${r.unitTest?`<div style="font-size:11px;color:#6B21A8;font-weight:600;line-height:1.4;white-space:nowrap;">📝 단원평가${r.unitTest.number?' '+esc(r.unitTest.number):''}${r.unitTest.score?' · '+esc(r.unitTest.score)+'점':''}${r.unitTest.pass?' · '+esc(r.unitTest.pass):''}${r.unitTest.inProgress?' <span style="color:#92400E;font-weight:700;">⏳진행중</span>':''}</div>`:(hasUtPendingOvr?`<div style="font-size:11px;color:#92400E;font-weight:700;line-height:1.4;white-space:nowrap;">⏳ 단원평가 진행중${s._utPendingNumber?' · '+esc(s._utPendingNumber):''}</div>`:'')}
           ${hasReinforceNeededOvr?`<div style="font-size:11px;color:#7C3AED;line-height:1.45;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;min-width:200px;max-width:340px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:5px;padding:3px 6px;margin:2px 0;"><div style="font-weight:800;white-space:nowrap;">📌 보충 필요${s._reinforceMonth?` <span style="font-weight:600;font-size:10px;">(${esc(String(s._reinforceMonth))}월 월말평가)</span>`:''}</div>${s._reinforceNote?`<div style="font-weight:600;color:#5B21B6;">${esc(s._reinforceNote)}</div>`:''}</div>`:''}
+          ${meResChipOvr}
           ${hasRetestOvr?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🔄 재시험 대상</div>`:''}
-          ${!newBookArrOvr.length&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr&&!hasRetestOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
+          ${!newBookArrOvr.length&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr&&!meResChipOvr&&!hasRetestOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
         </td>
         <td>
           ${hasWrongAnswerOvr?'<span style="background:#DC2626;color:#fff;border:1px solid #B91C1C;border-radius:20px;font-size:10px;padding:2px 7px;font-weight:800;animation:waBadgeBlink 1.4s ease-in-out infinite;display:inline-block;">📝 필요</span>':(r._wrongAnswerCompletedHere?'<span style="background:#DCFCE7;color:#14532D;border:1px solid #86EFAC;border-radius:20px;font-size:10px;padding:2px 7px;font-weight:800;display:inline-block;">✅ 완료</span>':'<span style="color:var(--muted);font-size:11px;font-style:italic;">-</span>')}
@@ -12724,6 +12727,28 @@ function meReinforceOverview(stuList,month){
   h+=`</div>`;
   return h;
 }
+// v94: 한눈에 보기용 작은 "월말평가 결과" 표시 — 평소엔 한 줄(부족 단원만), 누르면 보충할 내용이 펼쳐짐.
+// 수업 날짜(date)보다 앞서 본 시험 중 45일 이내의 가장 최근 결과지만 사용 (다음 달 시험을 보면 자연스럽게 바뀜)
+function meOvrResultChip(sid,date){
+  if(!D.meAnalysis||!date)return'';
+  const lim=new Date(new Date(date+'T00:00:00').getTime()-45*864e5);
+  const limStr=`${lim.getFullYear()}-${String(lim.getMonth()+1).padStart(2,'0')}-${String(lim.getDate()).padStart(2,'0')}`;
+  const recs=getMEScores(sid).filter(m=>!m.notTaken&&m.date&&m.date<date&&m.date>=limStr).sort((a,b)=>b.date.localeCompare(a.date));
+  // 가장 최근 시험 하나만 본다 — 그 시험 결과지를 아직 안 올렸으면 지난달 결과를 대신 보여주지 않음
+  const an=recs[0]?(getMEAnalysis(recs[0],true)||getMEAnalysis(recs[0])):null;
+  if(!an)return'';
+  const ins=meInsights(an.a);
+  if(!ins.wrong.length||!ins.plan.length)return'';
+  const top=ins.plan.filter(p=>p.score!=null).slice(0,3);
+  const sum=(top.length?top:ins.plan.slice(0,3)).map(p=>`${esc(p.unit)}${p.score!=null?' '+p.score:''}`).join(' · ')+(ins.plan.length>3?` 외 ${ins.plan.length-3}`:'');
+  return `<details onclick="event.stopPropagation()" style="font-size:11px;line-height:1.45;margin:2px 0;max-width:340px;">
+    <summary style="cursor:pointer;color:#C2410C;font-weight:700;list-style:none;white-space:normal;word-break:keep-all;">📊 ${an.meMonth}월 결과 · 보충: ${sum} <span style="font-weight:500;color:#94A3B8;font-size:10px;">▾</span></summary>
+    <div style="margin-top:3px;padding:5px 7px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:5px;color:#7C2D12;">
+      ${ins.plan.map(p=>`<div style="margin-bottom:2px;"><b>${esc(p.unit)}${p.score!=null?` ${p.score}점`:''}</b>${p.contents.length?` — ${p.contents.map(esc).join(', ')}`:''}</div>`).join('')}
+      <a href="javascript:void(0)" onclick="setTab('grade');GRADE_TEST='MEA';GRADE_SID='${esc(sid)}';renderAll()" style="font-size:10px;color:#C2410C;">자세히 보기 →</a>
+    </div>
+  </details>`;
+}
 function deleteMEAnalysis(key){
   const v=(D.meAnalysis||{})[key];if(!v)return;
   if(!confirm('이 결과지 분석을 지울까요? (점수 기록은 그대로 남습니다)'))return;
@@ -12782,7 +12807,7 @@ async function onMEPdfFiles(inp){
         row.sid=mt.sid;row.sure=mt.sure;
         if(!a.meMonth)a.meMonth=ME_MONTH_FILTER||(new Date().getMonth()+1);
         const t=meTargetOptions(row.sid,a.meMonth,a.total);row.target=t.def;
-        row.reinforce=!!(a.items||[]).some(x=>!x.ok);
+        row.reinforce=false; // v93: "보충 필요" 표시는 기본으로 꺼 두고, 선생님이 필요할 때만 체크
         row.include=!!row.sid;
       }
     }catch(e){console.error('[결과지 PDF]',f.name,e);row.err='PDF를 읽지 못함: '+(e?.message||e);}
@@ -12795,7 +12820,8 @@ function renderMEPdfRows(){
   const listEl=document.getElementById('mepdf-list');
   const pool=(D.S||[]).filter(s=>s&&s.id&&s.status!=='퇴원'&&(s.group||'저학년')!=='사고력').map(s=>s.id).sort((x,y)=>x.localeCompare(y,'ko'));
   const ok=ME_PDF_ROWS.filter(r=>r.a),skip=ME_PDF_ROWS.filter(r=>!r.a);
-  let h=`<div style="font-size:11.5px;color:var(--muted);margin-bottom:7px;">결과지 ${ok.length}개${skip.length?` · 건너뜀 ${skip.length}개`:''} — 학생과 붙일 기록을 확인하고 저장하세요.</div>`;
+  const rfAll=ok.length&&ok.every(r=>r.reinforce);
+  let h=`<div style="font-size:11.5px;color:var(--muted);margin-bottom:7px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;"><span>결과지 ${ok.length}개${skip.length?` · 건너뜀 ${skip.length}개`:''} — 학생과 붙일 기록을 확인하고 저장하세요.<br>"보충 필요" 표시는 필요한 학생만 체크하세요 (체크한 학생만 수업입력 화면에 보충 안내가 뜹니다).</span>${ok.length>1?`<a href="javascript:void(0)" onclick="const v=!ME_PDF_ROWS.filter(r=>r.a).every(r=>r.reinforce);ME_PDF_ROWS.forEach(r=>{if(r.a)r.reinforce=v;});renderMEPdfRows()" style="color:#6D28D9;font-weight:700;white-space:nowrap;">${rfAll?'보충 필요 전체 해제':'보충 필요 전체 체크'}</a>`:''}</div>`;
   if(skip.length)h+=`<details style="font-size:11px;color:#94A3B8;margin-bottom:8px;"><summary style="cursor:pointer;">⏭ 건너뛴 파일 ${skip.length}개 (월간리포트·가정통신문·성적표 등 결과지가 아닌 PDF)</summary>${skip.map(r=>`<div style="padding:2px 4px;">${esc(r.file)} — ${esc(r.err)}</div>`).join('')}</details>`;
   ME_PDF_ROWS.forEach((r,i)=>{
     if(!r.a)return;
