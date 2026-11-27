@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-ovr-me-lvl-filter-v95'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-grade-report-v96'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -11499,6 +11499,7 @@ function rGrade(){
   if(!D.tomaScores)D.tomaScores=[];
   if(!D.tomaDist)D.tomaDist={};
   if(!GRADE_DIST_MONTH)GRADE_DIST_MONTH=tdk().slice(0,7);
+  if(GRADE_TEST==='RPT')return rGradeReportPage();
   if(GRADE_TEST==='DIST')return rGradeDist();
   if(GRADE_TEST==='RANGE')return rGradeRange();
   if(GRADE_SID)return GRADE_TEST==='ME'?rGradeDetME(GRADE_SID):GRADE_TEST==='MEA'?rGradeDetMEA(GRADE_SID):GRADE_TEST==='FACTO'?rGradeDetFacto(GRADE_SID):rGradeDet(GRADE_SID);
@@ -11600,11 +11601,52 @@ function meRangeRows(ym,s){
   });
 }
 function meRangePills(active){ return gradeTabsBar(active); }
+
+// ═══ v96: 성적관리 안의 월간리포트 ═══════════════════════
+// 성적을 입력한 그 자리에서 바로 월간리포트를 볼 수 있게 함 (점수는 월간리포트가 성적관리 기록에서 자동으로 가져옴)
+function mesLatestMonth(sid){const m=getMEScores(sid).filter(x=>!x.notTaken).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];return m?m.meMonth:null;}
+function mesLatestDate(sid){const m=getMEScores(sid).filter(x=>!x.notTaken).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];return m?m.date:'';}
+// 월말평가 달·응시일로 리포트 세션 고르기: 이름에 "N월"이 있는 세션 중 응시일을 포함하는 것 → 응시일 이전에 시작한 가장 최근 것 → 응시일이 든 세션 → 지금 세션
+function pickReportSession(meMonth,date){
+  const ss=getAcadSessions()||[];
+  if(meMonth){
+    const byName=ss.filter(s=>{const m=String(s.name||'').match(/(\d{1,2})\s*월/);return m&&Number(m[1])===Number(meMonth);});
+    if(byName.length){
+      if(date){const c=byName.find(s=>date>=s.start&&date<=s.end);if(c)return c;
+        const before=byName.filter(s=>s.start<=date).sort((a,b)=>b.start.localeCompare(a.start));if(before[0])return before[0];}
+      return [...byName].sort((a,b)=>b.start.localeCompare(a.start))[0];
+    }
+  }
+  if(date){const c=getSessionForDate(date);if(c)return c;}
+  return getCurrentSession()||ss[ss.length-1]||null;
+}
+function openGradeReport(sid,meMonth,date){
+  if(!sid||!gS(sid)){alert('학생을 찾지 못했어요.');return;}
+  const sess=pickReportSession(meMonth,date);
+  if(!sess){alert('세션 정보를 찾지 못했어요. 관리 탭에서 세션을 확인해주세요.');return;}
+  REPORT_SID=sid;REPORT_SESSION_NAME=sess.name;
+  if(TAB!=='grade')TAB='grade';
+  GRADE_TEST='RPT';GRADE_SID=null;
+  renderAll();
+  try{window.scrollTo(0,0);}catch(e){}
+}
+function rGradeReportPage(){
+  const back=REPORT_SID&&gS(REPORT_SID)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <button onclick="GRADE_TEST='ME';GRADE_SID=REPORT_SID;renderAll()" style="padding:6px 12px;background:#fff;color:#1E40AF;border:1px solid #93C5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">🏆 ${esc(dispStuName(REPORT_SID))} 점수 보기·입력</button>
+      <button onclick="GRADE_TEST='MEA';GRADE_SID=REPORT_SID;renderAll()" style="padding:6px 12px;background:#fff;color:#C2410C;border:1px solid #FDBA74;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">📊 ${esc(dispStuName(REPORT_SID))} 월말평가 결과</button>
+    </div>`:'';
+  return `<div class="no-print">
+    <div style="font-size:15px;font-weight:700;color:var(--pri2);display:flex;align-items:center;gap:6px;margin-bottom:12px;"><i class="ti ti-chart-bar"></i> 성적 관리</div>
+    ${gradeTabsBar('RPT')}
+    ${back}
+  </div>`+rReport();
+}
 // v92: 성적관리 탭을 큰 틀(월말평가 · TOMA · 팩토시험) + 그 안의 세부 탭으로 정리
 const GRADE_TAB_GROUPS=[
   {key:'MEG',label:'🏆 월말평가',color:'#1E40AF',subs:[['ME','점수','#1E40AF'],['MEA','월말평가 결과 (보충)','#C2410C'],['RANGE','월말평가 범위','#B45309']]},
   {key:'TOMAG',label:'🏅 TOMA',color:'#0C447C',subs:[['TOMA','점수','#0C447C'],['DIST','시험지 배부','#059669']]},
   {key:'FACTOG',label:'📝 팩토시험',color:'#7C3AED',subs:[['FACTO','점수','#7C3AED']]},
+  {key:'RPTG',label:'🖨 월간리포트',color:'#0F766E',subs:[['RPT','월간리포트','#0F766E']]},
 ];
 function gradeTabsBar(active){
   const grp=GRADE_TAB_GROUPS.find(g=>g.subs.some(s=>s[0]===active))||GRADE_TAB_GROUPS[0];
@@ -12264,6 +12306,7 @@ function rGradeDetME(sid){
       </div>
     </div>
     <div style="display:flex;gap:6px;">
+      <button onclick="openGradeReport('${esc(sid)}',mesLatestMonth('${esc(sid)}'),mesLatestDate('${esc(sid)}'))" style="padding:7px 14px;background:#0F766E;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-file-text"></i> 월간리포트</button>
       <button onclick="printScoreReport('${esc(sid)}')" style="padding:7px 14px;background:#042C53;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-printer"></i> 성적표 인쇄</button>
       <button onclick="openMEModal('${esc(sid)}')" style="padding:7px 14px;background:#1E40AF;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-plus"></i> 입력</button>
     </div>
@@ -12349,6 +12392,7 @@ function rGradeDetME(sid){
           :`<button onclick="saveMERetestScore('${esc(m.id)}')" style="font-size:11px;font-weight:700;color:#fff;background:var(--dan);border:none;border-radius:10px;padding:3px 10px;cursor:pointer;">🔄 재시험 점수 입력</button>`
         ):''}
       </div>
+      <button onclick="openGradeReport('${esc(sid)}',${meMonth||'null'},'${esc(m.date||'')}')" style="margin-top:7px;margin-right:5px;font-size:11px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #5EEAD4;border-radius:10px;padding:3px 10px;cursor:pointer;">🖨 ${meMonth?meMonth+'월 ':''}월간리포트 →</button>
       ${getMEAnalysisAny(m)?`<button onclick="GRADE_TEST='MEA';renderAll()" style="margin-top:7px;font-size:11px;font-weight:700;color:#C2410C;background:#FFF7ED;border:1px solid #FDBA74;border-radius:10px;padding:3px 10px;cursor:pointer;">📊 이 시험 결과 분석 보기 →</button>`:''}
     </div>`;
   });
@@ -12659,6 +12703,7 @@ function rGradeDetMEA(sid){
     </div>
     <div style="display:flex;gap:6px;">
       <button onclick="GRADE_TEST='ME';renderAll()" style="padding:7px 12px;background:#fff;color:#1E40AF;border:1px solid #93C5FD;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">🏆 점수 보기</button>
+      <button onclick="openGradeReport('${esc(sid)}',mesLatestMonth('${esc(sid)}'),mesLatestDate('${esc(sid)}'))" style="padding:7px 12px;background:#0F766E;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;">🖨 월간리포트</button>
       <button onclick="openMEPdfImport('${esc(sid)}')" style="padding:7px 12px;background:#C2410C;color:#fff;border:none;border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;"><i class="ti ti-file-upload"></i> 결과지 PDF</button>
     </div>
   </div>`;
@@ -13357,7 +13402,7 @@ function togMEReinforce(){
   const area=document.getElementById('me-reinforce-area');
   if(area)area.style.display=chk?'block':'none';
 }
-function saveMEGrade(){
+function saveMEGrade(goReport){
   const sid=document.getElementById('me-grade-sid').value;
   const date=document.getElementById('me-grade-date').value;
   const meMonth=Number(document.getElementById('me-grade-month').value);
@@ -13471,7 +13516,7 @@ function saveMEGrade(){
   }
   SD();closeM('me-grade-modal');
   GRADE_TEST='ME';GRADE_SID=sid;
-  renderAll();
+  if(goReport){ if(TAB!=='grade')setTab('grade'); openGradeReport(sid,meMonth,date); } else renderAll();
   toast(notTaken?`${sid} ${meMonth}월 월말평가 미응시 처리 ✓`:`${sid} ${meMonth}월 월말평가 저장 ✓`);
 }
 
@@ -14679,7 +14724,7 @@ function generateReport(){
   if(!sid||!gS(sid)){alert('학생을 정확히 선택해주세요.');return;}
   if(!sessionName){alert('세션을 선택해주세요.');return;}
   REPORT_SID=sid;REPORT_SESSION_NAME=sessionName;
-  TAB='report';
+  if(!(TAB==='grade'&&GRADE_TEST==='RPT'))TAB='report'; // v96: 성적관리 > 월간리포트에서 만들면 그 자리에 그대로 보여줌
   closeM('reportm');renderAll();
   try{window.scrollTo(0,0);const mn=document.getElementById('main');if(mn)mn.scrollTop=0;}catch(e){}
   toast(`${gS(sid)?.name||sid} · ${sessionName} 리포트를 만들었습니다`);
@@ -18856,6 +18901,7 @@ init();
   </div>
   <div class="btn-row">
     <button class="btn btn-sec" onclick="closeM('me-grade-modal')">취소</button>
+    <button class="btn btn-sec" onclick="saveMEGrade(true)" style="background:#F0FDFA;color:#0F766E;border-color:#5EEAD4;"><i class="ti ti-printer" style="vertical-align:-2px;"></i> 저장하고 월간리포트 보기</button>
     <button class="btn btn-pri" onclick="saveMEGrade()"><i class="ti ti-check" style="vertical-align:-2px;"></i> 저장</button>
   </div>
 </div></div>
