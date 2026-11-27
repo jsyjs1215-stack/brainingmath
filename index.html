@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-ovr-reinforce-wrap-v89'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-grade-reinforce-board-v90'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -12207,6 +12207,7 @@ function rGradeListME(stuList){
     <button onclick="shiftMEMonth(1)" style="border:none;background:none;font-size:16px;color:#1E40AF;cursor:pointer;padding:2px 8px;">▶</button>
   </div>
   <button onclick="openMEPdfImport()" style="width:100%;padding:9px;margin:-4px 0 12px;background:#EEF2FF;color:#3730A3;border:1px solid #A5B4FC;border-radius:var(--rs);font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;"><i class="ti ti-file-upload"></i> 월말평가 결과지 PDF 불러오기 <span style="font-weight:500;font-size:11px;">(여러 학생 한꺼번에 · 부족한 부분·다음 수업 보충 자동 정리)</span></button>`;
+  out+=meReinforceOverview(stuList.filter(s=>GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true),ME_MONTH_FILTER);
   let hasAny=false;
   grades.forEach(g=>{
     const gl=stuList.filter(s=>s.grade===g&&(GRADE_SEARCH?korSearch(s.id,GRADE_SEARCH):true));
@@ -12618,7 +12619,54 @@ function renderMEAnalysisBox(entry,opts){
 function meListAnalysisLine(m){
   const an=getMEAnalysisAny(m);if(!an)return'';
   const wu=meInsights(an.a).weakUnits;
-  return `<div style="font-size:10px;color:${wu.length?'#9A3412':'#166534'};font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(wu.map(u=>u.name+' '+u.score+'점').join(', '))}">📄 ${wu.length?'보충: '+esc(wu.map(u=>u.name).join(', ')):'보충할 부분 없음'}</div>`;
+  return `<div style="font-size:10.5px;color:${wu.length?'#9A3412':'#166534'};font-weight:700;line-height:1.35;margin-top:2px;white-space:normal;word-break:keep-all;">📄 ${wu.length?'보충: '+esc(wu.map(u=>`${u.name} ${u.score}점`).join(', ')):'보충할 부분 없음'}</div>`;
+}
+// v90: 성적관리 월말평가 목록 맨 위에 "이번 달 보충할 학생"을 한눈에 정리 — 학생을 하나씩 눌러보지 않아도
+// 누가 어떤 단원·어떤 내용을 보충해야 하는지 바로 보이게 함 (점수 낮은 학생부터)
+let ME_RF_OPEN=true;
+function meReinforceOverview(stuList,month){
+  const rows=[];let cleanCnt=0;
+  stuList.forEach(s=>{
+    const m=getLatestMEScorePerMonth(s.id).find(x=>x.meMonth===month&&!x.notTaken);
+    if(!m)return;
+    const an=getMEAnalysisAny(m);if(!an)return;
+    const ins=meInsights(an.a);
+    if(!ins.wrong.length){cleanCnt++;return;}
+    rows.push({s,m,an,ins});
+  });
+  if(!rows.length&&!cleanCnt)return'';
+  rows.sort((x,y)=>(x.an.a.total??999)-(y.an.a.total??999));
+  const colorOf=v=>v==null?'#64748B':v<60?'#DC2626':v<80?'#D97706':'#2563EB';
+  const pending=rows.filter(r=>r.s._reinforceNeeded).length;
+  let h=`<div style="background:#FFF7ED;border:2px solid #FDBA74;border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+    <div onclick="ME_RF_OPEN=!ME_RF_OPEN;renderAll()" style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;flex-wrap:wrap;">
+      <div style="font-size:14px;font-weight:800;color:#9A3412;">📌 ${month}월 월말평가 · 다음 수업 때 보충할 학생 ${rows.length}명</div>
+      <div style="font-size:11px;color:#9A3412;">${pending?`보충 전 ${pending}명 · `:''}${cleanCnt?`🎉 다 맞힌 학생 ${cleanCnt}명 · `:''}${ME_RF_OPEN?'접기 ▲':'펼치기 ▼'}</div>
+    </div>`;
+  if(ME_RF_OPEN&&rows.length){
+    h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin-top:9px;">`;
+    rows.forEach(({s,an,ins})=>{
+      const a=an.a;
+      const done=!s._reinforceNeeded&&s._reinforceCompletedAt&&s._reinforceCompletedAt>=(an._u||0);
+      h+=`<div onclick="GRADE_TEST='ME';GRADE_SID='${esc(s.id)}';renderAll()" style="background:#fff;border:1px solid ${done?'#BBF7D0':'#FED7AA'};border-radius:8px;padding:9px 11px;cursor:pointer;${done?'opacity:.75;':''}">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;">
+          <span style="font-size:14px;font-weight:800;color:var(--txt);">${esc(dispStuName(s.id))}</span>
+          <span style="font-size:14px;font-weight:800;color:${colorOf(a.total)};">${a.total!=null?a.total+'점':''}</span>
+          <span style="font-size:10.5px;color:var(--muted);">틀린 문항 ${ins.wrong.length}개${a.range?' · '+esc(a.range):''}</span>
+          ${done?`<span style="margin-left:auto;font-size:10.5px;font-weight:700;color:#166534;background:#DCFCE7;border-radius:10px;padding:1px 8px;">✅ 보충 완료${s._reinforceCompletedBy?' · '+esc(s._reinforceCompletedBy):''}</span>`:s._reinforceNeeded?`<span style="margin-left:auto;font-size:10.5px;font-weight:700;color:#6D28D9;background:#EDE9FE;border-radius:10px;padding:1px 8px;">보충 전</span>`:''}
+        </div>
+        ${ins.plan.map(p=>`<div style="font-size:12.5px;line-height:1.5;margin-bottom:4px;">
+          <b style="color:${colorOf(p.score)};">${esc(p.unit)}${p.score!=null?` ${p.score}점`:''}</b>${p.lvl?` <span style="font-size:10.5px;font-weight:700;color:#fff;background:${colorOf(p.score)};border-radius:8px;padding:0 6px;">${p.lvl}</span>`:''}
+          ${p.contents.length?`<div style="color:#1F2937;font-weight:600;">→ ${p.contents.map(esc).join(', ')}</div>`:''}
+          ${p.diag?`<div style="font-size:11px;color:#9A3412;">${esc(p.diag)}</div>`:''}
+        </div>`).join('')}
+        ${ins.weakAreas.length?`<div style="font-size:11px;color:#7C2D12;margin-top:2px;">🧠 약한 영역: ${ins.weakAreas.map(x=>`${x.name} ${x.score}점${x.avg!=null?`(평균 ${x.avg})`:''}`).join(', ')}</div>`:''}
+      </div>`;
+    });
+    h+=`</div>`;
+  }
+  h+=`</div>`;
+  return h;
 }
 function deleteMEAnalysis(key){
   const v=(D.meAnalysis||{})[key];if(!v)return;
