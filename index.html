@@ -1325,7 +1325,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-report-nav-merge-v97'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-search-clear-v99'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -5052,7 +5052,14 @@ function saveClosureDays(){
 }
 
 
-function rHis(){return HSid?rHisDet(HSid):rHisSrch();}
+function rHis(){if(HSid)clearSearchAfterPick('his');return HSid?rHisDet(HSid):rHisSrch();}
+// v99: 검색해서 학생을 열면 검색칸을 비워서, 바로 다음 아이 이름을 칠 수 있게 함 (성적관리·학생기록)
+function clearSearchAfterPick(kind){
+  if(kind==='grade'){if(!GRADE_SEARCH)return;GRADE_SEARCH='';}
+  else if(kind==='his'){if(!HSearch)return;HSearch='';}
+  // renderAll이 검색칸 값을 되살린 뒤에 비우도록 한 박자 늦게 처리
+  setTimeout(()=>{const si=document.getElementById('global-search-input');if(si){si.value='';try{si.blur();}catch(e){}}},0);
+}
 function rHisSrch(){
   const sf=HSearch;
   if(typeof HisStatusFilter==='undefined')window.HisStatusFilter='active';
@@ -5221,6 +5228,8 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     </div>`;
   }
 
+  // v98: 여기까지(학생 카드·배너)는 항상 위에 보이고, 아래 내용은 세부 탭으로 나눠서 하나씩 보여줌
+  const _hisHead=out; out='';
   // ═══ 🏆 월말평가 성적 (성적관리에서 입력한 기록 전체) ═══
   const meScoresHist=(typeof getMEScores==='function'?getMEScores(sid):(D.meScores||[]).filter(m=>m.sid===sid));
   if(meScoresHist.length){
@@ -5267,6 +5276,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     out+=`</div>`;
   }
 
+  const _secME=out; out='';
   // ═══ 📚 새책 시작 이력 ═══ (하루에 여러 권이면 그 날짜에 여러 줄로 나열)
   const newBookHist=[];
   sessions.forEach(x=>{ nbArr(x.newBook).forEach(nb=>{ if(nb.title)newBookHist.push({date:x.date,subject:nb.subject,title:nb.title}); }); });
@@ -5287,6 +5297,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     out+=`</div></div>`;
   }
 
+  const _secNB=out; const _nbCnt=newBookHist.length; out='';
   // ═══ 월별 수업 현황 ═══
   const relevantMonths=getRelevantMonths(sid);
   if(relevantMonths.length){
@@ -5325,6 +5336,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     });
     out+=`</div>`;
   }
+  const _secMon=out; out='';
 
   if(cons.length){
     out+=`<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:10px 0 6px;"><i class="ti ti-notebook" style="font-size:12px;vertical-align:-1px;"></i> 상담 기록 (${cons.length}건)</div>`;
@@ -5341,7 +5353,7 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
     <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;"><i class="ti ti-calendar" style="font-size:12px;vertical-align:-1px;"></i> 수업 기록 (${tot}회${closedCnt?` · 휴원${closedCnt}회 제외`:''})</div>
     <button onclick="confirmClearAllRecords('${sid}')" style="font-size:11px;color:var(--dan);background:var(--dan-l);border:1px solid var(--dan-b);border-radius:20px;padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:3px;"><i class="ti ti-trash" style="font-size:11px;"></i> 전체 초기화</button>
   </div>`;
-  if(!totAll&&!timeline.length)return out+`<div class="empty"><i class="ti ti-calendar-off"></i>수업 기록 없음</div>`;
+  if(!totAll&&!timeline.length)return hisAssemble(sid,_hisHead,{rec:out+`<div class="empty"><i class="ti ti-calendar-off"></i>수업 기록 없음</div>`,me:_secME,nb:_secNB,mon:_secMon},{rec:0,nb:_nbCnt});
 
   // 📌 누적 교재 히스토리 — "여태까지 어떤 교재/단원을 나갔는지"를 개별 수업 기록과 별도로,
   // 교재별로 묶어서 한눈에 보여준다.
@@ -5466,8 +5478,21 @@ function rHisDet(sid,backFn,extraHtml,schedulePillsHtml,afterStatCardHtml){
       </div>`;
     }
   }
-  return out;
+  return hisAssemble(sid,_hisHead,{rec:out,me:_secME,nb:_secNB,mon:_secMon},{rec:totAll,nb:_nbCnt});
 
+}
+// v98: 학생기록 상세의 세부 탭 — 수업기록(기본) · 월말평가 성적 · 새책 시작 이력 · 월별 수업 현황
+// 다른 학생을 열면 항상 "수업기록" 탭부터 보이게 학생별로 기억함
+let HIS_SUB={sid:null,tab:'rec'};
+function hisAssemble(sid,head,secs,cnt){
+  if(HIS_SUB.sid!==sid)HIS_SUB={sid,tab:'rec'};
+  const meCnt=(typeof getMEScores==='function'?getMEScores(sid):[]).length;
+  const tabs=[['rec','📅 수업기록',cnt.rec],['me','🏆 월말평가 성적',meCnt],['nb','📚 새책 시작 이력',cnt.nb],['mon','📊 월별 수업 현황',null]];
+  const cur=tabs.some(t=>t[0]===HIS_SUB.tab)?HIS_SUB.tab:'rec';
+  const bar=`<div style="display:flex;gap:0;margin:14px 0 10px;border-bottom:2px solid var(--bdr);overflow-x:auto;scrollbar-width:none;">${tabs.map(([k,l,n])=>{const on=k===cur;return `<button onclick="HIS_SUB={sid:'${esc(sid)}',tab:'${k}'};renderAll()" style="flex-shrink:0;padding:9px 14px;border:none;border-bottom:3px solid ${on?'var(--pri2)':'transparent'};margin-bottom:-2px;background:none;color:${on?'var(--pri2)':'var(--muted)'};font-size:13px;font-weight:${on?800:600};cursor:pointer;white-space:nowrap;">${l}${n!=null?` <span style="font-size:11px;font-weight:600;color:${on?'var(--pri2)':'#94A3B8'};">${n}</span>`:''}</button>`;}).join('')}</div>`;
+  const empty={me:'월말평가 기록이 없습니다.',nb:'새책 시작 기록이 없습니다.',mon:'월별 수업 현황이 없습니다.',rec:'수업 기록 없음'};
+  const body=(secs[cur]||'').trim()?secs[cur]:`<div class="empty"><i class="ti ti-inbox"></i>${empty[cur]}</div>`;
+  return head+bar+body;
 }
 
 // ═══ 통합검색 ══════════════════════════════
@@ -11497,6 +11522,7 @@ function shiftMEMonth(delta){
 }
 
 function rGrade(){
+  if(GRADE_SID)clearSearchAfterPick('grade');
   if(!D.tomaScores)D.tomaScores=[];
   if(!D.tomaDist)D.tomaDist={};
   if(!GRADE_DIST_MONTH)GRADE_DIST_MONTH=tdk().slice(0,7);
