@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-ovr-me-result-v94'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-ovr-me-lvl-filter-v95'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -12738,13 +12738,14 @@ function meOvrResultChip(sid,date){
   const an=recs[0]?(getMEAnalysis(recs[0],true)||getMEAnalysis(recs[0])):null;
   if(!an)return'';
   const ins=meInsights(an.a);
-  if(!ins.wrong.length||!ins.plan.length)return'';
-  const top=ins.plan.filter(p=>p.score!=null).slice(0,3);
-  const sum=(top.length?top:ins.plan.slice(0,3)).map(p=>`${esc(p.unit)}${p.score!=null?' '+p.score:''}`).join(' · ')+(ins.plan.length>3?` 외 ${ins.plan.length-3}`:'');
+  // v95: 한눈에 보기에는 [집중 보충](60점 미만)·[보충 필요](80점 미만) 단원만 — [실수 점검]은 쌍둥이 문제로 따로 진행 중
+  const plan=ins.plan.filter(p=>p.lvl==='집중 보충'||p.lvl==='보충 필요');
+  if(!ins.wrong.length||!plan.length)return'';
+  const sum=plan.slice(0,3).map(p=>`${esc(p.unit)} ${p.score}`).join(' · ')+(plan.length>3?` 외 ${plan.length-3}`:'');
   return `<details onclick="event.stopPropagation()" style="font-size:11px;line-height:1.45;margin:2px 0;max-width:340px;">
     <summary style="cursor:pointer;color:#C2410C;font-weight:700;list-style:none;white-space:normal;word-break:keep-all;">📊 ${an.meMonth}월 결과 · 보충: ${sum} <span style="font-weight:500;color:#94A3B8;font-size:10px;">▾</span></summary>
     <div style="margin-top:3px;padding:5px 7px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:5px;color:#7C2D12;">
-      ${ins.plan.map(p=>`<div style="margin-bottom:2px;"><b>${esc(p.unit)}${p.score!=null?` ${p.score}점`:''}</b>${p.contents.length?` — ${p.contents.map(esc).join(', ')}`:''}</div>`).join('')}
+      ${plan.map(p=>`<div style="margin-bottom:2px;"><b style="color:${p.score<60?'#DC2626':'#C2410C'};">${esc(p.unit)} ${p.score}점</b> <span style="font-size:10px;font-weight:700;">[${p.lvl}]</span>${p.contents.length?` — ${p.contents.map(esc).join(', ')}`:''}</div>`).join('')}
       <a href="javascript:void(0)" onclick="setTab('grade');GRADE_TEST='MEA';GRADE_SID='${esc(sid)}';renderAll()" style="font-size:10px;color:#C2410C;">자세히 보기 →</a>
     </div>
   </details>`;
