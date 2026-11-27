@@ -1326,7 +1326,7 @@ button,input,textarea,select{font-family:inherit;}
 <script>
 
 // ═══ CONSTANTS ════════════════════════════
-const APP_BUILD='2026-11-27-me-pdf-analysis-v88'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
+const APP_BUILD='2026-11-27-ovr-reinforce-wrap-v89'; // 파일 배포/캐시 확인용 버전 표시 (cloud-modal에 노출)
 const DEFAULT_SLOTS=[{id:'A',label:'2:15~2:55'},{id:'B',label:'3:00~3:40'},{id:'C',label:'3:45~4:25'},{id:'D',label:'4:30~5:10'},{id:'E',label:'5:15~5:55'},{id:'F',label:'6:00~6:40'}];
 // 8월부터 적용되는 새 시간표 (4교시, 55분 수업). 새 시간대는 기존 시간대와 ID가 겹치지 않으므로
 // 8월 이전 배정 학생은 그대로 유지되고, 8월 시간표는 빈 상태로 시작해 새로 배정하게 됩니다.
@@ -3597,7 +3597,7 @@ function rOvr(){
           ${newBookArrOvr.map(nb=>`<div style="font-size:11px;color:#14532D;font-weight:600;margin-bottom:2px;line-height:1.4;white-space:nowrap;">📚 ${esc(nb.title||nb.subject||'')}</div>`).join('')}
           ${meRec?(meRec.notTaken?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🚫 월말평가 미응시${meRec.reason?' · '+esc(meRec.reason):''}</div>`:`<div style="font-size:11px;color:#075985;font-weight:600;line-height:1.4;white-space:nowrap;">🏆 월말평가${meRec.score?' · '+esc(meRec.score):''}${meRec.pass?' · '+esc(meRec.pass):''}</div>`):''}
           ${r.unitTest?`<div style="font-size:11px;color:#6B21A8;font-weight:600;line-height:1.4;white-space:nowrap;">📝 단원평가${r.unitTest.number?' '+esc(r.unitTest.number):''}${r.unitTest.score?' · '+esc(r.unitTest.score)+'점':''}${r.unitTest.pass?' · '+esc(r.unitTest.pass):''}${r.unitTest.inProgress?' <span style="color:#92400E;font-weight:700;">⏳진행중</span>':''}</div>`:(hasUtPendingOvr?`<div style="font-size:11px;color:#92400E;font-weight:700;line-height:1.4;white-space:nowrap;">⏳ 단원평가 진행중${s._utPendingNumber?' · '+esc(s._utPendingNumber):''}</div>`:'')}
-          ${hasReinforceNeededOvr?`<div style="font-size:11px;color:#7C3AED;font-weight:700;line-height:1.4;white-space:nowrap;" title="${escAttr(s._reinforceNote||'')}">📌 보충 필요${s._reinforceNote?' · '+esc(s._reinforceNote):''}</div>`:''}
+          ${hasReinforceNeededOvr?`<div style="font-size:11px;color:#7C3AED;line-height:1.45;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;min-width:200px;max-width:340px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:5px;padding:3px 6px;margin:2px 0;"><div style="font-weight:800;white-space:nowrap;">📌 보충 필요${s._reinforceMonth?` <span style="font-weight:600;font-size:10px;">(${esc(String(s._reinforceMonth))}월 월말평가)</span>`:''}</div>${s._reinforceNote?`<div style="font-weight:600;color:#5B21B6;">${esc(s._reinforceNote)}</div>`:''}</div>`:''}
           ${hasRetestOvr?`<div style="font-size:11px;color:#991B1B;font-weight:700;line-height:1.4;white-space:nowrap;">🔄 재시험 대상</div>`:''}
           ${!newBookArrOvr.length&&!meRec&&!r.unitTest&&!hasUtPendingOvr&&!hasReinforceNeededOvr&&!hasRetestOvr?'<span style="color:var(--muted);font-size:12px;">-</span>':''}
         </td>
